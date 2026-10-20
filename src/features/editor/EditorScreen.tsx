@@ -8,7 +8,7 @@ import { AiPanel } from "./AiPanel";
 import { DocView } from "./DocView";
 import { EditorHeader } from "./EditorHeader";
 import { FileTree } from "./FileTree";
-import { absolutePathOf, baseName, emptySession, encodingLabel, type Session } from "./editorLogic";
+import { absolutePathOf, baseName, emptySession, encodingLabel, neighborTab, type Session } from "./editorLogic";
 import { useEditor } from "./editorStore";
 import { QuickOpen } from "./QuickOpen";
 import { SearchPanel } from "./SearchPanel";
@@ -117,6 +117,26 @@ export function EditorScreen({ projectId }: { projectId: string }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [projectId]);
 
+  // Ctrl+Tab / Ctrl+PageDown で次のタブ、Shift 付き / Ctrl+PageUp で前のタブ。
+  // WebView が Ctrl+Tab を奪う場合に備えて PageUp/Down も受ける。CodeMirror 等に先に食われないよう capture で受ける
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.isComposing || e.keyCode === 229) return;
+      let delta: 1 | -1;
+      if (e.key === "Tab") delta = e.shiftKey ? -1 : 1;
+      else if (e.key === "PageDown" && !e.shiftKey) delta = 1;
+      else if (e.key === "PageUp" && !e.shiftKey) delta = -1;
+      else return;
+      e.preventDefault();
+      if (document.querySelector("dialog[open]") || document.querySelector(".quickopen")) return;
+      const st = useEditor.getState();
+      const next = neighborTab(st.sessions[projectId] ?? EMPTY, delta);
+      if (next) st.activateTab(projectId, next);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [projectId]);
+
   if (!project) return null;
 
   const color = languageColor(project.mainLanguage);
@@ -124,8 +144,19 @@ export function EditorScreen({ projectId }: { projectId: string }) {
   const proj = project.mainLanguage ? color : { bg: "var(--sky)", d: "var(--sky-d)" };
   const style = { "--proj": proj.bg, "--proj-d": proj.d, "--acc": proj.bg, "--acc-d": proj.d } as CSSProperties;
 
+  // ツリーとタブのメニューで共通のパスコピー
+  const copyPath = (relPath: string, absolute: boolean) => {
+    const text = absolute ? absolutePathOf(project.path, relPath) : relPath;
+    navigator.clipboard.writeText(text).then(
+      () => ed.notify("info", `${absolute ? "絶対" : "相対"}パスをコピーしました`),
+      () => ed.notify("error", "クリップボードにコピーできませんでした"),
+    );
+  };
+
   // --- 確認ダイアログの文面 ---
   const dirtyCount = session.tabs.filter((t) => t.draft !== null && t.draft !== t.baseline).length;
+  const closingDirty =
+    prompt?.kind === "closeTabs" ? session.tabs.filter((t) => prompt.relPaths.includes(t.relPath) && t.draft !== null && t.draft !== t.baseline).length : 0;
   const promptTitle =
     prompt?.kind === "reopen"
       ? `${baseName(prompt.relPath)} を ${encodingLabel(prompt.encoding)} で開き直しますか?`
@@ -203,13 +234,7 @@ export function EditorScreen({ projectId }: { projectId: string }) {
             onMove={(from, destDir) => ed.moveEntry(projectId, from, destDir)}
             onDuplicate={(entry) => ed.duplicateEntry(projectId, entry.relPath)}
             onDelete={(entry) => ed.requestDelete(projectId, entry.relPath, entry.kind)}
-            onCopyPath={(entry, absolute) => {
-              const text = absolute ? absolutePathOf(project.path, entry.relPath) : entry.relPath;
-              navigator.clipboard.writeText(text).then(
-                () => ed.notify("info", `${absolute ? "絶対" : "相対"}パスをコピーしました`),
-                () => ed.notify("error", "クリップボードにコピーできませんでした"),
-              );
-            }}
+            onCopyPath={(entry, absolute) => copyPath(entry.relPath, absolute)}
             onOpenInVscode={(relPath) => void ed.openInVscode(projectId, relPath)}
           />
         </div>
@@ -225,7 +250,14 @@ export function EditorScreen({ projectId }: { projectId: string }) {
       </aside>
 
       <main className="pagemain">
-        <TabBar session={session} onActivate={(p) => ed.activateTab(projectId, p)} onClose={(p) => ed.requestCloseTab(p)} />
+        <TabBar
+          session={session}
+          onActivate={(p) => ed.activateTab(projectId, p)}
+          onClose={(p) => ed.requestCloseTab(p)}
+          onCloseMany={(ps) => ed.requestCloseTabs(ps)}
+          onReorder={(p, at) => ed.reorderTab(projectId, p, at)}
+          onCopyPath={(p, absolute) => copyPath(p, absolute)}
+        />
         {activeTab?.external === "changed" && (
           <div className="ext-banner" role="status" data-kind="changed">
             このファイルは、ほかのアプリで変更されました。保存しようとすると確認が出ます(編集内容は残してあります)。
@@ -271,6 +303,8 @@ export function EditorScreen({ projectId }: { projectId: string }) {
           <p>開き直すと、保存していない変更は失われます。</p>
         ) : prompt?.kind === "closeTab" ? (
           <p>このファイルには、保存していない変更があります。</p>
+        ) : prompt?.kind === "closeTabs" ? (
+          <p>閉じるタブのうち {closingDirty} 件に、保存していない変更があります。</p>
         ) : (
           <p>保存していない変更が {dirtyCount} 件のファイルにあります。</p>
         )}
