@@ -15,22 +15,22 @@
 }
 .react-flow__attribution { font-size: 11px; color: var(--soft); border-radius: 8px 0 0 0; }
 .react-flow__attribution a { color: var(--soft); }
-.react-flow__node { cursor: var(--cursor-grab); }
-.react-flow__node.dragging { cursor: var(--cursor-grabbing); }
+/* 手のマークは使わない(環境によって光って見えるため)。掴める合図は、カードの浮き上がりと影(.card:hover)。 */
+.react-flow__node { cursor: default; }
+.react-flow__node.dragging { cursor: default; }
 .react-flow__node:focus-visible { outline: none; }
 .react-flow__node:focus-visible .card { box-shadow: var(--focus); }
 .react-flow__node.selected .card { box-shadow: 0 0 0 2px var(--acc-d, var(--sky-d)), var(--sh-up); }
 .react-flow__pane { cursor: default; }
-/* 背景は普通の矢印のまま(掴めるのはカードだけに見せる)。パン中だけ握る手 */
 .react-flow__pane.draggable { cursor: default; }
-.react-flow__pane.dragging { cursor: var(--cursor-grabbing); }
+.react-flow__pane.dragging { cursor: default; }
 .react-flow__viewport-portal { z-index: 5000; pointer-events: none; }
 
 .project-node { width: var(--card-w); }
 
 /* ドラッグ中(カードの移動・背景のパン)は、ポインタの下の子要素(編集欄=text、ボタン=pointer)に
-   カーソルを取られてチラつくので、body の目印で全要素を grabbing に揃える。Board.tsx が付け外しする。 */
-body.is-dragging-node, body.is-dragging-node * { cursor: var(--cursor-grabbing) !important; user-select: none !important; }
+   カーソルを取られてチラつくので、body の目印で全要素を矢印に揃える。Board.tsx が付け外しする。 */
+body.is-dragging-node, body.is-dragging-node * { cursor: default !important; user-select: none !important; }
 
 /* ===== 手書き(ペン) ===== */
 .pen-strokes { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }

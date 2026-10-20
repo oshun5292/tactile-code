@@ -80,8 +80,8 @@ export function Board() {
   }, []);
 
 
-  // --- ドラッグ中のカーソル: body に目印を付け、全要素のカーソルを grabbing に揃える ---
-  // カード内の編集欄(cursor:text)やボタン(pointer)が優先されて、手のマークがチラつくのを防ぐ。
+  // --- ドラッグ中のカーソル: body に目印を付け、全要素のカーソルを矢印に揃える ---
+  // カード内の編集欄(cursor:text)やボタン(pointer)が優先されて、カーソルがチラつくのを防ぐ。
   const setGrabbing = useCallback((on: boolean) => document.body.classList.toggle(GRABBING_CLASS, on), []);
   useEffect(() => {
     // Esc・ウィンドウ外・フォーカス喪失で終了イベントを取りこぼしても、目印が残り続けないようにする

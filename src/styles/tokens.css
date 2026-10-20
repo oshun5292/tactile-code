@@ -38,11 +38,3 @@
   --card-w: 420px;
   --focus: 0 0 0 3px var(--sky-d);
 }
-
-/* ===== カーソル(手のマーク) =====
-   OS標準の手は、環境によって光や影が付いて見える。アプリ側の絵(SVG)に固定して、どの環境でも同じ見た目にする。
-   白いカードの上で白く光って見えないよう、手の色は薄いベージュにする。読み込めない場合は標準のカーソルに戻る。 */
-:root {
-  --cursor-grab: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><g fill='%23f2dfbd' stroke='%232b2622' stroke-width='1.3' stroke-linejoin='round' stroke-linecap='round'><rect x='7.2' y='3.5' width='2.4' height='10' rx='1.2'/><rect x='10.6' y='2' width='2.4' height='11' rx='1.2'/><rect x='14' y='3' width='2.4' height='10' rx='1.2'/><path d='M7.2 12 L7.2 14 C7.2 18 9.5 21 12.2 21 C15 21 16.4 19 16.4 15.5 L16.4 12 Z'/><path d='M7.2 14.5 C5.5 13 4.2 13.5 4.4 15 C4.8 17 6.2 18.5 7.4 19'/></g></svg>") 12 12, grab;
-  --cursor-grabbing: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><g fill='%23f2dfbd' stroke='%232b2622' stroke-width='1.3' stroke-linejoin='round' stroke-linecap='round'><rect x='6.8' y='8.5' width='2.6' height='5.5' rx='1.3'/><rect x='10' y='7.5' width='2.6' height='5.5' rx='1.3'/><rect x='13.2' y='8' width='2.6' height='5.5' rx='1.3'/><path d='M6.8 12 L6.8 14.5 C6.8 18 9.2 20.5 11.8 20.5 C14.6 20.5 15.8 18.5 15.8 15 L15.8 12 Z'/></g></svg>") 12 12, grabbing;
-}
