@@ -1,0 +1,31 @@
+# --- 他人の著作物(Pinterestの参考画像)。公開リポジトリには上げない ---
+samples/reference/
+
+# --- 見本の確認用スクリーンショット(約100MB。再生成できる) ---
+samples/thumbs/
+
+# --- 旧プロトタイプ(最初に作った版。公開しない) ---
+prototype/
+
+# --- 依存・ビルド成果物 ---
+node_modules/
+dist/
+target/
+src-tauri/target/
+src-tauri/gen/
+
+# --- 秘密情報・環境ごとの設定 ---
+.env
+.env.*
+!.env.example
+
+# --- 一時ファイル・OS・エディタ ---
+*.log
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.claude/settings.local.json
+
+# --- 作業用の一時ファイル(見本の動作確認用など) ---
+samples/_t*.html

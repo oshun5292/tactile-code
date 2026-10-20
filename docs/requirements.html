@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>要件定義書 tactile code</title>
+<style>
+:root{
+  --bg:#fbf9f4; --panel:#fffffd; --ink:#34302b; --soft:#7d766b; --line:#e9e3d6; --bg2:#f5f1e8;
+  --sky:#d9e9fa; --sky-d:#4f8fd0; --mint:#d9efdc; --mint-d:#3b8a58; --butter:#fcf0c4; --butter-d:#a87f0a; --peach:#fddcd1; --peach-d:#c2553b; --lav:#e7defa; --lav-d:#7a5fc0;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#1d1b18; --panel:#26231f; --ink:#f0ebe0; --soft:#a79f90; --line:#3a352d; --bg2:#302c26;
+    --sky:#22384f; --sky-d:#86b8ea; --mint:#223a2a; --mint-d:#7cc79a; --butter:#44391a; --butter-d:#e8c65a; --peach:#4a2c24; --peach-d:#f0a08a; --lav:#35294f; --lav-d:#b9a2f0; }
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.8 "Zen Maru Gothic","Yu Gothic UI","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+.wrap{max-width:1040px;margin:0 auto;padding:0 22px 90px}
+header{padding:44px 0 6px}
+.eyebrow{font:12px/1 Consolas,"Cascadia Mono",monospace;color:var(--soft);letter-spacing:.06em}
+h1{font-size:34px;margin:10px 0 6px;letter-spacing:.02em;line-height:1.3}
+h1 small{font-size:15px;color:var(--soft);font-weight:400;margin-left:8px}
+.lead{margin:0;color:var(--soft)}
+h2{font-size:21px;margin:46px 0 12px;padding-bottom:8px;border-bottom:2px solid var(--line);scroll-margin-top:16px}
+h2 .n{font-family:Georgia,"Yu Mincho",serif;color:var(--soft);margin-right:10px;font-weight:400}
+h3{font-size:16px;margin:24px 0 8px}
+p{margin:8px 0}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 22px}
+.box>:first-child{margin-top:0}.box>:last-child{margin-bottom:0}
+ul,ol{margin:6px 0;padding-left:1.5em}
+li{margin:3px 0}
+.tag{display:inline-block;font-size:11.5px;font-weight:700;line-height:1.7;padding:0 9px;border-radius:99px;margin-right:6px;vertical-align:1px;white-space:nowrap}
+.t-dec{background:var(--sky);color:var(--sky-d)}      /* 決定(ユーザーが決めた) */
+.t-fact{background:var(--mint);color:var(--mint-d)}   /* 事実 */
+.t-unk{background:var(--butter);color:var(--butter-d)}/* 未確認 */
+.t-opn{background:var(--peach);color:var(--peach-d)}  /* 判断(私の提案) */
+.t-p1{background:var(--ink);color:var(--bg)}
+.t-p2{background:var(--lav);color:var(--lav-d)}
+.t-p3{background:var(--bg2);color:var(--soft)}
+table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;font-size:14px}
+th,td{padding:9px 14px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
+th{background:var(--bg2);font-size:12.5px;color:var(--soft);font-weight:700;letter-spacing:.04em;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td.id{font:12.5px Consolas,"Cascadia Mono",monospace;color:var(--soft);white-space:nowrap}
+code{font:12.5px Consolas,"Cascadia Mono",monospace;background:var(--bg2);padding:1px 7px;border-radius:6px}
+.toc{columns:2 280px;column-gap:30px}
+.toc a{text-decoration:none}.toc a:hover{text-decoration:underline}
+.toc li{break-inside:avoid}
+.legend{display:flex;gap:6px 18px;flex-wrap:wrap;font-size:13px;color:var(--soft);margin-top:10px}
+.note{font-size:13px;color:var(--soft)}
+.phase{display:grid;grid-template-columns:96px 1fr;gap:4px 16px;align-items:start}
+.phase .k{font:700 13px Consolas,monospace;color:var(--soft);padding-top:3px}
+.hr{height:1px;background:var(--line);margin:14px 0}
+.q{border-left:4px solid var(--peach-d);padding:2px 0 2px 14px;margin:12px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">REQUIREMENTS / v0.1 / 2026-10-20</div>
+  <h1>要件定義書<small>tactile code</small></h1>
+  <p class="lead">ビジュアルシンカーのための、ボード型のプロジェクトエディタ。見た目は「36 gentle-bento」で確定。</p>
+</header>
+
+<h2 id="purpose"><span class="n">0</span>目的</h2>
+<div class="box">
+  <p>この文書は、アプリを<b>何のために・誰のために・どこまで作るか</b>を決め、実装に入る前の共通認識にするためのものです。実装中に迷ったときは、まずここを見ます。コードが正になる(コードの内容・コメントが正しくなるよう開発する)ため、実装と食い違った場合は、文書側を直します。</p>
+  <div class="legend">
+    <span><span class="tag t-dec">決定</span>ユーザーが決めたこと</span>
+    <span><span class="tag t-fact">事実</span>出典を確認できたこと</span>
+    <span><span class="tag t-unk">未確認</span>確認できていないこと(調査報告のまま等)</span>
+    <span><span class="tag t-opn">判断</span>私の提案(承認待ち)</span>
+  </div>
+</div>
+
+<h2 id="toc"><span class="n">0</span>目次</h2>
+<div class="box">
+  <ul class="toc" style="list-style:none;padding-left:0">
+    <li><a href="#purpose">0　目的</a></li>
+    <li><a href="#toc">0　目次</a></li>
+    <li><a href="#goal">1　ゴールと範囲</a></li>
+    <li><a href="#users">2　利用者と利用シーン</a></li>
+    <li><a href="#decided">3　決定事項の一覧</a></li>
+    <li><a href="#fr">4　機能要件(MVP)</a></li>
+    <li><a href="#phases">5　段階計画(MVPのあと)</a></li>
+    <li><a href="#data">6　データ要件</a></li>
+    <li><a href="#arch">7　技術方針</a></li>
+    <li><a href="#nfr">8　非機能要件</a></li>
+    <li><a href="#ui">9　画面(UI)要件</a></li>
+    <li><a href="#open">10　未決事項とリスク</a></li>
+    <li><a href="#glossary">11　用語</a></li>
+  </ul>
+</div>
+
+<h2 id="goal"><span class="n">1</span>ゴールと範囲</h2>
+<h3>1.1 何を作るか</h3>
+<div class="box">
+  <p><span class="tag t-dec">決定</span>AIがコードを書く時代には、「コードの書きやすさ」より<b>「使い始めたいと思えるか」</b>が大事になる。そこで、ディレクトリを<b>プロジェクト</b>として記憶し、見た目を自分の好きな形に作れる<b>ボード</b>(自由配置・手書きで囲む・線でつなぐ)に置く。カードをクリックすると、従来どおりの<b>エディタ</b>が現れ、コーディングもできる。</p>
+  <p class="note">現状は、VSCode(CLI)をエディタ兼メモ帳として使っている。置き換えではなく、「毎日開く入口」になることを目指す。<span class="tag t-opn">判断</span></p>
+</div>
+<h3>1.2 MVPの範囲</h3>
+<table>
+  <tr><th>範囲</th><th>内容</th><th>根拠</th></tr>
+  <tr><td>作る</td><td>プロジェクトの登録と記憶、言語の自動検知、ボード(カード・自由配置・手書き)、エディタ(ファイルツリー・タブ・マークダウン・コード閲覧と編集)、色の共有</td><td><span class="tag t-dec">決定</span>MVP=ボード+エディタまで(AIなし)</td></tr>
+  <tr><td>作らない</td><td>AI会話、GitHub APIへの接続(PR・CI)、コードレビュー機能(差分・行コメント)、スマホ連携、複数人利用、アイコン選択</td><td><span class="tag t-dec">決定</span>AIは次段階 / <span class="tag t-dec">決定</span>レビューはPhase 2(Q1)</td></tr>
+</table>
+<h3>1.3 成功の目安</h3>
+<div class="box">
+  <ul>
+    <li><span class="tag t-opn">判断</span>自分のPCで、VSCodeを開く代わりに、このアプリを毎日開いて、プロジェクトを選べる。</li>
+    <li><span class="tag t-opn">判断</span>マークダウンのメモ(人生設計など)を、このアプリだけで書ける。</li>
+    <li><span class="tag t-opn">判断</span>コードを開いて、軽い編集ができる(重い作業は、必要ならVSCodeで開き直せる)。</li>
+  </ul>
+</div>
+
+<h2 id="users"><span class="n">2</span>利用者と利用シーン</h2>
+<div class="box">
+  <p><span class="tag t-dec">決定</span>まずは<b>自分だけ</b>(個人利用)。ログイン・課金・利用規約・サポートは、MVPの要件に含めない。公開したくなったら見直す。</p>
+  <p>利用者像: データエンジニア。Python(初級〜中級)、SQL(初級)、dbt・Snowflake・AWS(学習中)。用途は、人生設計のメモ、TypeScriptでの開発、Pythonでのデータ分析、Snowflake+dbt。</p>
+  <div class="hr"></div>
+  <p><b>主なシーン</b></p>
+  <ol>
+    <li>朝、アプリを開く。ボードに並んだプロジェクトのカードで、各プロジェクトの言語・最終更新・メモを眺める。</li>
+    <li>気になるカードをクリックして、エディタに入る。ファイルを開き、マークダウンやコードを編集して保存する。</li>
+    <li>Escでボードに戻り、手書きで囲んだり、カードを並べ替えたり、カードを線でつないだりして、頭の中を整理する。</li>
+    <li>新しいディレクトリを、フォルダ選択でプロジェクトとして追加する。</li>
+  </ol>
+</div>
+
+<h2 id="decided"><span class="n">3</span>決定事項の一覧</h2>
+<table>
+  <tr><th>項目</th><th>内容</th><th>区分</th></tr>
+  <tr><td>見た目</td><td><code>samples/36-gentle-bento.html</code> を確定版とする(32をベースに、34のカードの形)</td><td><span class="tag t-dec">決定</span></td></tr>
+  <tr><td>形態</td><td>デスクトップアプリ。Tauri v2(Rust+React/TypeScript)</td><td><span class="tag t-dec">決定</span></td></tr>
+  <tr><td>キャンバス</td><td>React Flow を使う</td><td><span class="tag t-dec">決定</span></td></tr>
+  <tr><td>設計の姿勢</td><td>コンポーネント化(使い回せる部品)、フロントエンドとバックエンドの分離</td><td><span class="tag t-dec">決定</span></td></tr>
+  <tr><td>MVPの範囲</td><td>ボード+エディタまで(AIなし)</td><td><span class="tag t-dec">決定</span></td></tr>
+  <tr><td>利用者</td><td>まず自分だけ(個人利用)</td><td><span class="tag t-dec">決定</span></td></tr>
+  <tr><td>記憶の場所</td><td>アプリ専用のローカルファイル(JSON)。増えたらSQLiteへ</td><td><span class="tag t-dec">決定</span></td></tr>
+  <tr><td>AIの方針</td><td>会話は Vercel AI SDK + OpenAI互換API(Gemini無料キー→Ollama)。開発エージェントは OpenCode。いずれも次段階</td><td><span class="tag t-dec">決定</span><span class="tag t-unk">未確認</span>調査報告ベース</td></tr>
+  <tr><td>画面の切り替え</td><td>ボード⇄エディタは、アニメーションなしで瞬時に切り替える</td><td><span class="tag t-dec">決定</span></td></tr>
+  <tr><td>カードの要素</td><td>番号(01など)、レビュー件数の大きな数字、進捗バーは<b>置かない</b></td><td><span class="tag t-dec">決定</span></td></tr>
+  <tr><td>カードの絵</td><td>利用者が選ぶ簡易アイコン方式(優先順位は低い)</td><td><span class="tag t-dec">決定</span></td></tr>
+  <tr><td>権限の扱い(AI段階)</td><td>AIが実行する操作は、アプリ内の確認ボタンで扱い、読み書きは指定フォルダ内に限定する</td><td><span class="tag t-dec">決定</span></td></tr>
+  <tr><td>名前・git管理</td><td>プロダクト名は「<b>tactile code</b>」。GitHubリポジトリ: <code>oshun5292/tactile-code</code>(2026-10-20 時点で<b>公開(PUBLIC)</b>、main ブランチに既存の内容あり)</td><td><span class="tag t-dec">決定</span><span class="tag t-fact">事実</span>(gh CLI で確認)</td></tr>
+</table>
+
+<h2 id="fr"><span class="n">4</span>機能要件(MVP)</h2>
+<p class="note">優先度: <span class="tag t-p1">必須</span>MVPに入れる ／ <span class="tag t-p2">できれば</span>余裕があれば ／ <span class="tag t-p3">次段階</span>MVPの外。 区分は、決定=ユーザーが決めた、判断=私の提案。</p>
+<table>
+  <tr><th>ID</th><th>機能</th><th>内容</th><th>優先度</th></tr>
+  <tr><td class="id">FR-01</td><td>プロジェクト登録</td><td>フォルダ選択ダイアログで、ディレクトリをプロジェクトとして追加。パスを記憶し、次回起動時に自動で復元する。削除(記憶から外すだけで、フォルダは消さない)ができる。</td><td><span class="tag t-p1">必須</span></td></tr>
+  <tr><td class="id">FR-02</td><td>言語の自動検知</td><td>フォルダ内のファイル拡張子から、使われている言語と割合を検知。上位の言語を内訳バーで見せ、<b>メイン言語</b>(最大の割合)を決める。除外: <code>.git</code> <code>node_modules</code> <code>dist</code> <code>target</code> <code>.venv</code> など。.gitignore に従う。</td><td><span class="tag t-p1">必須</span></td></tr>
+  <tr><td class="id">FR-03</td><td>プロジェクトカード</td><td>ボード上に、名前(ディレクトリ名)、パス、ブランチ、説明、ひと言メモ、最終更新、GitHub連携の状態、メイン言語の色と内訳バー、を表示する。<br>説明はREADMEの先頭行から取る(手入力で上書き可)。ひと言メモは手入力。最終更新はフォルダ内の最新のファイル更新(gitがあれば最終コミット)。</td><td><span class="tag t-p1">必須</span></td></tr>
+  <tr><td class="id">FR-04</td><td>GitHub連携の表示(ローカル情報)</td><td>ローカルの git 設定から、リモート(origin)のリポジトリ名、公開/非公開(判定できる場合)、ブランチ、未push/未pullの件数(取得済みの追跡情報を基準)を表示する。連携していないフォルダは「未連携・ローカルのみ」と表示。<b>PR件数・CIの状態は、GitHub APIが必要なため次段階。</b></td><td><span class="tag t-p1">必須</span>(ローカル情報のみ)</td></tr>
+  <tr><td class="id">FR-05</td><td>ボード操作</td><td>カードの自由配置(ドラッグ移動)、位置の保存、ズーム・パン、カード同士を線でつなぐ(コネクタ)。</td><td><span class="tag t-p1">必須</span></td></tr>
+  <tr><td class="id">FR-06</td><td>手書き</td><td>ペンで自由に描く(色の選択、取り消し、全消し)。描いたものはボードに保存され、次回も残る。丸囲み・下線は、ペンで描いたものとして扱う。</td><td><span class="tag t-p1">必須</span></td></tr>
+  <tr><td class="id">FR-07</td><td>エディタを開く</td><td>カードのクリックで、そのプロジェクトのエディタに切り替える(アニメーションなし)。Esc/戻るボタンでボードに戻る。</td><td><span class="tag t-p1">必須</span></td></tr>
+  <tr><td class="id">FR-08</td><td>ファイルツリーとタブ</td><td>プロジェクトのフォルダ構造をツリーで表示。ファイルをクリックでタブとして開く。複数タブ、閉じる、アクティブ表示。</td><td><span class="tag t-p1">必須</span></td></tr>
+  <tr><td class="id">FR-09</td><td>マークダウン編集</td><td>書く / 半分(左で書き、右でプレビュー)/ 読む の3モード。保存(Ctrl+S)。見出し・箇条書き・チェックリスト・コードブロックなどを表示。</td><td><span class="tag t-p1">必須</span></td></tr>
+  <tr><td class="id">FR-10</td><td>コードの閲覧・編集</td><td>行番号、シンタックスハイライト(TypeScript、Python、SQL、YAML、Rust、Markdown など)、保存。</td><td><span class="tag t-p1">必須</span></td></tr>
+  <tr><td class="id">FR-11</td><td>色の共有</td><td>プロジェクトのメイン言語の色を、エディタのヘッダー・タブ・ファイルツリー・見出しに引き継ぐ。ファイルのアイコン色は、拡張子ごとの言語色にする。</td><td><span class="tag t-p1">必須</span></td></tr>
+  <tr><td class="id">FR-12</td><td>ファイル操作</td><td>新規ファイル・フォルダの作成、名前の変更、削除(ゴミ箱へ)。</td><td><span class="tag t-p2">できれば</span></td></tr>
+  <tr><td class="id">FR-13</td><td>VSCodeで開く</td><td>プロジェクトを、外部のVSCodeで開くボタン。現状の習慣(VSCodeから始める)から、移行しやすくする。</td><td><span class="tag t-p2">できれば</span><span class="tag t-opn">判断</span></td></tr>
+  <tr><td class="id">FR-14</td><td>カードの簡易アイコン</td><td>プロジェクトごとに、用意した簡易アイコンから選ぶ。</td><td><span class="tag t-p3">次段階</span><span class="tag t-dec">決定</span>優先度は低い</td></tr>
+  <tr><td class="id">FR-15</td><td>ひと言メモ・説明の編集</td><td>カード上で、ひと言メモと説明を直接編集できる。</td><td><span class="tag t-p1">必須</span></td></tr>
+</table>
+
+<h2 id="phases"><span class="n">5</span>段階計画(MVPのあと)</h2>
+<div class="box">
+  <p class="note"><span class="tag t-opn">判断</span>順序は私の提案です。MVPのあと、使いながら見直します。</p>
+  <div class="phase">
+    <div class="k">Phase 1</div><div><b>MVP: ボード+エディタ</b>(上の FR-01〜FR-11, FR-15)</div>
+    <div class="k">Phase 2</div><div><b>コードレビューとGitHub状態</b>(レビューのPhase 2入りは<span class="tag t-dec">決定</span>): ローカルgitの差分表示、行コメント、GitHub APIでPR件数・CIの状態を取得</div>
+    <div class="k">Phase 3</div><div><b>AI会話</b>: プロジェクトごとの会話。AIの窓口(インターフェース)を設け、モデルを差し替え可能に。Vercel AI SDK + OpenAI互換API(Gemini無料キー、Ollama)</div>
+    <div class="k">Phase 4</div><div><b>開発エージェント</b>: OpenCode(必要ならACP)。アプリ内の確認ボタンで権限を扱い、読み書きは指定フォルダ内に限定</div>
+    <div class="k">Phase 5</div><div><b>スマホ連携</b>: PC側にサーバーを設けて、スマホから指示。(今は作らず、画面とAI実行部分の分離だけ守る)</div>
+  </div>
+</div>
+
+<h2 id="data"><span class="n">6</span>データ要件</h2>
+<div class="box">
+  <p><span class="tag t-dec">決定</span>保存先は、アプリ専用のローカルJSONファイル。Windowsでは、アプリのデータフォルダ(例: <code>%APPDATA%\アプリ名\</code>)に置く。</p>
+  <p><span class="tag t-opn">判断</span>保存するもの(案):</p>
+  <ul>
+    <li><b>projects</b>: id、パス、表示名、説明の上書き、ひと言メモ、ボード上の位置(x, y)と大きさ、追加日</li>
+    <li><b>edges</b>: カード同士のつなぎ(始点と終点のproject id)</li>
+    <li><b>strokes</b>: 手書きの線(座標の並び、色、太さ)</li>
+    <li><b>settings</b>: 画面の状態(ズーム位置など)、最後に開いたプロジェクト</li>
+    <li>全体に <code>schema_version</code> を持たせ、将来の形式変更に備える</li>
+  </ul>
+  <p><b>保存しないもの</b>: ファイルの中身(各プロジェクトのフォルダにあるものを直接読み書きし、アプリは複製しない)。言語の内訳、最終更新、gitの状態は、<b>毎回計算して取得</b>する(古くならないよう。重ければキャッシュ)。</p>
+  <p><span class="tag t-opn">判断</span>書き込みは「一時ファイルに書いてから置き換える」方式で、保存途中の破損を防ぐ。</p>
+  <p class="note">削除済みの概念: 「進捗%」と「レビュー件数の大きな数字」(カードから外したため、MVPのデータモデルには持たない)。</p>
+</div>
+
+<h2 id="arch"><span class="n">7</span>技術方針</h2>
+<div class="box">
+  <p class="note">この章の根拠の多くは、サブエージェントによる調査報告(2026-10-20)です。公式ドキュメントの再確認は、実装の開始時に行います。<span class="tag t-unk">未確認</span></p>
+</div>
+<table>
+  <tr><th>層</th><th>担当</th><th>区分</th></tr>
+  <tr><td>画面(React + TypeScript)</td><td>見た目、ボード(React Flow)、エディタの表示、画面の一時状態(Zustand)</td><td><span class="tag t-dec">決定</span>React Flow / <span class="tag t-opn">判断</span>Zustand</td></tr>
+  <tr><td>中核(Rust)</td><td>ファイルの読み書き、パスの検証(登録フォルダの外に出さない)、言語の検知、gitの情報取得、JSONの保存</td><td><span class="tag t-opn">判断</span></td></tr>
+  <tr><td>橋渡し</td><td>Tauriの <code>invoke</code>(依頼と応答)と <code>Channel</code>(順序つきの逐次データ)</td><td><span class="tag t-unk">未確認</span>調査報告。公式確認は実装開始時</td></tr>
+  <tr><td>AI実行(Phase 3以降)</td><td>Rust側の窓口(trait)の裏に隠し、実装を差し替え可能にする</td><td><span class="tag t-opn">判断</span></td></tr>
+</table>
+<div class="box" style="margin-top:14px">
+  <ul>
+    <li><span class="tag t-dec">決定</span>コンポーネント化と、フロント/バックエンドの分離。UI部品は再利用できる単位で作る(例: プロジェクトカード、言語バー、GitHubチップ、ファイルツリー、タブ、マークダウン表示)。</li>
+    <li><span class="tag t-opn">判断</span>画面から、ファイル操作やプロセス起動を直接行わない。必ずRustのcommandを経由する(将来のスマホ連携で、同じ窓口を再利用するため)。</li>
+    <li><span class="tag t-opn">判断</span>型の共有は、まず手書きのTS型で十分。(tauri-specta は調査時点でrc版のため、様子見)<span class="tag t-unk">未確認</span></li>
+    <li><span class="tag t-fact">事実</span>見た目の部品(36のHTML)は、HTML/CSSの試作です。Reactのコンポーネントとして作り直す前提で、CSS変数(色・書体)は、そのまま持ち込める設計になっている。(出典: <code>samples/36-gentle-bento.html</code>)</li>
+    <li><span class="tag t-opn">判断</span><b>コードエディタ部品</b>(Monaco か CodeMirror 6 など)は、未選定。選定には、サイズ、日本語入力(IME)、Tauriでの動作、見た目の調整のしやすさの調査が必要(<a href="#open">10</a>)。</li>
+  </ul>
+</div>
+
+<h2 id="nfr"><span class="n">8</span>非機能要件</h2>
+<table>
+  <tr><th>観点</th><th>要件</th><th>区分</th></tr>
+  <tr><td>動作環境</td><td>Windows 11(開発機: メモリ32GB、SSD 1TB)。macOS/Linuxは対象外</td><td><span class="tag t-dec">決定</span></td></tr>
+  <tr><td>起動と応答</td><td>起動から、ボードが見えるまで2秒以内を目標。クリックでエディタが開くまで0.3秒以内(アニメーションなし)</td><td><span class="tag t-opn">判断</span>目標値の案</td></tr>
+  <tr><td>大きなフォルダ</td><td>言語の検知は、画面を止めない(非同期)。結果はキャッシュする。ファイル数が1万を超えるフォルダでも、ボードは表示される</td><td><span class="tag t-opn">判断</span></td></tr>
+  <tr><td>安全性</td><td>ファイル操作は、登録したフォルダの内側に限定する(<code>../</code> などで外に出られない)。MVPは、外部ネットワークへの通信を行わない</td><td><span class="tag t-opn">判断</span></td></tr>
+  <tr><td>データ保護</td><td>JSONの書き込みは原子的に行う。編集中のファイルは、保存前に閉じると警告する</td><td><span class="tag t-opn">判断</span></td></tr>
+  <tr><td>オフライン</td><td>ネットワークなしで、全機能が動く。フォント(Fraunces、Zen Maru Gothic、JetBrains Mono)は、アプリに同梱する(試作はGoogle Fontsから読み込み)</td><td><span class="tag t-opn">判断</span></td></tr>
+  <tr><td>使いやすさ</td><td>文字のコントラストを十分に取る。Esc、Ctrl+S、タブ切り替えなど、キーボード操作に対応</td><td><span class="tag t-opn">判断</span></td></tr>
+  <tr><td>配布</td><td>自分のPCにインストールして使う(インストーラの配布や自動更新は、MVPの対象外)</td><td><span class="tag t-opn">判断</span></td></tr>
+</table>
+
+<h2 id="ui"><span class="n">9</span>画面(UI)要件</h2>
+<div class="box">
+  <p><span class="tag t-fact">事実</span>確定した見た目の見本: <code>samples/36-gentle-bento.html</code>(ボード、エディタ、色の共有)。ギャラリー: <code>samples/index.html</code>。</p>
+  <h3>9.1 ボード</h3>
+  <ul>
+    <li>左上: 「workspace / パス / N projects / week N」の小さな等幅ラベルと、大きな「Projects.」。右上: 自動検知した言語の凡例チップ。</li>
+    <li>カード: 白い角丸の面。上段に言語(色の点+名前+「自動検知」)と内訳バー。題名=ディレクトリ名、パス・ブランチ、説明、ひと言メモ、最終更新、GitHubチップ。小さな絵(簡易アイコン)。</li>
+    <li>配置: ベントー風に、大小を混ぜて自由に散らす(カードの大きさは、内容に応じて変えられる)。</li>
+    <li>手書き: ペンツールバー(ペン・色・戻す・消す)。細い線で、丸囲み・下線・コネクタ。</li>
+    <li>カードに置かないもの: 番号、レビュー件数の大きな数字、進捗バー。</li>
+  </ul>
+  <h3>9.2 エディタ</h3>
+  <ul>
+    <li>上部: 戻るボタン、ディレクトリ名、パス、言語バー、GitHubチップ、ブランチ、ひと言メモ(ボードのカードと同じ見た目の部品)。</li>
+    <li>3カラム: 左=ファイルツリー、中=タブ+本文(マークダウンは書く/半分/読む。コードは行番号付き)、右=AI会話の領域(MVPでは空、またはPhase 3の予告)。</li>
+    <li>色: プロジェクトのメイン言語色を、ヘッダー・タブ・ツリー・見出しに引き継ぐ。</li>
+  </ul>
+  <h3>9.3 見本からの変更点(MVP)</h3>
+  <ul>
+    <li>右側のAI会話の領域: MVPではAIがないため、「Phase 3で追加」の空き領域にするか、領域自体を畳める形にする(未決)。</li>
+    <li>見本のダミーデータ(進捗%、PR件数、CIの状態など)のうち、MVPで取得できないものは、表示しない(<a href="#fr">FR-04</a>)。</li>
+  </ul>
+</div>
+
+<h2 id="open"><span class="n">10</span>未決事項とリスク</h2>
+<table>
+  <tr><th>#</th><th>内容</th><th>私の提案(判断)</th></tr>
+  <tr><td class="id">Q1</td><td><b>コードレビュー(差分・行コメント)をいつ入れるか</b></td><td><span class="tag t-dec">決定</span>Phase 2。ローカルgitの差分表示から始める</td></tr>
+  <tr><td class="id">Q2</td><td><b>エディタ上部の「REVIEW」チップ</b></td><td><span class="tag t-dec">決定</span>消す(見本 <code>36-gentle-bento.html</code> は反映済み)</td></tr>
+  <tr><td class="id">Q3</td><td><b>コードエディタ部品の選定</b>(Monaco / CodeMirror 6)</td><td><span class="tag t-dec">決定</span>調査を実施済み。<span class="tag t-opn">判断</span><b>CodeMirror 6 を採用</b>(<span class="tag t-dec">決定</span>。理由: 軽い/テーマをCSS変数で調整しやすい/Jinja対応/差分部品あり)。次点Monaco。要試作確認: Tauri上の日本語入力、Jinja入りSQL、100KB級ファイル、アクセント色の切替、差分+行コメント内の日本語入力。<span class="tag t-unk">未確認</span>調査報告ベース</td></tr>
+  <tr><td class="id">Q4</td><td><b>右側のAI会話の領域</b>を、MVPでどう扱うか</td><td>空の領域として残さず、畳める形にする</td></tr>
+  <tr><td class="id">Q5</td><td><b>アプリの名前</b></td><td><span class="tag t-dec">決定</span>「tactile code」</td></tr>
+  <tr><td class="id">Q6</td><td><b>言語の検知ルール</b>(除外フォルダ、複数言語の扱い、.ipynbやYAMLなどの分類)</td><td>GitHubの言語判定(linguist)に近い、拡張子ベースの簡易方式から始める</td></tr>
+  <tr><td class="id">Q7</td><td><b>簡易アイコンの種類と選び方</b>(優先度は低い)</td><td>Phase 2以降に、10〜20種から選ぶ形で検討</td></tr>
+  <tr><td class="id">R1</td><td><span class="tag t-unk">未確認</span>React Flowの無料版の表示義務(ロゴ表示など)のライセンス</td><td>実装の開始時に、公式のライセンスを確認する</td></tr>
+  <tr><td class="id">R2</td><td><span class="tag t-unk">未確認</span>Windowsでの、プロセス終了・文字コード・パスに日本語やスペースを含む場合の挙動</td><td>実機で検証する(特にPhase 3以降)</td></tr>
+  <tr><td class="id">R3</td><td><span class="tag t-unk">未確認</span>AIの方針(Gemini無料枠の上限・規約、OpenCodeのWindows動作、ACPのリモート対応)</td><td>Phase 3の着手前に、再調査する</td></tr>
+  <tr><td class="id">R4</td><td><span class="tag t-unk">未確認</span>試作のボードは、ペン描画・ホバー・ドラッグ時の動きを、全て実機確認していない</td><td>実装後に、実機で確認する</td></tr>
+  <tr><td class="id">R5</td><td>試作(HTML)は静的な見本で、データはダミー。実際のカード情報(言語・git・最終更新)の取得には、実装が必要</td><td>FR-02〜FR-04 の取得処理を、早い段階で試作して確かめる</td></tr>
+</table>
+
+<h2 id="glossary"><span class="n">11</span>用語</h2>
+<table>
+  <tr><th>用語</th><th>意味</th></tr>
+  <tr><td>プロジェクト</td><td>アプリに登録したディレクトリ(フォルダ)。このアプリの基本単位</td></tr>
+  <tr><td>ボード</td><td>プロジェクトのカードを、自由に並べる画面</td></tr>
+  <tr><td>カード</td><td>ボード上の、プロジェクトを表す1枚の面</td></tr>
+  <tr><td>エディタ</td><td>カードをクリックして開く、ファイルツリー・タブ・本文・(将来)AI会話を持つ作業画面</td></tr>
+  <tr><td>メイン言語</td><td>プロジェクト内で、最も割合が大きい言語(色の元になる)</td></tr>
+  <tr><td>MVP</td><td>最小限で使い始められる、最初の版</td></tr>
+  <tr><td>窓口(インターフェース)</td><td>AIなどの外部機能を、同じ呼び方で差し替えられるようにする約束</td></tr>
+</table>
+
+</div>
+</body>
+</html>

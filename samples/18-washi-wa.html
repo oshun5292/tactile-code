@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>18 和綴じ帖</title>
+<meta name="ml-title" content="18 washi-wa ― 和紙と和綴じと判子">
+<meta name="ml-concept" content="藍の布の机に置いた、右綴じの和綴じ帖。プロジェクトは小さな冊子・帳面・千代紙・巻物・朱の札になって並び、落款(判子)が言語を表す。カードを開くとページが綴じ側へめくれ、朱の罫線のエディタが現れる。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700;800&family=Zen+Kurenaido&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* 配色: 藍(布・墨に次ぐ主役)/生成りの和紙/朱(罫・判子・差し色)/墨(文字)/金茶(糸・巻物の軸)。光は左上、影は右下に統一 */
+:root{
+  --ai:#24406b;        /* 藍 */
+  --ai-deep:#14243f;   /* 藍の影(机) */
+  --washi:#f4eddf;     /* 生成りの和紙 */
+  --shu:#c8402b;       /* 朱 */
+  --sumi:#23262c;      /* 墨 */
+  --kin:#b79a58;       /* 金茶(糸・軸) */
+  --f-head:"Shippori Mincho","Yu Mincho","Hiragino Mincho ProN","MS PMincho",serif;
+  --f-hand:"Zen Kurenaido","Yu Gothic","Hiragino Maru Gothic ProN",sans-serif;
+  --f-body:"Zen Kaku Gothic New","Yu Gothic UI","Hiragino Kaku Gothic ProN",Meiryo,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Consolas,"Cascadia Mono",monospace;
+  /* 和紙の地合い: 細かい粒+横に流れる繊維 */
+  --tex:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='300'><filter id='a'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' seed='4'/><feColorMatrix values='0 0 0 0 .35 0 0 0 0 .28 0 0 0 0 .18 0 0 0 .17 0'/></filter><filter id='f'><feTurbulence type='fractalNoise' baseFrequency='.012 .32' numOctaves='3' seed='9'/><feColorMatrix values='0 0 0 0 .55 0 0 0 0 .45 0 0 0 0 .28 0 0 0 .6 -.2'/></filter><rect width='100%' height='100%' filter='url(%23a)'/><rect width='100%' height='100%' filter='url(%23f)'/></svg>");
+  /* 青海波(机と千代紙) */
+  --sei:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='48' height='24'><g fill='%2316284a' stroke='%23fff' stroke-opacity='.13' stroke-width='1.2'><g><path d='M-4 12A20 20 0 0 1 44 12Z' transform='translate(0 -12)'/><path d='M-4 12A20 20 0 0 1 44 12Z' transform='translate(24 -12)'/></g><g><path d='M-24 24a24 24 0 0 1 48 0Z'/><path d='M0 24a24 24 0 0 1 48 0Z' transform='translate(24 0)'/><path d='M-24 24a18 18 0 0 1 36 0' fill='none' transform='translate(6 0)'/><path d='M-24 24a12 12 0 0 1 24 0' fill='none' transform='translate(12 0)'/></g></g></svg>");
+  --cloth:repeating-linear-gradient(0deg,rgba(255,255,255,.04) 0 1px,transparent 1px 3px),repeating-linear-gradient(90deg,rgba(0,0,0,.08) 0 1px,transparent 1px 3px);
+  --sh1:2px 3px 4px rgba(14,18,34,.3);
+  --sh2:10px 16px 26px rgba(8,12,26,.38);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--ai-deep);color:var(--sumi);font-family:var(--f-body)}
+svg.sym{position:absolute;width:0;height:0}
+.sei-bg{background:var(--sei),var(--ai-deep)}
+
+/* ================= ボード ================= */
+#board{position:absolute;inset:0;overflow:hidden;background:var(--cloth),var(--tex),radial-gradient(ellipse at 25% 15%,rgba(255,255,255,.1),transparent 55%),radial-gradient(ellipse at 60% 130%,rgba(0,0,0,.5),transparent 60%),var(--sei),var(--ai-deep)}
+.page{position:absolute;left:36px;top:26px;width:1368px;height:848px;border-radius:5px 3px 3px 5px;
+  background:var(--tex),radial-gradient(ellipse at 20% 10%,rgba(255,255,255,.55),transparent 55%),linear-gradient(95deg,#f7f1e4,var(--washi) 60%,#e9dfca);
+  box-shadow:0 0 0 1px rgba(0,0,0,.25),0 1px 0 rgba(255,255,255,.5) inset,var(--sh1),12px 18px 30px rgba(5,10,25,.4),34px 48px 80px rgba(5,10,25,.4)}
+/* 袋とじの背の丸み */
+.page::after{content:"";position:absolute;right:0;top:0;bottom:0;width:130px;border-radius:0 3px 3px 0;pointer-events:none;
+  background:linear-gradient(90deg,transparent,rgba(110,80,40,.1) 55%,rgba(60,40,20,.28) 92%,rgba(40,25,10,.4) 100%)}
+.kaku{position:absolute;left:62px;top:48px;width:1190px;height:752px;border:2px solid rgba(200,64,43,.7);outline:1px solid rgba(200,64,43,.55);outline-offset:-6px;pointer-events:none;border-radius:1px}
+.hashira{position:absolute;left:1262px;top:130px;height:640px;width:26px;writing-mode:vertical-rl;font:500 13px/26px var(--f-head);letter-spacing:.5em;color:#7b5a3d;pointer-events:none;text-align:center}
+.gyobi{position:absolute;left:1267px;top:84px;width:16px;height:30px}
+.binding{position:absolute;left:1308px;top:0;width:96px;height:848px;pointer-events:none;z-index:4}
+
+.ttl{position:absolute;left:100px;top:58px;margin:0;font:800 46px/1 var(--f-head);letter-spacing:.06em;color:var(--sumi);z-index:3}
+.sub-ttl{position:absolute;left:104px;top:116px;font:400 15px var(--f-hand);color:#5c4a38;letter-spacing:.08em;z-index:3}
+.ttl-seal{position:absolute;left:452px;top:46px;width:56px;transform:rotate(5deg);z-index:3;filter:drop-shadow(1px 1px 0 rgba(0,0,0,.12))}
+.tategaki{position:absolute;left:864px;top:96px;writing-mode:vertical-rl;font:400 20px/1.5 var(--f-hand);letter-spacing:.08em;color:#3a3228;z-index:3}
+.tategaki::before{content:"";position:absolute;right:-14px;top:0;bottom:0;border-right:1.5px solid var(--shu);opacity:.7}
+
+/* ----- 判子 ----- */
+svg.inkan{display:block;width:44px;height:44px;overflow:visible}
+
+/* ----- カード共通 ----- */
+.card{position:absolute;z-index:5;color:var(--sumi);cursor:pointer}
+.card h3{margin:0;font:800 21px/1.25 var(--f-head);letter-spacing:.04em}
+.card[data-dragging]{z-index:20}
+.chip{display:inline-flex;align-items:center;gap:6px;font:500 11.5px var(--f-mono);white-space:nowrap}
+.chip svg{width:12px;height:12px}
+.lang{display:inline-block;font:700 11.5px/1 var(--f-mono);padding:5px 9px 4px;border:1.5px solid currentColor;border-radius:2px;letter-spacing:.04em;white-space:nowrap}
+.meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin:10px 0 0}
+.upd{font:400 13px var(--f-hand);letter-spacing:.06em}
+.tag{position:absolute;z-index:6;background:var(--shu);color:#fff3e6;font:700 12px/1 var(--f-body);letter-spacing:.06em;padding:8px 12px 8px 22px;
+  clip-path:polygon(0 50%,9px 0,100% 0,100% 100%,9px 100%);box-shadow:var(--sh1)}
+.tag::before{content:"";position:absolute;left:9px;top:50%;width:6px;height:6px;margin-top:-3px;border-radius:50%;background:#7e2316;box-shadow:inset 0 1px 1px rgba(0,0,0,.5)}
+.tag b{font:800 15px var(--f-head);margin-left:2px}
+
+/* 1. todo-app : 藍染めの小さな和綴じ冊子 */
+.c1{width:290px;height:252px;transform:rotate(-2deg);padding:24px 54px 20px 22px;color:#f4eddf;border-radius:3px 6px 6px 3px;
+  background:var(--cloth),var(--tex),radial-gradient(ellipse at 15% 10%,rgba(255,255,255,.2),transparent 60%),linear-gradient(100deg,#2e4d7c,var(--ai) 55%,#1c3354);
+  box-shadow:0 0 0 1px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.2),var(--sh1),9px 14px 22px rgba(8,12,26,.4),
+    4px 3px 0 -1px #ece4d2,5px 4px 0 -1px rgba(0,0,0,.3),7px 6px 0 -2px #e3d9c3}
+.c1::before{content:"";position:absolute;inset:8px 8px 8px 8px;border:1px solid rgba(244,237,223,.35);border-radius:2px;pointer-events:none}
+.c1 .slip{position:relative;background:var(--tex),var(--washi);color:var(--sumi);padding:12px 10px 11px;margin:2px 0 0 0;box-shadow:0 0 0 1px rgba(0,0,0,.2),1px 2px 3px rgba(0,0,0,.35);transform:rotate(.8deg)}
+.c1 .slip h3{font-size:22px}
+.c1 .slip small{display:block;font:400 12px var(--f-hand);color:#6b5a48;margin-top:2px}
+.c1 .meta{margin-top:18px}
+.c1 .lang{color:#f4eddf}
+.c1 .upd{display:block;margin-top:12px;color:#c9d4e6}
+.c1 .inkan{position:absolute;left:20px;bottom:18px;width:42px;height:42px;transform:rotate(-6deg)}
+.c1 .stitch{position:absolute;right:6px;top:0;height:100%;width:40px}
+.c1 .tag{left:-14px;top:-14px;transform:rotate(-8deg)}
+
+/* 2. sales : 横長の大福帳(帳面) */
+.c2{width:388px;height:208px;transform:rotate(1.2deg);padding:20px 22px 16px 44px;border-radius:2px 5px 5px 2px;
+  background:var(--tex),repeating-linear-gradient(transparent 0 25px,rgba(200,64,43,.35) 25px 26px),linear-gradient(95deg,#f7f1e4,var(--washi));
+  box-shadow:0 0 0 1px rgba(0,0,0,.25),var(--sh1),9px 14px 22px rgba(8,12,26,.36),3px 2px 0 -1px #eee5d2,4px 3px 0 -1px rgba(0,0,0,.2)}
+.c2 .spine{position:absolute;left:0;top:0;bottom:0;width:26px;border-radius:2px 0 0 2px;background:var(--cloth),var(--tex),linear-gradient(90deg,#16294b,var(--ai));box-shadow:2px 0 4px rgba(0,0,0,.3)}
+.c2 .spine svg{position:absolute;left:0;top:0;width:26px;height:100%}
+.c2 .inner{position:relative;display:grid;grid-template-columns:1fr 108px;gap:0 12px}
+.c2 h3{background:rgba(244,237,223,.9);display:inline-block;padding:0 6px 0 0}
+.c2 .lang{color:var(--ai)}
+.c2 .chart{display:block;width:108px;height:94px;align-self:start;margin-top:6px}
+.c2 .tag{right:-12px;top:-14px;transform:rotate(4deg)}
+.c2 .upd{margin-top:6px;display:block;color:#5c4a38;background:rgba(244,237,223,.9);width:fit-content;padding-right:4px}
+
+/* 3. dbt : 千代紙の箱 */
+.c3{width:322px;height:236px;transform:rotate(1.6deg);padding:26px;border-radius:4px;
+  background:var(--sei),var(--ai-deep);
+  box-shadow:0 0 0 1px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.25),var(--sh1),10px 16px 24px rgba(8,12,26,.4)}
+.c3::before{content:"";position:absolute;inset:0;border-radius:4px;background:var(--tex);pointer-events:none;mix-blend-mode:screen;opacity:.35}
+.c3 .label{position:relative;height:100%;background:var(--tex),var(--washi);padding:16px 16px 12px;border-radius:2px;box-shadow:0 0 0 1px rgba(0,0,0,.35),0 0 0 4px rgba(244,237,223,.25),1px 2px 4px rgba(0,0,0,.4)}
+.c3 .lang{color:var(--shu)}
+.c3 .dag{display:block;width:100%;height:50px;margin-top:8px}
+.c3 .washitape{position:absolute;left:112px;top:-12px;width:104px;height:26px;transform:rotate(-3deg);z-index:2;
+  background:repeating-linear-gradient(90deg,rgba(200,64,43,.9) 0 7px,rgba(210,80,58,.8) 7px 14px);box-shadow:0 1px 3px rgba(0,0,0,.3);
+  clip-path:polygon(0 0,100% 0,97% 20%,100% 40%,97% 60%,100% 80%,97% 100%,0 100%,3% 80%,0 60%,3% 40%,0 20%)}
+.c3 .tag{right:-14px;bottom:30px;transform:rotate(-6deg)}
+
+/* 4. life-plan : 巻物 */
+.c4{width:470px;height:190px;transform:rotate(-1deg)}
+.c4 .body{position:absolute;left:22px;right:22px;top:0;bottom:0;padding:26px 22px 16px 24px;display:grid;grid-template-columns:96px 1fr;gap:0 14px;
+  background:var(--tex),linear-gradient(180deg,rgba(0,0,0,.14),transparent 14%,transparent 86%,rgba(0,0,0,.16)),linear-gradient(90deg,#efe6d3,#f6efe0 40%,#ece2cc);
+  box-shadow:var(--sh1),8px 14px 20px rgba(8,12,26,.35)}
+.c4 .body::before,.c4 .body::after{content:"";position:absolute;left:0;right:0;height:13px;background:var(--cloth),var(--tex),linear-gradient(180deg,#2d4b7a,var(--ai));box-shadow:0 1px 0 rgba(255,255,255,.2) inset,0 1px 2px rgba(0,0,0,.4)}
+.c4 .body::before{top:0}.c4 .body::after{bottom:0}
+.c4 .roll{position:absolute;top:-6px;bottom:-6px;width:26px;border-radius:5px;z-index:2;
+  background:linear-gradient(90deg,#3a2b1d,#8a6a45 30%,#c9a56d 45%,#8a6a45 62%,#2c2015);box-shadow:var(--sh1),5px 8px 12px rgba(8,12,26,.4)}
+.c4 .roll::before,.c4 .roll::after{content:"";position:absolute;left:-3px;right:-3px;height:9px;border-radius:4px;background:linear-gradient(90deg,#7c6030,var(--kin) 40%,#e6d29a 52%,#8a6d37)}
+.c4 .roll::before{top:-5px}.c4 .roll::after{bottom:-5px}
+.c4 .roll.l{left:0}.c4 .roll.r{right:0}
+.c4 .vt{writing-mode:vertical-rl;font:400 19px/1.55 var(--f-hand);letter-spacing:.2em;color:#3a3228;height:136px;align-self:center;border-right:1.5px solid var(--shu);padding-right:6px}
+.c4 .main{align-self:center}
+.c4 .lang{color:var(--ai)}
+.c4 .upd{display:block;margin-top:8px;color:#5c4a38}
+.c4 .tag{display:none}
+
+/* 5. memo-editor : 朱の札 */
+.c5{width:282px;height:346px;transform:rotate(2.2deg);padding:16px;border-radius:3px;
+  background:var(--tex),radial-gradient(ellipse at 20% 5%,rgba(255,255,255,.28),transparent 60%),linear-gradient(160deg,#d44a33,var(--shu) 50%,#a9301e);
+  box-shadow:0 0 0 1px rgba(60,10,5,.5),inset 0 1px 0 rgba(255,255,255,.3),var(--sh1),11px 17px 26px rgba(8,12,26,.42)}
+.c5 .inn{position:relative;height:100%;background:var(--tex),var(--washi);padding:16px 16px 12px;box-shadow:0 0 0 1px rgba(0,0,0,.25),inset 0 0 0 4px var(--washi),inset 0 0 0 5px rgba(200,64,43,.7)}
+.c5 .now{position:absolute;right:14px;top:18px;writing-mode:vertical-rl;font:800 22px/1.2 var(--f-head);letter-spacing:.3em;color:var(--shu)}
+.c5 .brush{display:block;width:104px;height:104px;margin:6px 0 4px 0}
+.c5 h3{font-size:23px;margin-top:2px}
+.c5 .lang{color:var(--shu)}
+.c5 .blurb{margin:10px 0 0;font:500 12.5px/1.65 var(--f-body);color:#3b342c}
+.c5 .meta{margin-top:10px}
+.c5 .seal-big{position:absolute;right:12px;bottom:12px;width:56px;height:56px;transform:rotate(-7deg)}
+.c5 .tag{display:none}
+.c5 .mizuhiki{position:absolute;right:-18px;top:-20px;width:84px;height:70px;z-index:6;transform:rotate(14deg);filter:drop-shadow(2px 3px 2px rgba(0,0,0,.3))}
+.c5 .tag.on{display:block;left:18px;bottom:-14px;top:auto;transform:rotate(-3deg)}
+
+/* ----- ヒント・ツール ----- */
+.hint{position:absolute;left:468px;top:648px;width:446px;z-index:3;padding:20px 20px 14px 22px;border:1.5px solid var(--sumi);border-radius:2px;background:rgba(244,237,223,.55)}
+.hint h4{position:absolute;left:16px;top:-13px;margin:0;background:var(--sumi);color:var(--washi);font:700 13px var(--f-head);padding:5px 14px;letter-spacing:.3em}
+.hint ol{margin:0;padding-left:1.6em;font:500 13px/1.9 var(--f-body);color:#2c2a27}
+.hint ol li::marker{font-family:var(--f-head);color:var(--shu);font-weight:800}
+.foot-note{position:absolute;left:104px;top:770px;font:400 17px var(--f-hand);color:#5c4a38;z-index:3;letter-spacing:.08em}
+.tools{position:absolute;left:944px;top:722px;width:318px;display:flex;align-items:center;gap:7px;z-index:30;padding:10px 12px;
+  background:var(--tex),var(--washi);border:1.5px solid var(--sumi);border-radius:3px;box-shadow:var(--sh1),5px 8px 12px rgba(8,12,26,.3)}
+.tools .lab{font:800 14px var(--f-head);letter-spacing:.2em;margin-right:2px}
+.tools button{font:700 12px var(--f-body);border:1.5px solid var(--sumi);background:#fffaf0;color:var(--sumi);border-radius:2px;padding:5px 9px;cursor:pointer}
+.tools button:hover{background:#fff}
+.tools button[aria-pressed=true]{background:var(--sumi);color:var(--washi)}
+.tools button[data-pen-color]{width:22px;height:22px;padding:0;border-radius:50%;box-shadow:inset 0 0 0 2px #fff6;}
+.tools button[data-pen-color][aria-pressed=true]{outline:2px solid var(--sumi);outline-offset:2px}
+.tools .sp{flex:1}
+
+/* ================= エディタ ================= */
+#editor{position:absolute;inset:0;overflow:hidden;background:var(--cloth),var(--tex),var(--sei),var(--ai-deep)}
+.epage{position:absolute;left:14px;top:12px;right:14px;bottom:14px;border-radius:5px 3px 3px 5px;
+  background:var(--tex),radial-gradient(ellipse at 15% 0,rgba(255,255,255,.5),transparent 55%),linear-gradient(95deg,#f7f1e4,var(--washi) 60%,#e9dfca);
+  box-shadow:0 0 0 1px rgba(0,0,0,.3),var(--sh1),10px 16px 28px rgba(5,10,25,.45)}
+.epage::after{content:"";position:absolute;right:0;top:0;bottom:0;width:110px;pointer-events:none;border-radius:0 3px 3px 0;background:linear-gradient(90deg,transparent,rgba(110,80,40,.1) 55%,rgba(40,25,10,.38))}
+.ebind{position:absolute;right:14px;top:12px;width:86px;height:calc(100% - 26px);pointer-events:none;z-index:2}
+.ewrap{position:absolute;left:34px;top:26px;right:106px;bottom:30px;display:grid;grid-template-columns:240px minmax(0,1fr) 336px;grid-template-rows:62px minmax(0,1fr);gap:0 14px;z-index:1}
+.eh{grid-column:1/4;display:flex;align-items:center;gap:14px;padding:0 2px 10px;border-bottom:2px solid var(--shu);margin-bottom:12px;position:relative}
+.eh::after{content:"";position:absolute;left:0;right:0;bottom:-6px;border-bottom:1px solid rgba(200,64,43,.7)}
+.back{flex:none;width:42px;height:42px;border-radius:50%;border:0;background:var(--shu);cursor:pointer;display:grid;place-items:center;box-shadow:inset 0 1px 0 rgba(255,255,255,.35),var(--sh1)}
+.back:hover{background:#d84b34}
+.back svg{width:22px;height:22px}
+.eh h2{margin:0;font:800 27px var(--f-head);letter-spacing:.06em;white-space:nowrap}
+.eh .lang{color:var(--shu);transform:rotate(-2deg);background:rgba(200,64,43,.06)}
+.eh .chip{border:1.5px solid rgba(35,38,44,.5);border-radius:2px;padding:4px 10px;color:#2c3a52}
+.eh .rv{font:700 12px var(--f-body);color:#fff3e6;background:var(--shu);padding:6px 12px;border-radius:2px;letter-spacing:.06em;box-shadow:var(--sh1)}
+.eh .rv b{font:800 14px var(--f-head);margin-left:2px}
+.eh .path{margin-left:auto;font:400 11.5px var(--f-mono);color:#6b5a48;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:34%}
+.pane{position:relative;min-height:0;display:flex;flex-direction:column;background:rgba(255,252,244,.55);border:1.5px solid var(--shu);border-radius:2px;overflow:hidden}
+.pane.mid{background:#fdfaf2;box-shadow:var(--sh1)}
+.pane-h{flex:none;display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px;padding:12px 16px 9px;font:800 14px var(--f-head);letter-spacing:.25em;color:var(--sumi);border-bottom:1px solid rgba(200,64,43,.55);background:rgba(200,64,43,.05)}
+.pane-h::before{content:"";width:8px;height:8px;background:var(--shu);transform:rotate(45deg);align-self:center;margin-right:2px}
+.pane-h small{font:500 11px/1.4 var(--f-body);color:#6b5a48;letter-spacing:0}
+[data-slot=tree]{flex:1;min-height:0;overflow:auto;padding:8px 10px 16px}
+.ml-tree-dirname,.ml-tree-file{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:2px;font:500 13px var(--f-body);color:#2a2724}
+.ml-tree-file:hover,.ml-tree-dirname:hover{background:rgba(36,64,107,.09)}
+.ml-tree-file[data-active]{background:var(--ai);color:#fff;box-shadow:inset 3px 0 0 var(--shu)}
+.ml-tree-children{margin-left:14px;padding-left:6px;border-left:1px solid rgba(200,64,43,.55)}
+.ml-ico{width:20px;height:20px;border-radius:2px;border:1.2px solid #8a7a66;background:#fffaf0;position:relative;font:700 8.5px/17px var(--f-mono);text-align:center;color:#4a4036;flex:none}
+.ml-ico[data-kind=dir]{background:var(--kin);border-color:#8a6d37;border-radius:2px 6px 2px 2px}
+.ml-ico[data-kind=md]::before{content:"M"}.ml-ico[data-kind=ts]::before{content:"TS"}.ml-ico[data-kind=py]::before{content:"Py"}.ml-ico[data-kind=sql]::before{content:"SQ"}
+.ml-ico[data-kind=yaml]::before{content:"Y"}.ml-ico[data-kind=rs]::before{content:"Rs"}.ml-ico[data-kind=diff]::before{content:"±";color:#fff}.ml-ico[data-kind=file]::before{content:"・"}
+.ml-ico[data-kind=diff]{background:var(--shu);border-color:#8e2616}
+.ml-tree-file[data-active] .ml-ico{border-color:#fff}
+[data-slot=tabs]{flex:none;display:flex;gap:3px;padding:9px 12px 0;background:rgba(200,64,43,.05);border-bottom:1.5px solid var(--shu);overflow:hidden}
+.ml-tab{display:flex;align-items:center;gap:8px;padding:7px 12px 7px;font:500 12.5px var(--f-body);border:1.5px solid rgba(200,64,43,.5);border-bottom:0;border-radius:3px 3px 0 0;background:#efe6d2;color:#6b5a48;margin-bottom:-1.5px;white-space:nowrap}
+.ml-tab[data-active]{background:#fdfaf2;color:var(--sumi);font-weight:700;border-color:var(--shu);box-shadow:inset 0 3px 0 var(--shu)}
+.ml-tab-close{opacity:.5;font-size:14px;line-height:1}
+.ml-tab-close:hover{opacity:1;color:var(--shu)}
+[data-slot=doc]{flex:1;min-height:0;display:flex;flex-direction:column}
+.ml-doc{flex:1;min-height:0;display:flex;flex-direction:column}
+.ml-doc-bar{flex:none;padding:8px 14px;border-bottom:1px solid rgba(200,64,43,.35);background:#f6efde}
+.ml-doc-path{font:500 12px var(--f-mono);color:#6b5a48}
+.ml-mode{font:700 11.5px var(--f-body);border:1.5px solid var(--ai);background:#fffaf0;border-radius:2px;padding:3px 12px;cursor:pointer;color:var(--ai)}
+.ml-mode[data-active]{background:var(--ai);color:#fff}
+.ml-md{flex:1;min-height:0;overflow:hidden}
+.ml-md-src{height:100%;padding:20px 22px;font:400 13px/1.85 var(--f-mono);color:#262b33;background:#fffdf7;border-right:1.5px solid var(--shu)!important;overflow:auto}
+.ml-md-out{height:100%;overflow:auto;padding:22px 34px 32px;font:400 14.5px/1.95 var(--f-body);color:#262320;background:#fffdf7;background-image:linear-gradient(90deg,transparent 18px,rgba(200,64,43,.5) 18px,rgba(200,64,43,.5) 19px,transparent 19px)}
+.ml-md-out h1{font:800 28px/1.3 var(--f-head);letter-spacing:.06em;margin:0 0 12px;padding-bottom:8px;border-bottom:2px solid var(--shu);position:relative}
+.ml-md-out h1::after{content:"";position:absolute;left:0;bottom:-6px;width:100%;border-bottom:1px solid rgba(200,64,43,.7)}
+.ml-md-out h2{font:800 18px/1.4 var(--f-head);letter-spacing:.1em;margin:26px 0 8px;padding-left:20px;position:relative}
+.ml-md-out h2::before{content:"";position:absolute;left:0;top:.5em;width:10px;height:10px;background:var(--shu);transform:rotate(45deg)}
+.ml-md-out h3{font:700 15px var(--f-head);margin:18px 0 4px;color:var(--ai);letter-spacing:.06em}
+.ml-md-out p{margin:6px 0}
+.ml-md-out ul:not(.ml-tasks),.ml-md-out ol{margin:6px 0 8px;padding-left:0;list-style:none;counter-reset:n}
+.ml-md-out ul:not(.ml-tasks) li,.ml-md-out ol li{position:relative;padding-left:24px;counter-increment:n}
+.ml-md-out ul:not(.ml-tasks) li::before{content:"";position:absolute;left:6px;top:.8em;width:7px;height:7px;background:var(--shu);transform:rotate(45deg)}
+.ml-md-out ol li::before{content:counter(n);position:absolute;left:0;top:.45em;width:20px;height:20px;border:1.5px solid var(--shu);color:var(--shu);border-radius:50%;font:800 11px/17px var(--f-head);text-align:center}
+.ml-tasks li{padding:2px 0}
+.ml-check{width:17px!important;height:17px!important;border:1.8px solid var(--ai)!important;border-radius:2px!important;background:#fffaf0;color:#fff;vertical-align:-3px!important;font-size:12px!important}
+.ml-task[data-done=true] .ml-check{background:var(--shu);border-color:var(--shu)!important}
+.ml-task[data-done=true]{color:#7b6f60}
+.ml-md-out blockquote{margin:14px 0;padding:10px 18px;background:rgba(36,64,107,.07);border-left:4px solid var(--ai);font-weight:500;font-family:var(--f-head);letter-spacing:.04em}
+.ml-md-out code{font:500 .88em var(--f-mono);background:#efe6d2;padding:1px 6px;border-radius:2px;color:#7e2316}
+.ml-md-out hr{border:0;border-top:1px dashed var(--shu);margin:20px 0}
+.ml-md-out pre.ml-pre{background:#f3ecdc;border:1px solid #cdbf9f;border-left:4px solid var(--ai);border-radius:2px;padding:12px 16px;font:400 12.5px/1.7 var(--f-mono);overflow:auto;color:#262b33}
+.ml-md-out pre code{background:none;padding:0;color:inherit}
+.ml-code,.ml-md-src,.ml-pre{font-variant-ligatures:none}
+.ml-code{flex:1;min-height:0;padding:10px 0 24px;font:400 13px/1.75 var(--f-mono);background:#fffdf7;color:#22262c}
+.ml-line{min-height:1.75em}
+.ml-ln{color:#9a8b74;font-size:12px;border-right:1px solid rgba(200,64,43,.55);margin-right:.7em;background:#f6efde}
+.ml-ln:hover{color:var(--shu);font-weight:700}
+.ml-sign{color:#8a7c68}
+.ml-src{flex:1}
+.ml-line[data-k=add]{background:#e1efd9}.ml-line[data-k=add] .ml-ln{background:#cfe4c4;color:#2b5e30}.ml-line[data-k=add] .ml-sign{color:#2b7a34;font-weight:700}
+.ml-line[data-k=del]{background:#f8ddd4}.ml-line[data-k=del] .ml-ln{background:#f1c6b9;color:#9a3a26}.ml-line[data-k=del] .ml-sign{color:#c0391b;font-weight:700}
+.ml-line[data-k=hunk]{background:#e9eef5;color:#4c5f7d;font-style:italic;border-block:1px dashed #b6c2d6}
+.tk-kw{color:#b33a24;font-weight:700}.tk-str{color:#2f6a4a}.tk-com{color:#8a8070;font-style:italic}.tk-num{color:#8a5a14}.tk-fn{color:#24508f}.tk-meta{color:#6b3f8a}
+.ml-comment{position:relative;margin:6px 14px 8px 84px;padding:9px 14px 9px 16px;background:#fbf0d4;border:1.5px solid var(--kin);border-left:4px solid var(--shu);border-radius:2px;font:500 12.5px/1.65 var(--f-body);color:var(--sumi);box-shadow:var(--sh1)}
+.ml-comment[data-who=me]{background:#e7edf6;border-color:#8ea4c6;border-left-color:var(--ai)}
+.ml-comment-who{flex:none;background:var(--shu);color:#fff;font:700 10px var(--f-mono);padding:2px 8px;border-radius:2px}
+.ml-comment[data-who=me] .ml-comment-who{background:var(--ai)}
+.ml-chat{background:transparent}
+.ml-chat-log{padding:10px 14px 10px;display:flex;flex-direction:column;gap:12px}
+.ml-msg{max-width:93%;font:500 13px/1.75 var(--f-body)}
+.ml-msg-body{padding:10px 14px;border:1.5px solid var(--shu);background:#fffaf0;border-radius:2px 12px 12px 12px;box-shadow:var(--sh1);white-space:pre-wrap}
+.ml-msg[data-role=user]{align-self:flex-end}
+.ml-msg[data-role=user] .ml-msg-body{background:var(--ai);border-color:var(--ai-deep);color:#f4eddf;border-radius:12px 2px 12px 12px}
+.ml-perm{margin-top:10px;border:1.5px dashed var(--shu);border-radius:2px;padding:10px 12px;background:#fdf1e0;font-size:12.5px}
+.ml-perm-title{font:800 12px var(--f-head);letter-spacing:.12em;margin-bottom:6px;color:var(--shu)}
+.ml-perm-cmd{display:block;font:500 12px var(--f-mono);background:var(--sumi);color:#f1e9d5;padding:6px 10px;border-radius:2px}
+.ml-perm-row{display:flex;gap:8px;margin-top:8px}
+.ml-perm-row button{font:700 12px var(--f-body);border:1.5px solid var(--sumi);border-radius:2px;padding:4px 14px;cursor:pointer;background:#fffaf0}
+.ml-perm-ok{background:var(--shu)!important;color:#fff;border-color:#8e2616!important}
+.ml-chat-form{flex:none;padding:10px 12px 12px;border-top:1.5px solid var(--shu);background:rgba(200,64,43,.05);align-items:flex-end}
+.ml-chat-form textarea{font:500 13px/1.5 var(--f-body);border:1.5px solid #8a7a66;border-radius:2px;padding:8px 10px;background:#fffdf7;outline:0;color:var(--sumi)}
+.ml-chat-form textarea:focus{border-color:var(--shu);box-shadow:0 0 0 3px rgba(200,64,43,.18)}
+.ml-send{font:800 13px var(--f-head);letter-spacing:.2em;background:var(--shu);color:#fff;border:0;border-radius:2px;padding:10px 14px;cursor:pointer;box-shadow:inset 0 1px 0 rgba(255,255,255,.3),var(--sh1)}
+.ml-empty{padding:30px;color:#7b6f60}
+
+/* ================= 切り替え: 右綴じの頁を綴じ側(右)へめくる ================= */
+#board{transform-origin:calc(100% - 96px) 50%;transition:transform .95s cubic-bezier(.6,.05,.25,1),filter .95s ease,opacity 0s linear 0s}
+#editor{transition:opacity 0s linear 0s,transform .95s cubic-bezier(.3,.1,.2,1),filter .95s}
+body[data-view=board] #editor{opacity:0;transform:scale(.985);filter:brightness(.78)}
+body[data-view=editor] #editor{opacity:1;transform:none;filter:none}
+body[data-view=board] #board{opacity:1;transform:none;filter:none}
+body[data-view=editor] #board{opacity:0;transform:perspective(2600px) rotateY(112deg);filter:brightness(.6);transition:transform .95s cubic-bezier(.6,.05,.25,1),filter .95s ease,opacity 0s linear .93s}
+body[data-view=board] #editor{transition:opacity 0s linear .95s,transform .95s ease,filter .95s}
+.ml-about{font-family:var(--f-body)}
+</style>
+</head>
+<body data-view="board">
+
+<svg class="sym" aria-hidden="true">
+  <defs>
+    <filter id="rough" x="-8%" y="-8%" width="116%" height="116%">
+      <feTurbulence type="fractalNoise" baseFrequency=".05" numOctaves="2" seed="2" result="w"/>
+      <feDisplacementMap in="SourceGraphic" in2="w" scale="2.8" result="d"/>
+      <feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="2" seed="7" result="n"/>
+      <feColorMatrix in="n" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  3.2 0 0 0 -.88" result="m"/>
+      <feComposite in="d" in2="m" operator="in"/>
+    </filter>
+    <symbol id="i-branch" viewBox="0 0 16 16"><circle cx="4" cy="3.5" r="1.9" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="4.2" cy="12.6" r="1.9" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="5.2" r="1.9" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M4 5.5C4.3 8 3.9 9.5 4.2 10.6M12 7.1C11.9 9.2 8.3 8.6 4.6 10.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+    <!-- 綴じ糸(右綴じ 四つ目): 穴と糸が背をまたぐ -->
+    <symbol id="stitches" viewBox="0 0 96 848">
+      <g fill="none" stroke-linecap="round">
+        <g stroke="#3a2a10" stroke-width="6" opacity=".35" transform="translate(2 3)">
+          <path d="M44 96V312M44 392V456M44 536V752"/><path d="M44 96H96M44 312H96M44 392H96M44 456H96M44 536H96M44 752H96"/>
+        </g>
+        <g stroke="#a8272a" stroke-width="5">
+          <path d="M44 96V312M44 392V456M44 536V752"/><path d="M44 96H96M44 312H96M44 392H96M44 456H96M44 536H96M44 752H96"/>
+        </g>
+        <g stroke="#e0705a" stroke-width="1.6" opacity=".75">
+          <path d="M42.4 100V308M42.4 396V452M42.4 540V748"/><path d="M48 94.5H94M48 310.5H94M48 390.5H94M48 454.5H94M48 534.5H94M48 750.5H94"/>
+        </g>
+      </g>
+      <g>
+        <circle cx="44" cy="96" r="6.5" fill="#3b2a18"/><circle cx="44" cy="312" r="6.5" fill="#3b2a18"/><circle cx="44" cy="392" r="6.5" fill="#3b2a18"/>
+        <circle cx="44" cy="456" r="6.5" fill="#3b2a18"/><circle cx="44" cy="536" r="6.5" fill="#3b2a18"/><circle cx="44" cy="752" r="6.5" fill="#3b2a18"/>
+        <g fill="#a8272a" stroke="#6e1a1c" stroke-width="1"><circle cx="44" cy="96" r="4"/><circle cx="44" cy="312" r="4"/><circle cx="44" cy="392" r="4"/><circle cx="44" cy="456" r="4"/><circle cx="44" cy="536" r="4"/><circle cx="44" cy="752" r="4"/></g>
+      </g>
+      <!-- 角裂(背の角を守る布) -->
+      <path d="M62 0H96V54H70Q62 54 62 46Z" fill="#24406b" opacity=".9"/><path d="M62 848H96V794H70Q62 794 62 802Z" fill="#24406b" opacity=".9"/>
+      <path d="M62 0H96V54H70Q62 54 62 46Z M62 848H96V794H70Q62 794 62 802Z" fill="none" stroke="#c9d4e6" stroke-opacity=".35" stroke-width="1" stroke-dasharray="3 4"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div id="board">
+  <div class="page">
+    <div class="kaku"></div>
+    <div class="hashira">プロジェクト帖 ・ 壱 ノ 巻</div>
+    <svg class="gyobi" viewBox="0 0 16 30" fill="#c8402b"><path d="M8 2C3 6 3 12 8 15 13 12 13 6 8 2Z" opacity=".85"/><path d="M8 28C3 24 3 18 8 15 13 18 13 24 8 28Z" opacity=".55"/></svg>
+    <svg class="binding"><use href="#stitches"/></svg>
+  </div>
+
+  <h1 class="ttl">プロジェクト帖</h1>
+  <div class="sub-ttl">五つの案件 ― なぞって、結んで、のこす</div>
+  <svg class="ttl-seal inkan" viewBox="0 0 48 48"><g filter="url(#rough)"><rect x="3" y="3" width="42" height="42" rx="2" fill="#c8402b"/><rect x="7" y="7" width="34" height="34" fill="none" stroke="#f4eddf" stroke-width="1.6"/><text x="24" y="35" text-anchor="middle" font-family="Shippori Mincho,Yu Mincho,serif" font-weight="800" font-size="27" fill="#f4eddf">帖</text></g></svg>
+  <div class="tategaki">つなぐ・まとめる・のこす</div>
+  <div class="foot-note">― 綴じ糸の側へ、頁がめくれます</div>
+
+  <div class="hint">
+    <h4>つかいかた</h4>
+    <ol>
+      <li>札・冊子をクリックで<b>頁をめくり</b>、エディタへ</li>
+      <li>右の<b>ペン</b>で、囲んだり線で結んだりできる</li>
+      <li>エディタでは <b>Esc</b> でこの帖に戻る</li>
+    </ol>
+  </div>
+
+  <svg id="deco"></svg>
+
+  <!-- 1 todo-app : 和綴じの小冊子 -->
+  <article class="card c1" data-project="todo-app" data-drag style="left:96px;top:176px">
+    <svg class="stitch" viewBox="0 0 40 252" preserveAspectRatio="none"><g fill="none" stroke-linecap="round"><path d="M20 34V104M20 150V218" stroke="#3a2a10" stroke-width="5" opacity=".4" transform="translate(1.5 2)"/><path d="M20 34V104M20 150V218M20 34H40M20 104H40M20 150H40M20 218H40" stroke="#c8402b" stroke-width="3.6"/><path d="M18.8 38V100M18.8 154V214" stroke="#f08a70" stroke-width="1.2" opacity=".7"/></g><g fill="#14243f"><circle cx="20" cy="34" r="4"/><circle cx="20" cy="104" r="4"/><circle cx="20" cy="150" r="4"/><circle cx="20" cy="218" r="4"/></g></svg>
+    <div class="slip"><h3>ToDoアプリ</h3><small>タスクの管理帖</small></div>
+    <p class="meta"><span class="lang">TypeScript</span><span class="chip"><svg><use href="#i-branch"/></svg>feat/toggle-done</span></p>
+    <span class="upd">最終更新 10/18</span>
+    <svg class="inkan" viewBox="0 0 48 48"><g filter="url(#rough)"><rect x="3" y="3" width="42" height="42" rx="2" fill="#c8402b"/><text x="24" y="36" text-anchor="middle" font-family="Shippori Mincho,Yu Mincho,serif" font-weight="800" font-size="32" fill="#f4eddf">型</text></g></svg>
+    <span class="tag">レビュー <b>2</b></span>
+  </article>
+
+  <!-- 2 sales-analysis : 大福帳 -->
+  <article class="card c2" data-project="sales-analysis" data-drag style="left:440px;top:132px">
+    <div class="spine"><svg viewBox="0 0 26 208" preserveAspectRatio="none"><g fill="none" stroke="#c8402b" stroke-width="3.4" stroke-linecap="round"><path d="M13 24V84M13 124V184"/><path d="M13 24H26M13 84H26M13 124H26M13 184H26" /></g><g fill="#0c1a30"><circle cx="13" cy="24" r="3.6"/><circle cx="13" cy="84" r="3.6"/><circle cx="13" cy="124" r="3.6"/><circle cx="13" cy="184" r="3.6"/></g></svg></div>
+    <div class="inner">
+      <div><h3>売上データ分析</h3>
+        <p class="meta"><span class="lang">Python</span><span class="chip"><svg><use href="#i-branch"/></svg>main</span></p>
+        <span class="upd">最終更新 10/15</span>
+        <span class="upd" style="font-family:var(--f-body);font-size:12px;color:#7e2316;margin-top:8px">月別推移・前年比</span></div>
+      <svg class="chart" viewBox="0 0 108 94" fill="none" stroke="#23262c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 86H104M6 86V8"/><g fill="#24406b" fill-opacity=".8"><path d="M14 86V60H26V86Z"/><path d="M32 86V46H44V86Z"/><path d="M50 86V54H62V86Z"/><path d="M68 86V30H80V86Z"/><path d="M86 86V38H98V86Z"/></g><path d="M12 52L30 36 48 46 74 18 96 26" stroke="#c8402b" stroke-width="2.6"/><circle cx="74" cy="18" r="3.4" fill="#c8402b" stroke="none"/></svg>
+    </div>
+    <span class="tag">レビュー <b>1</b></span>
+    <svg class="inkan" style="position:absolute;right:16px;bottom:10px;width:34px;height:34px;transform:rotate(8deg)" viewBox="0 0 48 48"><g filter="url(#rough)"><rect x="3" y="3" width="42" height="42" rx="2" fill="#c8402b"/><text x="24" y="36" text-anchor="middle" font-family="Shippori Mincho,Yu Mincho,serif" font-weight="800" font-size="32" fill="#f4eddf">数</text></g></svg>
+  </article>
+
+  <!-- 3 dbt-snowflake : 千代紙の箱 -->
+  <article class="card c3" data-project="dbt-snowflake" data-drag style="left:130px;top:480px">
+    <i class="washitape"></i>
+    <div class="label">
+      <h3>dbt × Snowflake</h3>
+      <p class="meta" style="margin-top:8px"><span class="lang">SQL / dbt</span><span class="chip"><svg><use href="#i-branch"/></svg>main</span></p>
+      <svg class="dag" viewBox="0 0 280 50" fill="none" stroke="#23262c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g fill="#fffaf0"><rect x="4" y="6" width="54" height="16" rx="2"/><rect x="4" y="28" width="54" height="16" rx="2"/><rect x="110" y="17" width="54" height="16" rx="2"/><rect x="214" y="17" width="58" height="16" rx="2" fill="#c8402b" stroke="#7e2316"/></g><path d="M58 14C84 14 84 25 110 25M58 36C84 36 84 25 110 25M164 25H214"/><path d="M208 20L214 25 208 30"/></svg>
+      <span class="upd" style="position:absolute;left:16px;bottom:10px;color:#5c4a38">最終更新 10/12</span>
+      <svg class="inkan" style="position:absolute;right:12px;bottom:8px;width:34px;height:34px;transform:rotate(-5deg)" viewBox="0 0 48 48"><g filter="url(#rough)"><rect x="3" y="3" width="42" height="42" rx="2" fill="#c8402b"/><text x="24" y="36" text-anchor="middle" font-family="Shippori Mincho,Yu Mincho,serif" font-weight="800" font-size="32" fill="#f4eddf">層</text></g></svg>
+    </div>
+    <span class="tag">レビュー <b>1</b></span>
+  </article>
+
+  <!-- 4 life-plan : 巻物 -->
+  <article class="card c4" data-project="life-plan" data-drag style="left:470px;top:382px">
+    <i class="roll l"></i>
+    <div class="body">
+      <div class="vt">三年後のわたしを、ことばに。</div>
+      <div class="main">
+        <h3>人生設計 2027-2029</h3>
+        <p class="meta"><span class="lang">Markdown</span><span class="chip"><svg><use href="#i-branch"/></svg>main</span></p>
+        <span class="upd">最終更新 10/19 ・ レビュー 0</span>
+      </div>
+      <svg class="inkan" style="position:absolute;right:18px;bottom:20px;width:38px;height:38px;transform:rotate(6deg)" viewBox="0 0 48 48"><g filter="url(#rough)"><rect x="3" y="3" width="42" height="42" rx="2" fill="#c8402b"/><text x="24" y="36" text-anchor="middle" font-family="Shippori Mincho,Yu Mincho,serif" font-weight="800" font-size="32" fill="#f4eddf">志</text></g></svg>
+    </div>
+    <i class="roll r"></i>
+  </article>
+
+  <!-- 5 memo-editor : 朱の札 -->
+  <article class="card c5" data-project="memo-editor" data-drag style="left:940px;top:128px">
+    <svg class="mizuhiki" viewBox="0 0 84 70" fill="none" stroke-linecap="round"><g stroke="#8e2616" stroke-width="5.5"><path d="M42 36C26 10 6 14 12 30 18 44 36 40 42 36 48 32 70 26 74 12 78 2 58 4 42 36"/><path d="M42 36C34 54 24 62 16 66M42 36C50 54 60 62 70 66"/></g><g stroke="#f7efe0" stroke-width="3.4"><path d="M42 36C26 10 6 14 12 30 18 44 36 40 42 36 48 32 70 26 74 12 78 2 58 4 42 36"/><path d="M42 36C34 54 24 62 16 66M42 36C50 54 60 62 70 66"/></g><path d="M40 33l5 6M37 38l7-9" stroke="#8e2616" stroke-width="4"/></svg>
+    <div class="inn">
+      <span class="now">制作中</span>
+      <svg class="brush" viewBox="0 0 104 104" fill="none" stroke="#23262c" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"><path d="M18 90C30 80 40 78 50 66L84 14 92 20 58 72C52 82 48 90 18 90Z" fill="#fffaf0"/><path d="M84 14L92 20 98 11 90 6Z" fill="#23262c"/><path d="M50 66C44 74 40 78 30 82L18 90 24 76C30 72 44 62 50 66Z" fill="#23262c"/><path d="M24 96C40 100 60 98 80 94" stroke="#c8402b" stroke-width="3"/><path d="M62 52L74 60M68 42L78 50" stroke-width="1.6" opacity=".6"/></svg>
+      <h3>このアプリ自身</h3>
+      <p class="meta" style="margin-top:8px"><span class="lang">Rust + TypeScript</span></p>
+      <p class="blurb">いま作っているメモ型AIエディタ。<br>書く・読む・見直す・相談する。</p>
+      <p class="meta"><span class="chip"><svg><use href="#i-branch"/></svg>main</span><span class="upd">最終更新 今日</span></p>
+      <svg class="seal-big inkan" viewBox="0 0 56 56"><g filter="url(#rough)"><circle cx="28" cy="28" r="25" fill="#c8402b"/><circle cx="28" cy="28" r="21" fill="none" stroke="#f4eddf" stroke-width="1.6"/><text x="28" y="39" text-anchor="middle" font-family="Shippori Mincho,Yu Mincho,serif" font-weight="800" font-size="30" fill="#f4eddf">創</text></g></svg>
+    </div>
+    <span class="tag on">レビュー <b>1</b></span>
+  </article>
+
+  <svg id="pen"></svg>
+  <div class="tools">
+    <span class="lab">筆</span>
+    <button data-action="pen" aria-pressed="false">書く</button>
+    <button data-pen-color="#c8402b" style="background:#c8402b" title="朱"></button>
+    <button data-pen-color="#23262c" style="background:#23262c" title="墨"></button>
+    <button data-pen-color="#24406b" style="background:#24406b" title="藍"></button>
+    <span class="sp"></span>
+    <button data-action="pen-undo">戻す</button>
+    <button data-action="pen-clear">消す</button>
+  </div>
+</div>
+
+<div id="editor">
+  <div class="epage"></div>
+  <svg class="ebind"><use href="#stitches"/></svg>
+  <div class="ewrap">
+    <header class="eh">
+      <button class="back" data-action="back" aria-label="帖に戻る"><svg viewBox="0 0 24 24" fill="none" stroke="#f4eddf" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12H5M11 5L4.5 12 11 19"/></svg></button>
+      <h2 data-slot="title"></h2>
+      <span class="lang" data-slot="lang"></span>
+      <span class="chip"><svg><use href="#i-branch"/></svg><span data-slot="branch"></span></span>
+      <span class="rv">レビュー <b data-slot="count-review"></b></span>
+      <span class="path" data-slot="path"></span>
+    </header>
+    <aside class="pane"><div class="pane-h">目次</div><div data-slot="tree"></div></aside>
+    <section class="pane mid"><div data-slot="tabs"></div><div data-slot="doc"></div></section>
+    <aside class="pane"><div class="pane-h">AIと相談<small data-slot="blurb"></small></div><div data-slot="chat" style="flex:1;min-height:0;display:flex;flex-direction:column"></div></aside>
+  </div>
+</div>
+
+<script src="assets/common.js"></script>
+<script>
+MemoLab.ready(function(){
+  var R='#c8402b', K='#23262c', A='#24406b';
+  MemoLab.link('.c1','.c2',{color:R,width:2.2,dots:true});
+  MemoLab.link('.c2','.c4',{color:K,width:2,dash:'2 7',curve:.2});
+  MemoLab.link('.c3','.c4',{color:A,width:2.2,dots:true});
+  MemoLab.link('.c4','.c5',{color:R,width:2.4,curve:-.2});
+  MemoLab.link('.c1','.c3',{color:K,width:1.8,dash:'1 8',curve:.25});
+  MemoLab.around('.c4 h3',{shape:'highlight',color:'#f1c44a',pad:3});
+  MemoLab.around('.ttl',{shape:'underline',color:R,width:3,pad:6});
+  MemoLab.around('.c5 .seal-big',{shape:'circle',color:A,width:2.2,pad:8,seed:5});
+  MemoLab.around('.hint li:nth-child(2) b',{shape:'highlight',color:'#f1c44a',pad:2});
+  MemoLab.around('.c1 .tag',{shape:'circle',color:A,width:2.2,pad:7,seed:11});
+  MemoLab.scribble('star',882,500,34,34,{color:R,width:2.4});
+  MemoLab.scribble('arrow',930,712,40,-44,{color:A,width:2.4,bend:20});
+  MemoLab.scribble('spiral',372,452,34,34,{color:A,width:2});
+  MemoLab.scribble('check',400,396,26,26,{color:R,width:2.8});
+});
+</script>
+</body>
+</html>

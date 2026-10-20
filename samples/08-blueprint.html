@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>08 青焼き製図室</title>
+<meta name="ml-title" content="08 blueprint ― 青焼きの製図用紙">
+<meta name="ml-concept" content="青焼き図面に、白い線だけで描いたプロジェクトが並ぶ。図面番号・寸法線・朱のスタンプで状態を見せ、カードを開くと「拡大図(DETAIL A)」が円く開いてエディタになる。エディタは定規の目盛りと寸法線で囲んだ製図台。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=Zen+Kurenaido&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* 配色: 青焼き(シアノタイプ)=深い青の地+白い線が主役。補助に水色(寸法・コネクタ)、黄の琥珀(蛍光・マステ)、朱(検図スタンプ)、トレペの青白い紙の計6色 */
+:root{
+  --blue:#173f7c;       /* 青焼きの地 */
+  --navy:#0a2347;       /* 影・エディタの地・墨 */
+  --line:#eef5ff;       /* 白線 */
+  --cyan:#8fd4ff;       /* 寸法線・コネクタ */
+  --amber:#ffc94d;      /* 蛍光・マステ */
+  --red:#ff6f5b;        /* 検図の朱 */
+  --vellum:#e9f1fb;     /* トレーシングペーパー */
+  --f-head:"Zen Kaku Gothic New","Yu Gothic UI","Hiragino Sans",Meiryo,sans-serif;
+  --f-hand:"Zen Kurenaido","Yu Gothic",cursive;
+  --f-mono:"JetBrains Mono",ui-monospace,Consolas,"Cascadia Mono","Courier New",monospace;
+  /* 紙のノイズ。光は左上、影は右下で統一 */
+  --noise:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .8  0 0 0 0 .9  0 0 0 0 1  0 0 0 .16 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  --grid:linear-gradient(rgba(238,245,255,.18) 1px,transparent 1px) -1px -1px/100px 100px,linear-gradient(90deg,rgba(238,245,255,.18) 1px,transparent 1px) -1px -1px/100px 100px,
+         linear-gradient(rgba(238,245,255,.075) 1px,transparent 1px) -1px -1px/20px 20px,linear-gradient(90deg,rgba(238,245,255,.075) 1px,transparent 1px) -1px -1px/20px 20px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--navy);color:var(--line);font-family:var(--f-head)}
+svg.sym{position:absolute;width:0;height:0}
+
+/* ---------- ボード ---------- */
+#board{position:absolute;inset:0;overflow:hidden;
+  background:var(--noise),var(--grid),
+    radial-gradient(ellipse at 22% 12%,rgba(120,180,255,.30),transparent 55%),
+    radial-gradient(ellipse at 85% 95%,rgba(0,10,40,.55),transparent 60%),
+    radial-gradient(circle at 60% 40%,rgba(60,120,220,.18),transparent 40%),var(--blue)}
+/* 図面の外枠(ゾーン表示つき) */
+.frame{position:absolute;inset:14px;border:2px solid var(--line);pointer-events:none}
+.frame::before{content:"";position:absolute;inset:7px;border:1px solid rgba(238,245,255,.5)}
+.zt,.zl{position:absolute;display:flex;font:500 10px var(--f-mono);letter-spacing:.1em;color:rgba(238,245,255,.8);pointer-events:none}
+.zt{left:14px;right:14px;top:16px;height:14px}.zt span{flex:1;text-align:center;border-left:1px solid rgba(238,245,255,.4)}
+.zl{left:16px;top:14px;bottom:14px;width:14px;flex-direction:column}.zl span{flex:1;display:grid;place-items:center;border-top:1px solid rgba(238,245,255,.4)}
+.zt span:first-child,.zl span:first-child{border:0}
+
+/* 共通のシート(カード) */
+.sh{position:absolute;color:var(--line);z-index:5;cursor:pointer;
+  background:var(--noise),linear-gradient(155deg,rgba(60,125,205,.96),rgba(26,78,150,.97) 55%,rgba(20,64,128,.98));
+  border:2px solid var(--line);
+  box-shadow:0 1px 0 rgba(255,255,255,.35) inset,5px 7px 0 rgba(3,14,36,.38),16px 24px 36px rgba(2,10,30,.5);
+  transition:filter .2s}
+.sh:hover{filter:brightness(1.1)}
+.sh::before{content:"";position:absolute;inset:6px;border:1px solid rgba(238,245,255,.42);pointer-events:none}
+.sh h3{margin:0;font:900 25px/1.15 var(--f-head);letter-spacing:.02em}
+.sh .en{font:500 10px var(--f-mono);letter-spacing:.14em;color:var(--cyan);text-transform:uppercase}
+.sh .blurb{margin:6px 0 0;font:500 12px/1.55 var(--f-head);color:#d6e6fb}
+/* 表題欄(タイトルブロック) */
+.tb{display:grid;border-top:1.5px solid var(--line);font:500 10px var(--f-mono);letter-spacing:.05em}
+.tb>div{padding:4px 8px 5px;border-left:1px solid rgba(238,245,255,.6)}
+.tb>div:first-child{border-left:0}
+.tb small{display:block;font:500 8.5px var(--f-mono);color:var(--cyan);letter-spacing:.14em;margin-bottom:1px}
+.tb b{font:700 11.5px var(--f-mono);color:var(--line);white-space:nowrap}
+/* 部分詳細の吹き出し記号(丸の中に線) */
+.cl{position:absolute;width:46px;height:46px;z-index:6}
+.cl svg{width:100%;height:100%}
+/* 検図スタンプ(朱)。かすれはSVGフィルタで */
+.stamp{position:absolute;z-index:7;color:#ff8a77;border:3px double #ff8a77;border-radius:6px;padding:3px 10px 4px;font:700 13px/1.1 var(--f-mono);letter-spacing:.12em;text-align:center;transform:rotate(-8deg);background:#16285a;box-shadow:2px 3px 0 rgba(3,14,36,.5)}
+.stamp b{display:block;font:900 22px/1 var(--f-head);letter-spacing:.02em}
+.stamp.ok{color:var(--amber);border-color:var(--amber)}
+/* 寸法線 */
+.dim{position:absolute;pointer-events:none;z-index:6}
+/* マスキングテープ(琥珀・半透明) */
+.tape{position:absolute;width:92px;height:26px;z-index:8;transform:rotate(-4deg);
+  background:var(--noise),repeating-linear-gradient(115deg,rgba(255,201,77,.0) 0 5px,rgba(255,255,255,.12) 5px 6px),rgba(255,201,77,.78);
+  mix-blend-mode:normal;clip-path:polygon(3% 0,97% 4%,100% 30%,96% 55%,100% 80%,97% 100%,2% 96%,0 70%,4% 45%,0 20%);
+  box-shadow:0 2px 3px rgba(0,0,0,.25)}
+
+/* c1 ToDo: 大きめの標準図面 */
+.c1{width:376px;height:236px;transform:rotate(-1.6deg);display:flex;flex-direction:column}
+.c1 .body{flex:1;display:flex;gap:6px;padding:20px 20px 6px 20px}
+.c1 .body svg{flex:none;width:136px;height:116px;margin-top:4px}
+.c1 .tb{grid-template-columns:1.2fr 1.5fr .8fr;margin:0 8px 8px}
+/* c2 売上: 横長のグラフ図 */
+.c2{width:452px;height:262px;transform:rotate(1.1deg);display:flex;flex-direction:column}
+.c2 .body{flex:1;position:relative;padding:18px 22px 0}
+.c2 .chart{position:absolute;right:16px;top:14px;width:250px;height:150px}
+.c2 h3{max-width:170px}
+.c2 .tb{grid-template-columns:1fr 1fr 1fr;margin:0 8px 8px;position:relative;z-index:2}
+/* c3 dbt */
+.c3{width:384px;height:236px;transform:rotate(.7deg);display:flex;flex-direction:column}
+.c3 .body{flex:1;padding:18px 20px 0;position:relative}
+.c3 .flow{position:absolute;right:14px;bottom:6px;width:210px;height:96px}
+.c3 .tb{grid-template-columns:1fr 1fr 1fr;margin:0 8px 8px}
+/* c4 人生設計: 立面図風の縦長 */
+.c4{width:310px;height:268px;transform:rotate(-2.4deg);display:flex;flex-direction:column}
+.c4 .body{flex:1;padding:22px 20px 0;position:relative}
+.c4 .steps{position:absolute;right:10px;bottom:4px;width:188px;height:104px}
+.c4 .hand{font:400 14px/1.45 var(--f-hand);color:var(--amber);margin:8px 0 0;max-width:230px}
+.c4 .tb{grid-template-columns:1fr 1fr;margin:0 8px 8px;position:relative;z-index:2}
+/* c5 拡大図(丸) */
+.c5{width:332px;height:332px;border-radius:50%;display:grid;place-items:center;text-align:center;
+  background:var(--noise),radial-gradient(circle at 34% 28%,rgba(120,185,255,.6),rgba(32,90,170,.97) 60%,rgba(18,58,120,.98));
+  border:3px solid var(--line);box-shadow:0 1px 0 rgba(255,255,255,.4) inset,0 0 0 8px rgba(238,245,255,.1),6px 9px 0 rgba(3,14,36,.38),18px 28px 40px rgba(2,10,30,.5)}
+.c5::before{inset:12px;border-radius:50%;border-style:dashed}
+.c5 .in{position:relative;padding:0 30px}
+.c5 h3{font-size:29px;margin:4px 0 8px}
+.c5 .pl{display:inline-block;font:700 12px var(--f-mono);letter-spacing:.06em;color:var(--navy);background:var(--line);padding:3px 11px;border-radius:999px;box-shadow:2px 2px 0 rgba(3,14,36,.4)}
+.c5 .meta{display:flex;justify-content:center;gap:14px;margin:12px 0 0;font:500 11px var(--f-mono);letter-spacing:.04em;color:var(--cyan)}
+.c5 .blurb{max-width:210px;margin:8px auto 0}
+.c5 .hdl{position:absolute;right:-72px;bottom:-62px;width:130px;height:130px;z-index:-1;pointer-events:none}
+/* 一般注記(トレペ紙) */
+.notes{position:absolute;z-index:4;left:512px;top:450px;width:318px;padding:16px 20px 16px;color:var(--navy);transform:rotate(1.4deg);
+  background:var(--noise),linear-gradient(170deg,rgba(255,255,255,.7),transparent 40%),var(--vellum);
+  box-shadow:0 1px 0 #fff inset,4px 6px 0 rgba(3,14,36,.3),14px 22px 30px rgba(2,10,30,.45)}
+.notes::after{content:"";position:absolute;right:0;bottom:0;width:30px;height:30px;background:linear-gradient(315deg,rgba(23,63,124,.9) 50%,#b9cde6 50%);box-shadow:-3px -3px 6px rgba(0,0,0,.2)}
+.notes h4{margin:0 0 8px;font:900 12px var(--f-mono);letter-spacing:.2em;border-bottom:2px solid var(--navy);padding-bottom:5px}
+.notes ol{margin:0;padding-left:1.5em;font:500 12.5px/1.8 var(--f-head)}
+.notes ol li::marker{font:700 12px var(--f-mono);color:var(--blue)}
+.notes b{background:linear-gradient(transparent 55%,rgba(255,201,77,.8) 55%)}
+.notes .tape{left:112px;top:-14px;transform:rotate(3deg)}
+/* 表題欄(右下)+ペン */
+.title{position:absolute;z-index:20;right:44px;bottom:44px;width:470px;border:2px solid var(--line);background:var(--noise),rgba(14,48,98,.96);
+  box-shadow:4px 6px 0 rgba(3,14,36,.4),12px 18px 28px rgba(2,10,30,.45);font:500 10px var(--f-mono)}
+.title .r{display:grid;border-top:1px solid rgba(238,245,255,.6)}
+.title .r:first-child{border-top:0}
+.title .r>div{padding:5px 10px 6px;border-left:1px solid rgba(238,245,255,.6)}
+.title .r>div:first-child{border-left:0}
+.title small{display:block;font:500 8.5px var(--f-mono);letter-spacing:.16em;color:var(--cyan);margin-bottom:2px}
+.title .big{font:900 19px/1.1 var(--f-head);letter-spacing:.04em}
+.title .r1{grid-template-columns:1.6fr 1fr}.title .r2{grid-template-columns:1fr 1fr 1fr}
+.tools{display:flex;align-items:center;gap:8px;padding:8px 10px;border-top:1px solid rgba(238,245,255,.6)}
+.tools .lab{font:700 10px var(--f-mono);letter-spacing:.2em;color:var(--cyan);margin-right:4px}
+.tools button{font:700 12px var(--f-head);color:var(--line);background:rgba(238,245,255,.08);border:1.5px solid var(--line);border-radius:3px;padding:4px 11px;cursor:pointer}
+.tools button:hover{background:rgba(238,245,255,.22)}
+.tools button[aria-pressed=true]{background:var(--line);color:var(--navy)}
+.tools button[data-pen-color]{width:22px;height:22px;padding:0;border-radius:50%}
+.tools button[data-pen-color][aria-pressed=true]{outline:2px solid var(--line);outline-offset:2px}
+.tools .sp{flex:1}
+.hand{font-family:var(--f-hand)}
+.memo-h{position:absolute;z-index:3;font:400 17px/1.4 var(--f-hand);color:var(--amber);transform:rotate(-3deg)}
+
+/* ---------- エディタ(拡大図) ---------- */
+#editor{position:absolute;inset:0;padding:44px 40px 22px 48px;display:grid;grid-template-columns:252px minmax(0,1fr) 346px;grid-template-rows:62px minmax(0,1fr);gap:0 12px;
+  background:var(--noise),var(--grid),radial-gradient(ellipse at 18% 0,rgba(70,130,220,.32),transparent 60%),var(--navy)}
+/* 定規の目盛り */
+.rul-t,.rul-l{position:absolute;z-index:1;pointer-events:none;color:rgba(238,245,255,.8)}
+.rul-t{left:48px;right:40px;top:14px;height:20px;border-bottom:1px solid rgba(238,245,255,.7);
+  background:repeating-linear-gradient(90deg,rgba(238,245,255,.8) 0 1px,transparent 1px 10px) 0 100%/100% 6px no-repeat,
+             repeating-linear-gradient(90deg,rgba(238,245,255,.95) 0 1px,transparent 1px 50px) 0 100%/100% 13px no-repeat}
+.rul-l{top:44px;bottom:22px;left:16px;width:20px;border-right:1px solid rgba(238,245,255,.7);
+  background:repeating-linear-gradient(180deg,rgba(238,245,255,.8) 0 1px,transparent 1px 10px) 100% 0/6px 100% no-repeat,
+             repeating-linear-gradient(180deg,rgba(238,245,255,.95) 0 1px,transparent 1px 50px) 100% 0/13px 100% no-repeat}
+.rul-t i{position:absolute;top:0;font:500 8.5px var(--f-mono);font-style:normal;letter-spacing:.06em;transform:translateX(3px)}
+.rul-l i{position:absolute;left:0;font:500 8.5px var(--f-mono);font-style:normal;transform:translateY(3px)}
+.corner{position:absolute;left:14px;top:12px;z-index:2;font:700 9px var(--f-mono);color:var(--amber);letter-spacing:.1em}
+.detail-tag{position:absolute;right:46px;top:6px;z-index:3;display:flex;align-items:center;gap:8px;font:700 10.5px var(--f-mono);letter-spacing:.14em;color:var(--line)}
+.detail-tag svg{width:26px;height:26px}
+.eh{grid-column:1/4;display:flex;align-items:center;gap:14px;padding:0 4px 10px;position:relative;z-index:2}
+.back{flex:none;width:42px;height:42px;border-radius:50%;border:2px solid var(--line);background:rgba(238,245,255,.1);cursor:pointer;display:grid;place-items:center;transition:background .2s}
+.back:hover{background:rgba(238,245,255,.25)}
+.back svg{width:22px;height:22px}
+.eh h2{margin:0;font:900 26px var(--f-head);letter-spacing:.03em}
+.eh .pill{font:700 11.5px var(--f-mono);letter-spacing:.06em;color:var(--navy);background:var(--line);padding:4px 12px;border-radius:999px}
+.eh .chip{display:inline-flex;align-items:center;gap:6px;font:500 12px var(--f-mono);border:1.5px solid rgba(238,245,255,.65);border-radius:3px;padding:4px 10px;color:var(--cyan)}
+.eh .chip svg{width:13px;height:13px}
+.eh .rv{font:700 11px var(--f-mono);letter-spacing:.12em;color:var(--red);border:2px double var(--red);padding:3px 9px;border-radius:4px;transform:rotate(-3deg)}
+.eh .rv b{font:900 14px var(--f-head);margin-left:2px}
+.eh .path{margin-left:auto;font:400 11.5px var(--f-mono);color:#9bb8de;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:34%}
+.pane{position:relative;min-height:0;display:flex;flex-direction:column;background:var(--noise),linear-gradient(180deg,rgba(18,56,112,.98),rgba(12,40,84,.98));
+  border:1.5px solid rgba(238,245,255,.85);box-shadow:0 1px 0 rgba(255,255,255,.2) inset,3px 4px 0 rgba(2,10,30,.4),10px 14px 24px rgba(2,10,30,.4);overflow:hidden}
+.pane::before{content:"";position:absolute;inset:4px;border:1px solid rgba(238,245,255,.18);pointer-events:none}
+.pane-h{flex:none;display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px;padding:13px 16px 8px;font:700 11px var(--f-mono);letter-spacing:.2em;color:var(--cyan);border-bottom:1px dashed rgba(238,245,255,.3)}
+.pane-h small{font:500 11px/1.4 var(--f-head);color:#9bb8de;letter-spacing:0}
+[data-slot=tree]{flex:1;min-height:0;overflow:auto;padding:8px 10px 16px}
+.ml-tree-dirname,.ml-tree-file{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:3px;font:500 13px var(--f-head);color:#dce9fb}
+.ml-tree-file:hover,.ml-tree-dirname:hover{background:rgba(238,245,255,.1)}
+.ml-tree-file[data-active]{background:var(--line);color:var(--navy);font-weight:700}
+.ml-tree-children{margin-left:14px;padding-left:8px;border-left:1px dashed rgba(238,245,255,.4)}
+.ml-ico{width:20px;height:16px;border-radius:2px;border:1.5px solid var(--cyan);position:relative;font:700 8px/13px var(--f-mono);text-align:center;color:var(--cyan)}
+.ml-ico[data-kind=dir]{border-radius:2px 6px 2px 2px;border-color:var(--amber);background:rgba(255,201,77,.18)}
+.ml-ico[data-kind=md]::before{content:"MD"}.ml-ico[data-kind=ts]::before{content:"TS"}.ml-ico[data-kind=py]::before{content:"PY"}.ml-ico[data-kind=sql]::before{content:"SQ"}
+.ml-ico[data-kind=yaml]::before{content:"YM"}.ml-ico[data-kind=rs]::before{content:"RS"}.ml-ico[data-kind=diff]::before{content:"±"}.ml-ico[data-kind=file]::before{content:"·"}
+.ml-ico[data-kind=diff]{border-color:var(--red);color:var(--red)}
+.ml-tree-file[data-active] .ml-ico{border-color:var(--navy);color:var(--navy)}
+.mid{background:var(--navy)}
+[data-slot=tabs]{flex:none;display:flex;gap:3px;padding:9px 12px 0;background:rgba(5,20,48,.6);border-bottom:1.5px solid rgba(238,245,255,.85);overflow:hidden;position:relative;z-index:1}
+.ml-tab{display:flex;align-items:center;gap:7px;padding:7px 12px 6px;font:500 12.5px var(--f-head);border:1.5px solid rgba(238,245,255,.4);border-bottom:0;border-radius:3px 3px 0 0;color:#9bb8de;margin-bottom:-1.5px;white-space:nowrap}
+.ml-tab[data-active]{background:#0a2147;color:var(--line);font-weight:700;border-color:rgba(238,245,255,.85);box-shadow:inset 0 3px 0 var(--amber)}
+.ml-tab-close{opacity:.5;font-size:14px;line-height:1}
+.ml-tab-close:hover{opacity:1;color:var(--red)}
+[data-slot=doc]{flex:1;min-height:0;display:flex;flex-direction:column;background:#0a2147;position:relative;z-index:1}
+.ml-doc{flex:1;min-height:0;display:flex;flex-direction:column}
+.ml-doc-bar{flex:none;display:flex;align-items:center;gap:6px;padding:7px 14px;border-bottom:1px solid rgba(238,245,255,.2);background:rgba(5,20,48,.5)}
+.ml-doc-path{font:500 12px var(--f-mono);color:#9bb8de;margin-right:auto}
+.ml-mode{font:700 11px var(--f-mono);letter-spacing:.06em;border:1.5px solid rgba(238,245,255,.6);background:transparent;color:var(--line);border-radius:3px;padding:3px 11px;cursor:pointer}
+.ml-mode[data-active]{background:var(--line);color:var(--navy)}
+.ml-md{flex:1;min-height:0;overflow:hidden}
+.ml-md-src{height:100%;padding:18px 20px;font:400 13px/1.8 var(--f-mono);color:#d8e6fa;background:#081c3e;border-right:1px dashed rgba(238,245,255,.4)!important;overflow:auto}
+.ml-md-out{height:100%;overflow:auto;padding:22px 32px 30px;font:400 14.5px/1.9 var(--f-head);color:#e6effc;background:var(--noise),#0a2147}
+.ml-md-out h1{font:900 28px/1.3 var(--f-head);margin:0 0 12px;display:block;width:fit-content;border-bottom:3px solid var(--amber);padding-bottom:4px;letter-spacing:.02em}
+.ml-md-out h2{font:900 16px/1 var(--f-head);display:flex;align-items:center;gap:10px;margin:26px 0 10px;letter-spacing:.04em;color:var(--line)}
+.ml-md-out h2::before{content:"§";font:700 13px var(--f-mono);color:var(--navy);background:var(--cyan);padding:4px 8px;border-radius:2px}
+.ml-md-out h2::after{content:"";flex:1;height:1px;background:repeating-linear-gradient(90deg,rgba(238,245,255,.6) 0 6px,transparent 6px 10px)}
+.ml-md-out h3{font:700 15px var(--f-head);margin:18px 0 4px;border-left:4px solid var(--amber);padding-left:9px}
+.ml-md-out p{margin:6px 0}
+.ml-md-out ul:not(.ml-tasks),.ml-md-out ol{margin:6px 0 8px;padding-left:0;list-style:none;margin-left:6px;counter-reset:n}
+.ml-md-out ul:not(.ml-tasks) li,.ml-md-out ol li{position:relative;padding-left:26px;counter-increment:n}
+.ml-md-out ul:not(.ml-tasks) li::before{content:"";position:absolute;left:5px;top:.78em;width:9px;height:9px;border:2px solid var(--cyan);transform:rotate(45deg)}
+.ml-md-out ol li::before{content:counter(n);position:absolute;left:0;top:.3em;width:20px;height:20px;border-radius:50%;border:1.5px solid var(--cyan);color:var(--cyan);font:700 11px/17px var(--f-mono);text-align:center}
+.ml-tasks li{padding:2px 0}
+.ml-check{width:17px!important;height:17px!important;border:1.5px solid var(--cyan)!important;border-radius:2px!important;background:transparent;color:var(--navy);vertical-align:-3px!important;font-size:12px!important}
+.ml-task[data-done=true] .ml-check{background:var(--amber);border-color:var(--amber)!important}
+.ml-task[data-done=true]{color:#8fa9cf}
+.ml-md-out blockquote{margin:14px 0;padding:10px 16px;background:rgba(143,212,255,.08);border-left:4px solid var(--cyan);border-radius:0 4px 4px 0;font-weight:500;color:#d6e6fb}
+.ml-md-out code{font:500 .88em var(--f-mono);background:rgba(238,245,255,.12);color:#ffe9a8;padding:1px 6px;border-radius:3px}
+.ml-md-out hr{border:0;border-top:1px dashed rgba(238,245,255,.5);margin:20px 0}
+.ml-md-out pre.ml-pre{background:#071a38;border:1px solid rgba(238,245,255,.4);border-radius:3px;padding:12px 16px;font:400 12.5px/1.7 var(--f-mono);overflow:auto;color:#e6effc}
+.ml-md-out pre code{background:none;padding:0;color:inherit}
+.ml-code,.ml-md-src,.ml-pre{font-variant-ligatures:none}
+.ml-code{flex:1;min-height:0;padding:10px 0 24px;font:400 13px/1.75 var(--f-mono);background:#081c3e;color:#e6effc;overflow:auto}
+.ml-line{min-height:1.75em}
+.ml-ln{color:#7f9cc6;font-size:12px;border-right:1px solid rgba(238,245,255,.18);margin-right:.6em;background:rgba(5,20,48,.55)}
+.ml-ln:hover{color:var(--amber);font-weight:700}
+.ml-sign{color:#7f9cc6}
+.ml-src{flex:1}
+.ml-line[data-k=add]{background:rgba(70,200,130,.16)}.ml-line[data-k=add] .ml-ln{background:rgba(70,200,130,.26);color:#b8f0cf}.ml-line[data-k=add] .ml-sign{color:#7ff0ae;font-weight:700}
+.ml-line[data-k=del]{background:rgba(255,111,91,.17)}.ml-line[data-k=del] .ml-ln{background:rgba(255,111,91,.28);color:#ffc4ba}.ml-line[data-k=del] .ml-sign{color:#ff9d8e;font-weight:700}
+.ml-line[data-k=hunk]{background:rgba(143,212,255,.1);color:var(--cyan);font-style:italic;border-block:1px dashed rgba(143,212,255,.4)}
+.tk-kw{color:#8fd4ff;font-weight:700}.tk-str{color:#ffd98a}.tk-com{color:#8aa6cf;font-style:italic}.tk-num{color:#ffb39f}.tk-fn{color:#b9f3cd}.tk-meta{color:#d9bfff}
+.ml-comment{position:relative;margin:6px 14px 8px 80px;padding:9px 14px;background:#0e2f61;border:1.5px solid var(--amber);border-radius:4px;font:500 12.5px/1.65 var(--f-head);color:#f4f8ff;box-shadow:3px 4px 0 rgba(2,10,30,.5)}
+.ml-comment::before{content:"";position:absolute;left:18px;top:-8px;width:12px;height:12px;background:#0e2f61;border-left:1.5px solid var(--amber);border-top:1.5px solid var(--amber);transform:rotate(45deg)}
+.ml-comment[data-who=me]{border-color:var(--cyan)}
+.ml-comment[data-who=me]::before{border-color:var(--cyan)}
+.ml-comment-who{flex:none;background:var(--amber);color:var(--navy);font:700 10px var(--f-mono);padding:2px 8px;border-radius:2px}
+.ml-comment[data-who=me] .ml-comment-who{background:var(--cyan)}
+.ml-chat{background:transparent}
+.ml-chat-log{padding:10px 14px 10px;display:flex;flex-direction:column;gap:12px}
+.ml-msg{max-width:92%;font:500 13px/1.7 var(--f-head)}
+.ml-msg-body{padding:9px 13px;border:1.5px solid rgba(238,245,255,.75);background:rgba(238,245,255,.06);border-radius:3px 12px 12px 12px;white-space:pre-wrap;color:#eef5ff}
+.ml-msg[data-role=user]{align-self:flex-end}
+.ml-msg[data-role=user] .ml-msg-body{background:var(--line);color:var(--navy);border-color:var(--line);border-radius:12px 3px 12px 12px;font-weight:500}
+.ml-perm{margin-top:10px;border:1.5px dashed var(--amber);border-radius:4px;padding:10px 12px;background:rgba(255,201,77,.08);font-size:12.5px}
+.ml-perm-title{font:700 11px var(--f-mono);letter-spacing:.12em;margin-bottom:6px;color:var(--amber)}
+.ml-perm-cmd{display:block;font:500 12px var(--f-mono);background:#071a38;color:#c9f2da;padding:6px 10px;border-radius:3px}
+.ml-perm-row{display:flex;gap:8px;margin-top:8px}
+.ml-perm-row button{font:700 12px var(--f-head);border:1.5px solid var(--line);border-radius:3px;padding:4px 14px;cursor:pointer;background:transparent;color:var(--line)}
+.ml-perm-ok{background:var(--amber)!important;color:var(--navy)!important;border-color:var(--amber)!important}
+.ml-chat-form{flex:none;padding:10px 12px 56px;border-top:1px solid rgba(238,245,255,.4);background:rgba(5,20,48,.6);align-items:flex-end}
+.ml-chat-form textarea{font:500 13px/1.5 var(--f-head);border:1.5px solid rgba(238,245,255,.7);border-radius:3px;padding:8px 10px;background:#071a38;outline:0;color:var(--line)}
+.ml-chat-form textarea:focus{border-color:var(--amber);box-shadow:0 0 0 3px rgba(255,201,77,.25)}
+.ml-send{font:700 13px var(--f-head);background:var(--amber);color:var(--navy);border:0;border-radius:3px;padding:10px 14px;cursor:pointer;box-shadow:2px 3px 0 rgba(2,10,30,.6)}
+.ml-empty{padding:30px;color:#9bb8de}
+.dim-b{position:absolute;left:48px;right:40px;bottom:4px;height:16px;pointer-events:none;z-index:2}
+
+/* ---------- 切り替え: 「拡大図」が円く開く ---------- */
+/* ボードは起点へ寄ってかすみ、エディタは --ox --oy を中心に円形に広がる(丸い拡大図の枠) */
+#board,#editor{transition:opacity .6s ease,transform .9s cubic-bezier(.6,.02,.2,1),filter .6s,clip-path .9s cubic-bezier(.6,.02,.2,1)}
+body[data-view=board] #editor{opacity:0;clip-path:circle(0px at var(--ox,50%) var(--oy,50%));transform:scale(.9);transform-origin:var(--ox,50%) var(--oy,50%)}
+body[data-view=editor] #board{opacity:0;transform:scale(1.5);transform-origin:var(--ox,50%) var(--oy,50%);filter:blur(3px)}
+body[data-view=editor] #editor{opacity:1;clip-path:circle(150% at var(--ox,50%) var(--oy,50%));transform:none}
+body[data-phase=to-board] #board{transition-delay:.25s}
+.ml-about{font-family:var(--f-head)}
+</style>
+</head>
+<body data-view="board">
+<svg class="sym" aria-hidden="true">
+  <defs>
+    <filter id="rough" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="4" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4"/><feComponentTransfer><feFuncA type="discrete" tableValues="1 1 1 .85 1 .7 1"/></feComponentTransfer></filter>
+    <symbol id="i-branch" viewBox="0 0 16 16"><circle cx="4" cy="3.5" r="1.9" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="4.2" cy="12.6" r="1.9" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="5.2" r="1.9" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M4 5.5C4.3 8 3.9 9.5 4.2 10.6M12 7.1C11.9 9.2 8.3 8.6 4.6 10.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+  </defs>
+</svg>
+
+<div id="board">
+  <div class="frame"></div>
+  <div class="zt"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span></div>
+  <div class="zl"><span>A</span><span>B</span><span>C</span><span>D</span><span>E</span></div>
+
+  <svg id="deco"></svg>
+
+  <svg class="dim" style="left:130px;top:688px" width="384" height="26" viewBox="0 0 384 26" fill="none" stroke="#8fd4ff" stroke-width="1.3"><path d="M0 4V22M384 4V22M0 14H384"/><path d="M0 14L9 10M0 14L9 18M384 14L375 10M384 14L375 18"/><rect x="152" y="6" width="80" height="16" fill="#173f7c" stroke="none"/><text x="192" y="18" fill="#eef5ff" stroke="none" font-family="JetBrains Mono,monospace" font-size="11" text-anchor="middle">3 8 4 mm</text></svg>
+  <svg class="dim" style="left:520px;top:690px" width="140" height="40" viewBox="0 0 140 40" fill="none" stroke="#eef5ff" stroke-width="1.4"><path d="M2 20H138M2 14V26M34 16V24M66 16V24M98 16V24M138 14V26"/><rect x="2" y="17" width="32" height="6" fill="#eef5ff"/><rect x="66" y="17" width="32" height="6" fill="#eef5ff"/><g fill="#8fd4ff" stroke="none" font-family="JetBrains Mono,monospace" font-size="9"><text x="0" y="38">0</text><text x="62" y="38">50</text><text x="124" y="38">100</text></g></svg>
+  <!-- 手書きの添え書き -->
+  <div class="memo-h" style="left:96px;top:738px;width:330px">← 図面をドラッグで並べかえ。<br>クリックで拡大図(エディタ)へ。</div>
+
+  <!-- c1 todo-app -->
+  <article class="sh c1" data-project="todo-app" data-drag style="left:78px;top:92px">
+    <div class="cl" style="left:-24px;top:-24px"><svg viewBox="0 0 46 46" fill="#173f7c" stroke="#eef5ff" stroke-width="2"><circle cx="23" cy="23" r="21"/><path d="M2 23H44" stroke-width="1.5"/><text x="23" y="19" fill="#eef5ff" stroke="none" font-family="JetBrains Mono,monospace" font-size="12" font-weight="700" text-anchor="middle">01</text><text x="23" y="36" fill="#8fd4ff" stroke="none" font-family="JetBrains Mono,monospace" font-size="9.5" text-anchor="middle">A-1</text></svg></div>
+    <div class="stamp" style="right:-22px;top:-18px"><span>REVIEW</span><b>2 件</b></div>
+    <div class="body">
+      <svg viewBox="0 0 136 116" fill="none" stroke="#eef5ff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 18 L100 12 L106 96 L20 104Z" fill="rgba(238,245,255,.08)"/><path d="M106 96 L124 88 L118 6 L100 12" stroke-width="1.2" opacity=".7"/>
+        <rect x="26" y="30" width="14" height="14" stroke-width="1.6"/><path d="M29 37 L33 41 L45 24" stroke="#ffc94d" stroke-width="3"/><path d="M52 36 L92 33" />
+        <rect x="27" y="56" width="14" height="14" stroke-width="1.6"/><path d="M30 63 L34 67 L46 51" stroke="#ffc94d" stroke-width="3"/><path d="M53 62 L82 60"/>
+        <rect x="28" y="82" width="14" height="14" stroke-width="1.6"/><path d="M54 88 L90 86" stroke-dasharray="2 5"/>
+        <path d="M2 112 H120" stroke="#8fd4ff" stroke-width="1" stroke-dasharray="6 2 1 2"/>
+      </svg>
+      <div>
+        <div class="en">DWG-01 / TODO-APP</div>
+        <h3>ToDoアプリ</h3>
+        <p class="blurb">React + TS の小さなタスク管理。完了トグルを追加中。</p>
+      </div>
+    </div>
+    <div class="tb"><div><small>LANG</small><b>TypeScript</b></div><div><small>BRANCH</small><b>feat/toggle-done</b></div><div><small>REV.</small><b>10/19</b></div></div>
+  </article>
+
+  <!-- c2 sales-analysis -->
+  <article class="sh c2" data-project="sales-analysis" data-drag style="left:512px;top:132px">
+    <div class="cl" style="right:-20px;bottom:44px"><svg viewBox="0 0 46 46" fill="#173f7c" stroke="#eef5ff" stroke-width="2"><circle cx="23" cy="23" r="21"/><path d="M2 23H44" stroke-width="1.5"/><text x="23" y="19" fill="#eef5ff" stroke="none" font-family="JetBrains Mono,monospace" font-size="12" font-weight="700" text-anchor="middle">02</text><text x="23" y="36" fill="#8fd4ff" stroke="none" font-family="JetBrains Mono,monospace" font-size="9.5" text-anchor="middle">B-2</text></svg></div>
+    <div class="body">
+      <div class="en">DWG-02 / SALES</div>
+      <h3>売上データ<br>分析</h3>
+      <p class="blurb" style="max-width:170px">月別の売上推移と前年比。</p>
+      <svg class="chart" viewBox="0 0 250 150" fill="none" stroke="#eef5ff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M24 8V128H244"/><path d="M24 98H244M24 68H244M24 38H244" stroke="rgba(238,245,255,.25)" stroke-width="1"/>
+        <path d="M40 128V96M64 128V84M88 128V92M112 128V72M136 128V78M160 128V58M184 128V64M208 128V40" stroke="rgba(143,212,255,.7)" stroke-width="9" stroke-linecap="butt"/>
+        <path d="M40 76 L64 66 L88 74 L112 52 L136 56 L160 34 L184 40 L208 20" stroke="#ffc94d" stroke-width="2.4"/>
+        <g fill="#173f7c" stroke="#ffc94d" stroke-width="1.8"><circle cx="64" cy="66" r="3.4"/><circle cx="112" cy="52" r="3.4"/><circle cx="160" cy="34" r="3.4"/><circle cx="208" cy="20" r="3.4"/></g>
+        <path d="M120 2 V142" stroke="#ff6f5b" stroke-width="1.2" stroke-dasharray="10 3 2 3"/><path d="M114 8 L120 2 L126 8M114 136 L120 142 L126 136" stroke="#ff6f5b" stroke-width="1.4"/>
+        <text x="130" y="12" fill="#ff6f5b" stroke="none" font-family="JetBrains Mono,monospace" font-size="10" font-weight="700">A</text>
+        <text x="26" y="144" fill="#8fd4ff" stroke="none" font-family="JetBrains Mono,monospace" font-size="9">1月</text><text x="214" y="144" fill="#8fd4ff" stroke="none" font-family="JetBrains Mono,monospace" font-size="9">12月</text>
+      </svg>
+    </div>
+    <div class="tb"><div><small>LANG</small><b>Python</b></div><div><small>BRANCH</small><b>main</b></div><div><small>REV. / REVIEW</small><b>10/12 / 1件</b></div></div>
+  </article>
+
+  <!-- c3 dbt-snowflake -->
+  <article class="sh c3" data-project="dbt-snowflake" data-drag style="left:130px;top:430px">
+    <div class="tape" style="left:150px;top:-14px"></div>
+    <div class="stamp" style="right:16px;top:-22px;transform:rotate(5deg)"><span>REVIEW</span><b>1 件</b></div>
+    <div class="body">
+      <div class="en">DWG-03 / DBT</div>
+      <h3>dbt × Snowflake</h3>
+      <p class="blurb" style="max-width:150px">staging から marts まで、モデルを整理。</p>
+      <svg class="flow" viewBox="0 0 210 96" fill="none" stroke="#eef5ff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="4" y="8" width="52" height="22" rx="2"/><rect x="4" y="38" width="52" height="22" rx="2"/><rect x="4" y="68" width="52" height="22" rx="2"/>
+        <rect x="88" y="23" width="46" height="22" rx="2" fill="rgba(143,212,255,.15)"/><rect x="88" y="53" width="46" height="22" rx="2" fill="rgba(143,212,255,.15)"/>
+        <rect x="164" y="38" width="42" height="26" rx="13" stroke="#ffc94d" fill="rgba(255,201,77,.15)" stroke-width="2"/>
+        <path d="M56 19 H72 V34 H88M56 49 H72 V34M56 49 H72 V64 H88M56 79 H72 V64M134 34 H150 V51 H164M134 64 H150 V51"/>
+        <g font-family="JetBrains Mono,monospace" font-size="9" fill="#eef5ff" stroke="none"><text x="11" y="23">raw</text><text x="11" y="53">raw</text><text x="11" y="83">raw</text><text x="95" y="38">stg</text><text x="95" y="68">stg</text><text x="172" y="55" fill="#ffc94d">mart</text></g>
+      </svg>
+    </div>
+    <div class="tb"><div><small>LANG</small><b>SQL / dbt</b></div><div><small>BRANCH</small><b>main</b></div><div><small>REV.</small><b>10/17</b></div></div>
+  </article>
+
+  <!-- c4 life-plan -->
+  <article class="sh c4" data-project="life-plan" data-drag style="left:906px;top:452px">
+    <div class="tape" style="left:104px;top:-14px;transform:rotate(-2deg)"></div>
+    <div class="stamp ok" style="right:-20px;top:42px;transform:rotate(7deg)"><span>REVIEW</span><b>なし</b></div>
+    <div class="body">
+      <div class="en">DWG-04 / LIFE</div>
+      <h3>人生設計<br>2027-2029</h3>
+      <p class="hand">3年後のわたしを、ことばにする。</p>
+      <svg class="steps" viewBox="0 0 188 104" fill="none" stroke="#eef5ff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 98 H44 V70 H84 V44 H124 V18 H176"/><path d="M44 98 V70M84 70 V44M124 44 V18" stroke-width="1" stroke="#8fd4ff" stroke-dasharray="3 3"/>
+        <path d="M176 18 V4 L186 11 L176 18" fill="#ffc94d" stroke="#ffc94d"/>
+        <g font-family="JetBrains Mono,monospace" font-size="10" fill="#8fd4ff" stroke="none"><text x="8" y="88">2027</text><text x="48" y="62">2028</text><text x="88" y="36">2029</text></g>
+        <path d="M2 103 H184" stroke="#8fd4ff" stroke-width="1" stroke-dasharray="6 2 1 2"/>
+      </svg>
+    </div>
+    <div class="tb"><div><small>LANG</small><b>Markdown</b></div><div><small>REV.</small><b>10/02</b></div></div>
+  </article>
+
+  <!-- c5 memo-editor : 拡大図(丸) -->
+  <article class="sh c5" data-project="memo-editor" data-drag style="left:968px;top:70px">
+    <svg class="hdl" viewBox="0 0 130 130" fill="none"><path d="M20 20 L108 108" stroke="#06183a" stroke-width="22" stroke-linecap="round" opacity=".55" transform="translate(5 7)"/><path d="M20 20 L108 108" stroke="#eef5ff" stroke-width="16" stroke-linecap="round"/><path d="M26 18 L110 102" stroke="#8fd4ff" stroke-width="4" stroke-linecap="round" opacity=".7"/><path d="M60 60 L108 108" stroke="#ffc94d" stroke-width="16" stroke-linecap="round" opacity=".0"/></svg>
+    <div class="stamp" style="right:-30px;top:60px;transform:rotate(9deg)"><span>REVIEW</span><b>1 件</b></div>
+    <div class="in">
+      <div class="en">DETAIL A &nbsp;/&nbsp; SCALE 4:1</div>
+      <h3>このアプリ自身</h3>
+      <span class="pl">Rust + TypeScript</span>
+      <div class="meta"><span>main</span><span>REV. 10/20</span></div>
+      <p class="blurb">メモ型AIエディタ(Tauri)。いま、この図面を引いているところ。</p>
+    </div>
+  </article>
+
+  <!-- 一般注記(トレペ紙) -->
+  <div class="notes">
+    <div class="tape"></div>
+    <h4>GENERAL NOTES</h4>
+    <ol>
+      <li>各図面の<b>REV.</b>は最終更新日。</li>
+      <li>朱のスタンプは<b>レビュー待ち</b>の件数。</li>
+      <li>右下の<b>ペン</b>で囲む・線を引く。</li>
+      <li>エディタは <b>Esc</b> でこの図面室へ。</li>
+    </ol>
+  </div>
+
+  <!-- 表題欄 + ペン -->
+  <div class="title">
+    <div class="r r1"><div><small>PROJECT / プロジェクト図面室</small><span class="big">MEMO LAB 製図室</span></div><div><small>DWG. NO.</small><span class="big" style="font-family:var(--f-mono);font-size:17px">ML-27-08</span></div></div>
+    <div class="r r2"><div><small>SCALE</small>1 : 1</div><div><small>DRAWN</small>ASHUN</div><div><small>DATE</small>2027.10.20</div></div>
+    <div class="tools">
+      <span class="lab">PEN</span>
+      <button data-action="pen" aria-pressed="false">書く</button>
+      <button data-pen-color="#ffffff" style="background:#ffffff" title="白"></button>
+      <button data-pen-color="#ffc94d" style="background:#ffc94d" title="琥珀"></button>
+      <button data-pen-color="#ff6f5b" style="background:#ff6f5b" title="朱"></button>
+      <button data-pen-color="#8fd4ff" style="background:#8fd4ff" title="水色"></button>
+      <span class="sp"></span>
+      <button data-action="pen-undo">戻す</button>
+      <button data-action="pen-clear">消す</button>
+    </div>
+  </div>
+
+  <svg id="pen"></svg>
+</div>
+
+<div id="editor">
+  <div class="rul-t"><i style="left:0">0</i><i style="left:250px">250</i><i style="left:500px">500</i><i style="left:750px">750</i><i style="left:1000px">1000</i></div>
+  <div class="rul-l"><i style="top:0;writing-mode:vertical-rl">0</i><i style="top:250px;writing-mode:vertical-rl">250</i><i style="top:500px;writing-mode:vertical-rl">500</i><i style="top:750px;writing-mode:vertical-rl">750</i></div>
+  <div class="corner">0,0</div>
+  <div class="detail-tag"><svg viewBox="0 0 26 26" fill="none" stroke="#eef5ff" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="M17 17 L24 24" stroke-width="3"/><path d="M7 11 H15 M11 7 V15" stroke="#ffc94d"/></svg>DETAIL A &nbsp;SCALE 4:1</div>
+  <svg class="dim-b" viewBox="0 0 1000 16" preserveAspectRatio="none" fill="none" stroke="rgba(238,245,255,.6)" stroke-width="1" vector-effect="non-scaling-stroke"></svg>
+
+  <header class="eh">
+    <button class="back" data-action="back" aria-label="図面室に戻る"><svg viewBox="0 0 24 24" fill="none" stroke="#eef5ff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12H5M11 5L4.5 12 11 19"/></svg></button>
+    <h2 data-slot="title"></h2>
+    <span class="pill" data-slot="lang"></span>
+    <span class="chip"><svg><use href="#i-branch"/></svg><span data-slot="branch"></span></span>
+    <span class="rv">REVIEW <b data-slot="count-review"></b></span>
+    <span class="path" data-slot="path"></span>
+  </header>
+  <aside class="pane"><div class="pane-h">FILES</div><div data-slot="tree"></div></aside>
+  <section class="pane mid"><div data-slot="tabs"></div><div data-slot="doc"></div></section>
+  <aside class="pane"><div class="pane-h">AI CONSULT<small data-slot="blurb"></small></div><div data-slot="chat" style="flex:1;min-height:0"></div></aside>
+</div>
+
+<script src="assets/common.js"></script>
+<script>
+MemoLab.ready(function(){
+  var C='#8fd4ff', A='#ffc94d', R='#ff6f5b', W='#eef5ff';
+  MemoLab.link('.c1','.c2',{color:C,width:1.8,dots:true});
+  MemoLab.link('.c2','.c5',{color:C,width:1.8,dash:'8 4 2 4',curve:-.18});
+  MemoLab.link('.c1','.c3',{color:C,width:1.8,dash:'2 6',dots:true,curve:.2});
+  MemoLab.link('.c4','.c5',{color:A,width:1.8,dash:'1 7',curve:.25,dotR:4});
+  MemoLab.around('.c1 h3',{shape:'highlight',color:A,pad:2});
+  MemoLab.around('.c5 .pl',{shape:'circle',color:R,width:2.2,pad:7,seed:5});
+  MemoLab.around('.notes li:nth-child(2) b',{shape:'circle',color:R,width:2,pad:5,seed:3});
+  MemoLab.around('.c4 .hand',{shape:'underline',color:W,width:2,pad:4});
+  MemoLab.around('.title .big',{shape:'underline',color:A,width:2.4,pad:6});
+  MemoLab.scribble('arrow',930,350,-46,-60,{color:W,width:2.2,bend:20});
+  MemoLab.scribble('star',474,60,30,30,{color:A,width:2});
+  MemoLab.scribble('spiral',700,742,40,40,{color:C,width:1.8});
+  MemoLab.scribble('check',432,370,30,26,{color:A,width:2.6});
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>06 cork-yarn</title>
+<meta name="ml-title" content="06 コルクボードと赤い糸">
+<meta name="ml-concept" content="事件の捜査ボードのように、プロジェクトのメモを画鋲でコルクに留めて赤い糸でつなぐ。カードを開くとボードがぐっと近づき、ピン留めされた紙がそのままエディタになる。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&family=Noto+Sans+JP:wght@400;500;700&family=Special+Elite&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* 配色: コルク(土台)・ウォールナット(枠)・生成りの紙・インク(墨)・赤い糸(主役)・くすんだ緑(差し色の紙/テープ)。
+   光源は全体で「左上」。影はすべて右下に落ちる(近い影+遠い影の2層)。 */
+:root{
+  --cork:#c69a63; --cork-d:#8a5c33;
+  --wood:#5b3a21; --wood-l:#7d5430;
+  --paper:#f6efdc; --paper-d:#e7dcc0;
+  --ink:#2a2018; --ink-soft:#5a4a3a;
+  --yarn:#c4302b; --yarn-d:#8f1f1c;
+  --sage:#5e8a80; --sage-l:#cfe0d6;
+  --f-hand:"Klee One","Yu Kyokasho","YuKyokasho","Hiragino Maru Gothic ProN","Yu Gothic",sans-serif;
+  --f-type:"Special Elite","Courier New","MS Gothic",monospace;
+  --f-ui:"Noto Sans JP","Yu Gothic UI","Hiragino Sans",Meiryo,sans-serif;
+  --f-mono:"JetBrains Mono",Consolas,"Cascadia Mono","MS Gothic",monospace;
+  --shadow:1px 1px 1px rgba(40,20,5,.4),3px 5px 7px rgba(40,20,5,.32),10px 16px 22px rgba(40,20,5,.26);
+  --grain:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' seed='4'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .24 0 0 0 0 .12 0 0 0 .55 -.12'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E");
+  --fibre:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.012 .5' numOctaves='2' seed='9'/%3E%3CfeColorMatrix values='0 0 0 0 .45 0 0 0 0 .32 0 0 0 0 .18 0 0 0 .4 -.1'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23f)'/%3E%3C/svg%3E");
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--wood);color:var(--ink);font-family:var(--f-ui)}
+body{position:relative}
+
+/* ============ ボード ============ */
+#board{position:absolute;inset:0;overflow:hidden;background:var(--wood);transform-origin:var(--ox,50%) var(--oy,50%);
+  transition:transform .95s cubic-bezier(.6,.02,.2,1),opacity .6s ease .15s,filter .9s}
+.wood-bg,.cork-bg{position:absolute;width:100%;height:100%;left:0;top:0;display:block}
+.cork-bg{left:24px;top:24px;width:calc(100% - 48px);height:calc(100% - 48px)}
+.cork-inner{position:absolute;inset:24px;pointer-events:none;
+  box-shadow:inset 3px 4px 10px rgba(30,12,2,.7),inset -1px -1px 2px rgba(255,220,170,.35),inset 0 0 40px rgba(40,18,4,.35)}
+.cork-inner::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 30% 20%,rgba(255,230,180,.22),transparent 55%),radial-gradient(ellipse at 90% 100%,rgba(30,10,0,.25),transparent 55%)}
+.frame-edge{position:absolute;inset:0;pointer-events:none;border:1px solid rgba(255,220,170,.25);box-shadow:inset 1px 1px 0 rgba(255,225,180,.28),inset -1px -1px 0 rgba(0,0,0,.4)}
+.screw{position:absolute;width:12px;height:12px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#e6cf9d,#8d6d3a 55%,#4d3416);box-shadow:1px 2px 2px rgba(0,0,0,.5)}
+.screw::after{content:"";position:absolute;left:2px;right:2px;top:5px;height:1.5px;background:rgba(40,25,5,.7);transform:rotate(-30deg)}
+
+/* 画鋲 */
+.pinw{position:absolute;width:30px;height:38px;z-index:4;pointer-events:none;filter:drop-shadow(1px 2px 1px rgba(30,12,2,.3))}
+.pinw svg{width:30px;height:38px;display:block;overflow:visible}
+.pinw .anc{position:absolute;left:15px;top:13px;width:1px;height:1px}
+
+/* 紙の共通 */
+.c{position:absolute;z-index:5;transition:transform .25s cubic-bezier(.3,1.4,.5,1)}
+.c:hover{transform:translateY(-4px) rotate(var(--r,0deg)) scale(1.015)}
+.c{transform:rotate(var(--r,0deg))}
+.c:focus-visible{outline:2px dashed var(--paper);outline-offset:6px}
+.c[data-dragging]{z-index:30}
+.paper{background-color:var(--paper);background-image:var(--grain),linear-gradient(135deg,rgba(255,255,255,.55),rgba(255,255,255,0) 42%,rgba(120,80,30,.1))}
+.meta-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-family:var(--f-type);font-size:11.5px;letter-spacing:.02em;color:var(--ink-soft)}
+.lang{display:inline-block;background:var(--ink);color:var(--paper);font-family:var(--f-type);font-size:11px;padding:2px 7px 1px;letter-spacing:.06em;box-shadow:1px 2px 2px rgba(40,20,5,.35);transform:rotate(-1.2deg)}
+.stamp{display:inline-block;border:2px solid var(--yarn);color:var(--yarn);font-family:var(--f-type);font-size:12px;padding:1px 7px;border-radius:3px;transform:rotate(-6deg);mix-blend-mode:multiply;box-shadow:inset 0 0 0 1px rgba(196,48,43,.35);letter-spacing:.08em;opacity:.9;
+  -webkit-mask:var(--grain);}
+.h{font-family:var(--f-hand);font-weight:600;line-height:1.2;margin:0}
+
+/* --- 1. todo: 罫線の入った情報カード --- */
+#c-todo{left:96px;top:132px;width:310px;height:208px;--r:-2.6deg;padding:20px 20px 14px 22px;
+  background-color:#fbf6e6;background-image:var(--grain),linear-gradient(transparent 0 38px,rgba(196,48,43,.0) 38px),repeating-linear-gradient(transparent 0 25px,rgba(72,110,150,.38) 25px 26px);background-position:0 0,0 0,0 34px;
+  box-shadow:var(--shadow)}
+#c-todo::before{content:"";position:absolute;left:0;right:0;top:36px;height:2px;background:var(--yarn);opacity:.7}
+#c-todo::after{content:"";position:absolute;left:44px;top:0;bottom:0;width:1px;background:rgba(196,48,43,.4)}
+#c-todo .h{font-size:25px;margin:2px 0 8px 30px;position:relative;z-index:1}
+#c-todo ul{list-style:none;margin:20px 0 0 30px;padding:0;font-family:var(--f-hand);font-size:15px;line-height:26px;position:relative;z-index:1}
+#c-todo li::before{content:"";display:inline-block;width:11px;height:11px;border:1.6px solid var(--ink);border-radius:2px;margin-right:8px;vertical-align:-1px;transform:rotate(-4deg)}
+#c-todo li.done{color:var(--ink-soft);text-decoration:line-through;text-decoration-color:var(--yarn);text-decoration-thickness:1.5px}
+#c-todo li.done::before{background:linear-gradient(135deg,transparent 40%,var(--ink) 41% 55%,transparent 56%)}
+#c-todo .foot{position:absolute;left:52px;right:16px;bottom:10px;z-index:1}
+#c-todo .stamp{position:absolute;right:14px;top:56px;z-index:2}
+#c-todo .lang{position:absolute;left:-10px;top:14px;z-index:3}
+
+/* --- 2. sales: ポラロイド風 --- */
+#c-sales{left:548px;top:62px;width:262px;height:312px;--r:3.2deg;padding:14px 14px 0;background-color:#fbf8ef;background-image:var(--grain);box-shadow:var(--shadow)}
+#c-sales .photo{height:196px;position:relative;background:linear-gradient(160deg,#efe3c4,#dfd0a8);box-shadow:inset 1px 1px 4px rgba(60,40,10,.45),inset -1px -1px 0 rgba(255,255,255,.5);overflow:hidden}
+#c-sales .photo svg{position:absolute;inset:0;width:100%;height:100%}
+#c-sales .cap{padding:12px 4px 0}
+#c-sales .h{font-size:22px}
+#c-sales .meta-row{margin-top:6px}
+#c-sales .tape{position:absolute;left:78px;top:-16px;width:98px;height:30px;background:linear-gradient(90deg,rgba(94,138,128,.0),rgba(94,138,128,.0)),repeating-linear-gradient(115deg,rgba(94,138,128,.78) 0 8px,rgba(120,160,150,.78) 8px 16px);transform:rotate(-4deg);box-shadow:1px 2px 3px rgba(40,20,5,.3);
+  -webkit-mask:linear-gradient(90deg,transparent 0 2px,#000 2px calc(100% - 2px),transparent 0);z-index:6;opacity:.92}
+#c-sales .tape::before,#c-sales .tape::after{content:"";position:absolute;top:0;bottom:0;width:6px;background:radial-gradient(circle at 0 50%,transparent 3px,var(--sage) 3.5px)}
+#c-sales .rv{position:absolute;right:-16px;bottom:56px;z-index:7}
+
+/* --- 3. dbt: ちぎったメモ帳 --- */
+#c-dbt{left:906px;top:150px;width:318px;height:226px;--r:-1.4deg;filter:drop-shadow(1px 2px 1px rgba(40,20,5,.4)) drop-shadow(5px 8px 8px rgba(40,20,5,.3)) drop-shadow(12px 18px 16px rgba(40,20,5,.18))}
+#c-dbt:hover{transform:translateY(-4px) rotate(var(--r)) scale(1.015)}
+#c-dbt .sheet{position:absolute;inset:0;padding:30px 22px 14px 40px;background-color:#f9f4e4;background-image:var(--grain),repeating-linear-gradient(transparent 0 23px,rgba(70,100,140,.3) 23px 24px);background-position:0 0,0 18px;
+  clip-path:polygon(0 8px,4% 2px,9% 8px,14% 1px,20% 7px,26% 1px,31% 8px,37% 2px,44% 7px,50% 1px,56% 8px,62% 2px,69% 7px,75% 1px,81% 8px,87% 2px,93% 7px,100% 1px,100% 100%,0 100%)}
+#c-dbt .holes{position:absolute;left:11px;top:34px;bottom:14px;width:14px;z-index:3;background:radial-gradient(circle at 50% 50%,#5a3a21 0 4.5px,rgba(0,0,0,.25) 5px,transparent 6px) 0 0/14px 44px repeat-y}
+#c-dbt .h{font-size:24px;margin-bottom:6px}
+#c-dbt .flow{display:block;margin:6px 0 4px -8px}
+#c-dbt .meta-row{position:absolute;left:40px;right:16px;bottom:12px}
+#c-dbt .lang{position:absolute;right:16px;top:20px;z-index:3;background:var(--sage)}
+#c-dbt .rv{position:absolute;right:20px;bottom:30px;z-index:7}
+
+/* --- 4. life-plan: 切符(ミシン目つき) --- */
+#c-life{left:132px;top:474px;width:350px;height:218px;--r:2.2deg;filter:drop-shadow(1px 2px 1px rgba(40,20,5,.4)) drop-shadow(5px 8px 8px rgba(40,20,5,.3)) drop-shadow(12px 18px 16px rgba(40,20,5,.18))}
+#c-life .tk{position:absolute;inset:0;display:grid;grid-template-columns:1fr 78px;background-color:var(--sage-l);background-image:var(--grain),linear-gradient(135deg,rgba(255,255,255,.5),transparent 45%);
+  -webkit-mask:radial-gradient(circle at 0 50%,transparent 11px,#000 11.5px) left/51% 100% no-repeat,radial-gradient(circle at 100% 50%,transparent 11px,#000 11.5px) right/51% 100% no-repeat;
+  mask:radial-gradient(circle at 0 50%,transparent 11px,#000 11.5px) left/51% 100% no-repeat,radial-gradient(circle at 100% 50%,transparent 11px,#000 11.5px) right/51% 100% no-repeat}
+#c-life .main{padding:20px 14px 14px 28px;position:relative}
+#c-life .main::after{content:"";position:absolute;right:0;top:12px;bottom:12px;border-right:2px dashed rgba(42,32,24,.45)}
+#c-life .no{font-family:var(--f-type);font-size:11px;letter-spacing:.18em;color:var(--sage);margin-bottom:6px;filter:brightness(.7)}
+#c-life .h{font-size:26px;line-height:1.15}
+#c-life .tl{margin:12px 0 0;display:block}
+#c-life .side{writing-mode:vertical-rl;font-family:var(--f-type);letter-spacing:.3em;text-align:center;padding:14px 0;font-size:13px;color:var(--ink);display:flex;align-items:center;justify-content:center;gap:10px}
+#c-life .side b{font-family:var(--f-hand);font-size:17px;letter-spacing:.12em}
+#c-life .meta-row{position:absolute;left:28px;bottom:12px}
+
+/* --- 5. memo-editor: 緑のフォルダ(大きい・主役) --- */
+#c-memo{left:604px;top:466px;width:400px;height:262px;--r:-1.6deg}
+#c-memo .tab{position:absolute;left:18px;top:-24px;width:150px;height:30px;border-radius:9px 9px 0 0;background-color:#4f7a70;background-image:var(--grain);box-shadow:inset 1px 1px 0 rgba(255,255,255,.25),2px -1px 3px rgba(40,20,5,.2);
+  color:var(--paper);font-family:var(--f-type);font-size:12px;letter-spacing:.14em;display:flex;align-items:center;padding:3px 0 0 14px}
+#c-memo .body{position:absolute;inset:0;border-radius:3px 12px 6px 6px;background-color:var(--sage);background-image:var(--grain),linear-gradient(160deg,rgba(255,255,255,.3),transparent 40%,rgba(0,0,0,.14)),repeating-linear-gradient(90deg,rgba(255,255,255,.04) 0 2px,transparent 2px 5px);box-shadow:var(--shadow),inset 1px 1px 0 rgba(255,255,255,.35)}
+#c-memo .body::after{content:"";position:absolute;left:0;right:0;top:66%;height:2px;background:linear-gradient(90deg,transparent,rgba(0,0,0,.18),transparent);box-shadow:0 1px 0 rgba(255,255,255,.18)}
+#c-memo .label{position:absolute;left:22px;top:22px;right:26px;padding:14px 16px 12px;background-color:#faf4e2;background-image:var(--grain);box-shadow:1px 2px 3px rgba(40,20,5,.35);transform:rotate(.6deg)}
+#c-memo .h{font-size:30px}
+#c-memo .label p{margin:8px 0 0;font-size:13px;line-height:1.55;color:var(--ink-soft);font-family:var(--f-ui)}
+#c-memo .meta-row{position:absolute;left:24px;bottom:16px;color:var(--paper);right:24px;justify-content:space-between}
+#c-memo .meta-row .lang{background:var(--paper);color:var(--ink)}
+#c-memo .rv{position:absolute;right:26px;top:-14px;z-index:7}
+#c-memo .upd{position:absolute;right:22px;top:128px;writing-mode:vertical-rl;font-family:var(--f-type);color:rgba(246,239,220,.85);font-size:11.5px;letter-spacing:.16em}
+
+/* 小物(プロジェクトではない) */
+.note{position:absolute;z-index:4;transform:rotate(var(--r,0deg));box-shadow:var(--shadow);pointer-events:none}
+#hint{left:1086px;top:480px;width:200px;padding:16px 16px 14px;--r:2.4deg;font-family:var(--f-hand);font-size:15px;line-height:1.6;background-color:#f3ecd4;background-image:var(--grain)}
+#hint b{font-size:17px;display:block;margin-bottom:2px}
+#head{left:72px;top:48px;padding:7px 22px 7px 16px;--r:-1.2deg;background-color:var(--paper);background-image:var(--grain);display:flex;align-items:center;gap:12px;font-family:var(--f-type);font-size:13px;letter-spacing:.18em;z-index:6}
+#head::before{content:"";position:absolute;left:-14px;top:-7px;width:60px;height:20px;background:repeating-linear-gradient(115deg,rgba(94,138,128,.8) 0 7px,rgba(120,160,150,.8) 7px 14px);transform:rotate(-8deg);box-shadow:1px 2px 2px rgba(40,20,5,.25)}
+#head b{font-family:var(--f-hand);font-size:20px;letter-spacing:.06em;font-weight:600}
+#stamp5{left:1128px;top:700px;width:116px;height:116px;--r:-12deg;box-shadow:none;opacity:.8;mix-blend-mode:multiply;-webkit-mask:var(--grain);mask:var(--grain)}
+.leaf{left:1180px;top:84px;width:170px;--r:5deg;box-shadow:none;filter:drop-shadow(2px 4px 3px rgba(40,20,5,.35))}
+
+/* ペンの道具置き場 */
+.tray{position:absolute;left:70px;bottom:46px;z-index:45;display:flex;align-items:center;gap:6px;padding:8px 12px 8px 10px;border-radius:999px;
+  background:linear-gradient(180deg,#7d5430,#5b3a21);box-shadow:inset 1px 1px 0 rgba(255,225,180,.3),inset 0 -2px 3px rgba(0,0,0,.35),2px 4px 6px rgba(30,12,2,.5),8px 14px 18px rgba(30,12,2,.3)}
+.tray button{font:inherit;border:0;cursor:pointer;color:var(--paper);background:transparent;padding:0}
+.tray .pen-btn{display:flex;align-items:center;gap:7px;padding:6px 12px 6px 8px;border-radius:999px;font-family:var(--f-hand);font-weight:600;font-size:14px;background:rgba(0,0,0,.22);box-shadow:inset 1px 1px 3px rgba(0,0,0,.5)}
+.tray .pen-btn[aria-pressed="true"]{background:var(--paper);color:var(--ink);box-shadow:1px 2px 3px rgba(0,0,0,.4)}
+.tray .sw{width:26px;height:26px;border-radius:50%;background:var(--c);box-shadow:inset 2px 2px 3px rgba(255,255,255,.4),inset -2px -2px 3px rgba(0,0,0,.35),1px 2px 3px rgba(0,0,0,.5);border:2px solid var(--paper)}
+.tray .sw[aria-pressed="true"]{transform:scale(1.18);box-shadow:0 0 0 2px var(--paper),1px 2px 5px rgba(0,0,0,.6)}
+.tray .mini{font-family:var(--f-ui);font-size:12px;padding:6px 9px;border-radius:999px;color:#ecdcbc}
+.tray .mini:hover{background:rgba(0,0,0,.22)}
+.tray .sep{width:1px;height:22px;background:rgba(0,0,0,.35);box-shadow:1px 0 0 rgba(255,220,170,.2);margin:0 4px}
+#deco{z-index:20}#pen{z-index:40}
+#deco .ml-stroke{filter:drop-shadow(1.5px 3px 1.5px rgba(40,18,4,.5))}
+body[data-pen="on"] #board .c{cursor:crosshair}
+#pen .ml-pen-path{filter:drop-shadow(1px 2px 1px rgba(30,12,2,.3))}
+
+/* ============ エディタ ============ */
+#editor{position:absolute;inset:0;display:grid;grid-template-columns:252px minmax(0,1fr) 340px;grid-template-rows:62px minmax(0,1fr);gap:0 22px;padding:14px 34px 30px;background:var(--wood);overflow:hidden;
+  opacity:0;transform:scale(.9);transform-origin:50% 45%;transition:opacity .55s ease,transform .95s cubic-bezier(.2,.8,.2,1)}
+#editor .cork-bg{left:0;top:0;width:100%;height:100%;z-index:0}
+#editor::after{content:"";position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 60px rgba(40,18,4,.45);z-index:1}
+#editor>*:not(svg){position:relative;z-index:2}
+.bar{grid-column:1/4;display:flex;align-items:center;gap:16px;padding:0 4px}
+.bar .back{font-family:var(--f-hand);font-weight:600;font-size:15px;color:var(--ink);padding:9px 18px 9px 14px;border:0;cursor:pointer;background-color:var(--paper);background-image:var(--grain);
+  clip-path:polygon(14px 0,100% 0,100% 100%,14px 100%,0 50%);box-shadow:none;position:relative;filter:none}
+.bar .back-w{filter:drop-shadow(1px 2px 1px rgba(40,18,4,.5)) drop-shadow(4px 6px 6px rgba(40,18,4,.35))}
+.bar .back:hover{background-color:#fffaf0}
+.bar .ttl{display:flex;align-items:baseline;gap:12px;min-width:0;padding:7px 18px;background-color:var(--paper);background-image:var(--grain);box-shadow:var(--shadow);transform:rotate(-.5deg)}
+.bar .ttl [data-slot=title]{font-family:var(--f-hand);font-weight:600;font-size:22px;white-space:nowrap}
+.bar .ttl .lang{align-self:center}
+.bar .ttl [data-slot=blurb]{font-size:12.5px;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar .sp{flex:1}
+.bar .info{font-family:var(--f-type);font-size:12px;color:var(--paper);display:flex;gap:14px;align-items:center;text-shadow:1px 1px 2px rgba(0,0,0,.6)}
+.bar .info [data-slot=path]{max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl}
+.bar .info .br{background:var(--yarn);color:var(--paper);padding:3px 10px;text-shadow:none;border-radius:2px;box-shadow:1px 2px 3px rgba(0,0,0,.5);transform:rotate(1deg)}
+.bar .info .rvn{border:1.5px solid var(--paper);padding:2px 9px;border-radius:2px;text-shadow:none;transform:rotate(-2deg)}
+
+.pp{background-color:var(--paper);background-image:var(--grain),linear-gradient(135deg,rgba(255,255,255,.5),transparent 40%);box-shadow:var(--shadow);position:relative;display:flex;flex-direction:column;min-height:0;min-width:0}
+.pp .pinw{left:calc(50% - 15px);top:-18px}
+.pp .pl{font-family:var(--f-type);letter-spacing:.2em;font-size:11px;color:var(--ink-soft);padding:20px 16px 8px;border-bottom:1.5px dashed rgba(42,32,24,.3);margin:0 12px}
+#p-tree{transform:rotate(-.5deg)}
+#p-chat{transform:rotate(.4deg)}
+#p-doc{background-color:#faf5e6}
+
+/* ツリー */
+[data-slot=tree]{flex:1;min-height:0;overflow:auto;padding:8px 8px 14px;font-size:13.5px}
+.ml-tree-dirname,.ml-tree-file{display:flex;align-items:center;gap:7px;padding:4px 8px;border-radius:3px;white-space:nowrap}
+.ml-tree-children{margin-left:12px;border-left:1.5px dotted rgba(42,32,24,.3);padding-left:4px}
+.ml-tree-file:hover,.ml-tree-dirname:hover{background:rgba(94,138,128,.18)}
+.ml-tree-file[data-active]{background:var(--ink);color:var(--paper)}
+.ml-tree-dirname{font-weight:700}
+.ml-ico{width:15px;height:15px;border-radius:2px;position:relative;background:var(--ink-soft);flex:none}
+.ml-ico[data-kind=dir]{background:var(--sage);clip-path:polygon(0 15%,38% 15%,48% 0,100% 0,100% 100%,0 100%)}
+.ml-ico[data-kind=md]{background:#b9712c}.ml-ico[data-kind=ts]{background:#3f6fa0}.ml-ico[data-kind=py]{background:#4f8a4a}
+.ml-ico[data-kind=sql]{background:#8a5aa0}.ml-ico[data-kind=yaml]{background:#a09040}.ml-ico[data-kind=rs]{background:#b0452f}.ml-ico[data-kind=diff]{background:var(--yarn)}
+.ml-ico:not([data-kind=dir])::after{content:"";position:absolute;right:0;top:0;width:5px;height:5px;background:rgba(255,255,255,.55);clip-path:polygon(0 0,100% 100%,0 100%)}
+
+/* タブ */
+[data-slot=tabs]{display:flex;gap:4px;padding:10px 12px 0;overflow:hidden;flex:none;background:linear-gradient(180deg,rgba(138,92,51,.18),transparent)}
+.ml-tab{display:flex;align-items:center;gap:7px;padding:7px 10px 7px 11px;font-size:12.5px;background:var(--paper-d);border-radius:7px 7px 0 0;color:var(--ink-soft);white-space:nowrap;box-shadow:inset 0 -3px 4px rgba(0,0,0,.08)}
+.ml-tab[data-active]{background:#faf5e6;color:var(--ink);font-weight:700;box-shadow:0 -2px 3px rgba(40,20,5,.12)}
+.ml-tab[data-active]::before{content:"";position:absolute}
+.ml-tab-close{opacity:.5;font-size:14px;padding:0 2px}.ml-tab-close:hover{opacity:1;color:var(--yarn)}
+[data-slot=doc]{flex:1;min-height:0;display:flex;flex-direction:column}
+.ml-doc{flex:1;min-height:0;display:flex;flex-direction:column;border-top:2px solid var(--ink);background:#fbf7ea}
+.ml-doc-bar{padding:8px 16px;font-family:var(--f-type);font-size:12px;color:var(--ink-soft);border-bottom:1px solid rgba(42,32,24,.15);flex:none}
+.ml-mode{font:600 12px var(--f-ui);border:1.5px solid var(--ink-soft);background:transparent;color:var(--ink);padding:3px 11px;border-radius:999px;cursor:pointer}
+.ml-mode[data-active]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.ml-empty{padding:40px;font-family:var(--f-hand)}
+
+/* マークダウン */
+.ml-md{flex:1;min-height:0}
+.ml-md-src{padding:20px 22px;font:13.5px/1.75 var(--f-mono);color:#3a2e22;background:rgba(231,220,192,.35);border-right:1.5px dashed rgba(42,32,24,.25);overflow:auto;min-height:0;white-space:pre-wrap}
+.ml-md-out{padding:22px 34px 40px;overflow:auto;min-height:0;font-size:15px;line-height:1.85}
+.ml-md-out h1{font-family:var(--f-hand);font-weight:600;font-size:32px;margin:.1em 0 .5em;padding-bottom:6px;background:linear-gradient(var(--yarn),var(--yarn)) left bottom/100% 3px no-repeat;display:inline-block;padding-right:18px;border-radius:2px}
+.ml-md-out h2{font-family:var(--f-hand);font-weight:600;font-size:23px;margin:1.3em 0 .3em;display:flex;align-items:center;gap:10px}
+.ml-md-out h2::before{content:"";width:12px;height:12px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff7,transparent 50%),var(--yarn);box-shadow:1px 2px 2px rgba(40,20,5,.4);flex:none}
+.ml-md-out p{margin:.4em 0}
+.ml-md-out ul,.ml-md-out ol{padding-left:1.4em;margin:.4em 0}.ml-md-out li{margin:.15em 0}
+.ml-md-out ul.ml-tasks{padding-left:.2em}
+.ml-md-out code{font-family:var(--f-mono);font-size:.88em;background:rgba(138,92,51,.16);padding:1px 6px;border-radius:3px}
+.ml-md-out blockquote{margin:1em 0;padding:10px 16px;background:rgba(94,138,128,.17);border-left:4px solid var(--sage);font-family:var(--f-hand);font-weight:600;border-radius:0 4px 4px 0}
+.ml-md-out hr{border:0;border-top:2px dashed rgba(42,32,24,.3);margin:1.2em 0}
+.ml-pre{background:#2b2219;color:#f1e6cc;padding:12px 16px;border-radius:4px;font-family:var(--f-mono);font-size:13px;overflow:auto;box-shadow:inset 0 2px 6px rgba(0,0,0,.4)}
+.ml-pre code{background:none;padding:0;color:inherit}
+.ml-check{color:var(--paper);background:transparent}
+.ml-task[data-done=true]{color:var(--ink-soft)}.ml-task[data-done=true] .ml-check{background:var(--ink);border-color:var(--ink)}
+.ml-task{margin:.25em 0}
+
+/* コード・差分 */
+.ml-code{flex:1;min-height:0;padding:12px 0 24px;font:13.5px/1.7 var(--f-mono);color:#2a2018;background:#fcf9ef}
+.ml-line{min-height:1.7em}
+.ml-ln{color:#a59278;font-size:12px;width:3.6em;padding-right:1.1em;border-right:1px solid rgba(42,32,24,.12);margin-right:.7em}
+.ml-ln:hover{color:var(--yarn);font-weight:700}
+.ml-sign{font-weight:700}
+.ml-line[data-k=add]{background:rgba(70,150,90,.17);box-shadow:inset 3px 0 0 #3c8a55}
+.ml-line[data-k=add] .ml-sign{color:#2c7a47}
+.ml-line[data-k=del]{background:rgba(196,48,43,.14);box-shadow:inset 3px 0 0 var(--yarn)}
+.ml-line[data-k=del] .ml-sign{color:var(--yarn-d)}
+.ml-line[data-k=hunk]{background:rgba(94,138,128,.2);color:#3d6259;font-style:italic;box-shadow:inset 3px 0 0 var(--sage)}
+.tk-kw{color:#9a3b2b;font-weight:500}.tk-str{color:#3d7a4a}.tk-com{color:#938570;font-style:italic}.tk-num{color:#a8690f}.tk-fn{color:#2f5f95}.tk-meta{color:#7a4f9a}
+.ml-comment{margin:5px 18px 8px 5.3em;padding:9px 14px;font-family:var(--f-ui);font-size:13px;line-height:1.55;color:var(--ink);background:#f2ead3;border-radius:2px 8px 8px 2px;box-shadow:1px 2px 3px rgba(40,20,5,.28),4px 7px 10px rgba(40,20,5,.12);border-left:5px solid var(--sage);transform:rotate(-.2deg);white-space:normal;font-family:var(--f-ui)}
+.ml-comment[data-who=me]{border-left-color:var(--yarn);background:#f7e8de}
+.ml-comment-who{flex:none;font-family:var(--f-type);font-size:11px;letter-spacing:.1em;background:var(--ink);color:var(--paper);padding:1px 8px;border-radius:2px;align-self:flex-start;margin-top:2px}
+.ml-comment[data-who=me] .ml-comment-who{background:var(--yarn)}
+.ml-compose-input{font:13px var(--f-ui);color:var(--ink)}
+
+/* チャット */
+[data-slot=chat]{flex:1;min-height:0;display:flex;flex-direction:column;padding:6px 10px 10px}
+.ml-chat-log{padding:10px 4px;display:flex;flex-direction:column;gap:12px;font-size:13.5px;line-height:1.65}
+.ml-msg{max-width:92%}
+.ml-msg[data-role=user]{align-self:flex-end}
+.ml-msg-body{padding:9px 13px;background:#fffaf0;border-radius:10px 10px 2px 10px;box-shadow:1px 2px 3px rgba(40,20,5,.25);border:1px solid rgba(42,32,24,.12)}
+.ml-msg[data-role=ai] .ml-msg-body{background:var(--sage-l);border-radius:10px 10px 10px 2px;position:relative}
+.ml-msg[data-role=ai]::before{content:"AI";display:inline-block;font-family:var(--f-type);font-size:10.5px;letter-spacing:.14em;background:var(--ink);color:var(--paper);padding:1px 7px;margin:0 0 4px 3px;border-radius:2px}
+.ml-perm{border:2px dashed var(--yarn);padding:10px 12px;border-radius:4px;background:rgba(196,48,43,.06);font-size:13px}
+.ml-perm-title{font-family:var(--f-type);color:var(--yarn);letter-spacing:.14em;font-size:12px}
+.ml-perm-cmd{display:block;font-family:var(--f-mono);background:#2b2219;color:#f1e6cc;padding:6px 10px;border-radius:3px;margin:6px 0;font-size:12px}
+.ml-perm-row{display:flex;gap:8px}
+.ml-perm-ok,.ml-perm-ng{font:600 12.5px var(--f-ui);padding:5px 16px;border-radius:999px;border:1.5px solid var(--ink);cursor:pointer;background:transparent;color:var(--ink)}
+.ml-perm-ok{background:var(--ink);color:var(--paper)}
+.ml-chat-form{padding-top:8px;border-top:1.5px dashed rgba(42,32,24,.3);align-items:stretch}
+.ml-chat-form textarea{font:13px/1.5 var(--f-ui);padding:8px 10px;border:1.5px solid rgba(42,32,24,.4);background:#fffcf4;border-radius:6px;color:var(--ink);outline:0}
+.ml-chat-form textarea:focus{border-color:var(--sage)}
+.ml-send{font:600 13px var(--f-hand);background:var(--yarn);color:var(--paper);border:0;border-radius:6px;padding:0 16px;cursor:pointer;box-shadow:1px 2px 3px rgba(40,20,5,.4)}
+::-webkit-scrollbar{width:9px;height:9px}::-webkit-scrollbar-thumb{background:rgba(42,32,24,.28);border-radius:5px}::-webkit-scrollbar-track{background:transparent}
+
+/* ============ 切り替え: ボードがぐっと近づく(ズーム) → ピン留めの紙がエディタになる ============ */
+body[data-view="editor"] #board{transform:scale(3.4);opacity:0;filter:blur(3px)}
+body[data-view="editor"] #editor{opacity:1;transform:none;transition-delay:.3s,.3s}
+body[data-view="board"] #editor{pointer-events:none}
+body[data-view="board"] #board{transition:transform .95s cubic-bezier(.4,0,.2,1),opacity .6s ease,filter .9s}
+body[data-phase="to-board"] #editor{transition:opacity .45s ease,transform .8s cubic-bezier(.4,0,.2,1)}
+body[data-phase="to-editor"] #editor .pp{animation:drop .7s cubic-bezier(.2,1.2,.4,1) .55s both}
+@keyframes drop{from{opacity:0;translate:0 -30px;scale:1.05}to{opacity:1;translate:0 0;scale:1}}
+@media (prefers-reduced-motion:reduce){#board,#editor,#editor .pp{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body data-view="board">
+
+<!-- 画鋲・フィルターの定義(画面外) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <radialGradient id="pinHi" cx=".32" cy=".26" r=".8">
+      <stop offset="0" stop-color="#fff" stop-opacity=".9"/><stop offset=".3" stop-color="#fff" stop-opacity=".12"/><stop offset="1" stop-color="#000" stop-opacity=".42"/>
+    </radialGradient>
+    <linearGradient id="needle" x1="0" x2="1"><stop offset="0" stop-color="#d9dde0"/><stop offset="1" stop-color="#6d7479"/></linearGradient>
+    <symbol id="pin" viewBox="0 0 30 38" overflow="visible">
+      <ellipse cx="22" cy="21" rx="10" ry="6.5" fill="#2a1507" opacity=".28" transform="rotate(35 22 21)"/>
+      <path d="M14.2 22 L15.2 36 L16.2 22Z" fill="url(#needle)"/>
+      <path d="M5.2 15 Q4.5 22 15 22.4 Q25.5 22 24.8 15Z" fill="var(--pin,#c4302b)"/>
+      <path d="M5.2 15 Q4.5 22 15 22.4 Q25.5 22 24.8 15Z" fill="#000" opacity=".28"/>
+      <ellipse cx="15" cy="13" rx="10.4" ry="9.6" fill="var(--pin,#c4302b)"/>
+      <ellipse cx="15" cy="13" rx="10.4" ry="9.6" fill="url(#pinHi)"/>
+      <ellipse cx="15" cy="13" rx="10.4" ry="9.6" fill="none" stroke="#000" stroke-opacity=".22" stroke-width=".8"/>
+      <ellipse cx="10.8" cy="8.6" rx="3.8" ry="2.1" fill="#fff" opacity=".75" transform="rotate(-32 10.8 8.6)"/>
+    </symbol>
+    <!-- コルクの質感: ノイズ→ライティング(左上光) -->
+    <filter id="corkf" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency=".62" numOctaves="4" seed="11" result="n"/>
+      <feDiffuseLighting in="n" surfaceScale="3.2" diffuseConstant="1.15" lighting-color="#e8b980" result="lit"><feDistantLight azimuth="225" elevation="52"/></feDiffuseLighting>
+      <feTurbulence type="fractalNoise" baseFrequency=".035" numOctaves="3" seed="2" result="b"/>
+      <feColorMatrix in="b" type="matrix" values="0 0 0 0 .28 0 0 0 0 .15 0 0 0 0 .05 0 0 0 1.4 -.55" result="blot"/>
+      <feTurbulence type="fractalNoise" baseFrequency="1.4" numOctaves="1" seed="5" result="s"/>
+      <feColorMatrix in="s" type="matrix" values="0 0 0 0 .25 0 0 0 0 .12 0 0 0 0 .04 0 0 0 3.2 -1.95" result="dots"/>
+      <feMerge><feMergeNode in="lit"/><feMergeNode in="blot"/><feMergeNode in="dots"/></feMerge>
+    </filter>
+    <filter id="woodf" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency=".004 .09" numOctaves="4" seed="7" result="g"/>
+      <feColorMatrix in="g" type="matrix" values="0 0 0 0 .2 0 0 0 0 .1 0 0 0 0 .03 0 0 0 1.6 -.55"/>
+    </filter>
+    <filter id="rough"><feTurbulence type="fractalNoise" baseFrequency=".05" numOctaves="2" seed="3"/><feDisplacementMap in="SourceGraphic" scale="3"/></filter>
+  </defs>
+</svg>
+
+<div id="board">
+  <svg class="wood-bg" aria-hidden="true"><rect width="100%" height="100%" fill="#6a4426"/><rect width="100%" height="100%" filter="url(#woodf)"/></svg>
+  <svg class="cork-bg" aria-hidden="true"><rect width="100%" height="100%" fill="#c69a63"/><rect width="100%" height="100%" filter="url(#corkf)" opacity=".92"/></svg>
+  <div class="cork-inner"></div>
+  <div class="frame-edge"></div>
+  <i class="screw" style="left:6px;top:6px"></i><i class="screw" style="right:6px;top:6px"></i><i class="screw" style="left:6px;bottom:6px"></i><i class="screw" style="right:6px;bottom:6px"></i>
+
+  <svg id="deco"></svg>
+
+  <!-- タイトル札 -->
+  <div class="note" id="head"><b>プロジェクト・ボード</b><span>5 FILES / 糸でつなぐ</span></div>
+
+  <!-- 1 ToDo -->
+  <div class="c paper" id="c-todo" data-project="todo-app" data-drag style="left:96px;top:132px">
+    <span class="lang">TypeScript</span>
+    <span class="stamp">REVIEW ×2</span>
+    <h3 class="h" id="t-todo">ToDoアプリ</h3>
+    <ul><li class="done">完了トグルを足す</li><li class="done">タスクの追加・削除</li><li>期限の表示</li></ul>
+    <div class="meta-row foot"><span>feat/toggle-done</span><span>・更新 2時間前</span></div>
+    <span class="pinw" style="left:130px;top:-20px"><svg viewBox="0 0 30 38" style="--pin:#d6453a"><use href="#pin"/></svg><i class="anc" id="a-todo"></i></span>
+  </div>
+
+  <!-- 2 売上 -->
+  <div class="c" id="c-sales" data-project="sales-analysis" data-drag style="left:548px;top:62px">
+    <div class="paper" style="position:absolute;inset:0;box-shadow:var(--shadow);background-color:#fbf8ef"></div>
+    <div style="position:relative;padding:14px 14px 0">
+      <div class="photo">
+        <svg viewBox="0 0 230 180" preserveAspectRatio="none">
+          <g stroke="#2a2018" stroke-opacity=".18"><path d="M10 40H220M10 80H220M10 120H220"/></g>
+          <g fill="#7a8f6a" stroke="#2a2018" stroke-width="1.4" stroke-linejoin="round">
+            <path d="M16 150V118l14-1 1 33z"/><path d="M38 150V112l14 1 1 37z"/><path d="M60 150V122l14 0 1 28z"/><path d="M82 150V100l14-1 1 51z"/><path d="M104 150V108l14 1 0 41z"/><path d="M126 150V92l14-1 1 59z"/><path d="M148 150V84l14 1 0 65z"/><path d="M170 150V60l14-1 1 91z" fill="#c4302b"/><path d="M192 150V46l14 0 1 104z" fill="#c4302b"/>
+          </g>
+          <path d="M10 112 C40 96 60 118 90 88 S140 98 166 52 S200 40 218 30" fill="none" stroke="#2a2018" stroke-width="2.2" stroke-linecap="round" stroke-dasharray="1 0"/>
+          <circle cx="218" cy="30" r="4" fill="#fbf6e6" stroke="#2a2018" stroke-width="1.6"/>
+          <path d="M14 164H218" stroke="#2a2018" stroke-width="1.5"/>
+          <g font-family="Special Elite,monospace" font-size="9" fill="#2a2018" opacity=".7"><text x="14" y="176">JAN</text><text x="102" y="176">JUN</text><text x="190" y="176">DEC</text></g>
+        </svg>
+      </div>
+      <div class="cap">
+        <h3 class="h" id="t-sales">売上データ分析</h3>
+        <div class="meta-row"><span class="lang" style="background:#4f8a4a">Python</span><span>main</span><span>・更新 昨日</span></div>
+      </div>
+    </div>
+    <span class="tape"></span>
+    <span class="stamp rv">REVIEW ×1</span>
+  </div>
+
+  <!-- 3 dbt -->
+  <div class="c" id="c-dbt" data-project="dbt-snowflake" data-drag style="left:906px;top:150px">
+    <div class="sheet">
+      <h3 class="h" id="t-dbt">dbt × Snowflake</h3>
+      <svg class="flow" width="262" height="86" viewBox="0 0 262 86" fill="none" stroke="#2a2018" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6 22 Q5 12 14 12 H62 Q72 11 71 22 V44 Q72 54 62 54 H14 Q5 55 6 44Z" fill="#efe3c4" fill-opacity=".7"/>
+        <path d="M96 22 Q95 12 104 12 H152 Q162 11 161 22 V44 Q162 54 152 54 H104 Q95 55 96 44Z" fill="#cfe0d6" fill-opacity=".9"/>
+        <path d="M186 22 Q185 12 194 12 H242 Q252 11 251 22 V44 Q252 54 242 54 H194 Q185 55 186 44Z" fill="#e8a89b" fill-opacity=".7"/>
+        <path d="M74 33 Q84 28 93 33M86 28l8 5-8 5"/><path d="M164 33 Q174 38 183 33M175 28l8 5-8 5"/>
+        <g stroke="none" fill="#2a2018" font-family="Special Elite,monospace" font-size="13"><text x="17" y="38">raw</text><text x="106" y="38">staging</text><text x="200" y="38">marts</text></g>
+        <path d="M20 70 q10 -6 20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0" stroke-opacity=".4" stroke-dasharray="2 5"/>
+      </svg>
+      <div class="meta-row"><span>main</span><span>・更新 3日前</span></div>
+    </div>
+    <span class="lang" style="background:var(--sage)">SQL / dbt</span>
+    <span class="stamp rv">REVIEW ×1</span>
+    <i class="holes"></i>
+    <span class="pinw" style="left:140px;top:-20px"><svg viewBox="0 0 30 38" style="--pin:#3d6a9a"><use href="#pin"/></svg><i class="anc" id="a-dbt"></i></span>
+  </div>
+
+  <!-- 4 人生設計 -->
+  <div class="c" id="c-life" data-project="life-plan" data-drag style="left:132px;top:474px">
+    <div class="tk">
+      <div class="main">
+        <div class="no">No.2027-2029 ／ MARKDOWN</div>
+        <h3 class="h" id="t-life">人生設計<br>2027-2029</h3>
+        <svg class="tl" width="230" height="40" viewBox="0 0 230 40" fill="none" stroke="#2a2018" stroke-width="1.6" stroke-linecap="round">
+          <path d="M8 20 C60 10 90 30 120 20 S190 12 222 20" stroke-dasharray="1 6"/>
+          <circle cx="12" cy="20" r="6" fill="#faf4e2"/><circle cx="116" cy="21" r="6" fill="#faf4e2"/><circle cx="218" cy="19" r="6" fill="#c4302b"/>
+          <g stroke="none" fill="#2a2018" font-family="Special Elite,monospace" font-size="10"><text x="2" y="38">2027</text><text x="104" y="38">2028</text><text x="206" y="38">2029</text></g>
+        </svg>
+        <div class="meta-row"><span>main</span><span>・更新 今朝</span></div>
+      </div>
+      <div class="side"><b>ゆくさき</b><span>PLAN ・ 3 YEARS</span></div>
+    </div>
+    <span class="pinw" style="left:150px;top:-20px"><svg viewBox="0 0 30 38" style="--pin:#e0b43c"><use href="#pin"/></svg><i class="anc" id="a-life"></i></span>
+  </div>
+
+  <!-- 5 このアプリ自身 -->
+  <div class="c" id="c-memo" data-project="memo-editor" data-drag style="left:604px;top:466px">
+    <div class="tab">PROJECT 05</div>
+    <div class="body"></div>
+    <div class="label">
+      <h3 class="h" id="t-memo">このアプリ自身</h3>
+      <p>メモ型AIエディタ(Tauri)。いま作っているもの。</p>
+    </div>
+    <div class="meta-row"><span class="lang">Rust + TypeScript</span><span>main ・ 更新 たった今</span></div>
+    <span class="upd">LIVE</span>
+    <span class="stamp rv" style="background:#f6efdc">REVIEW ×1</span>
+    <span class="pinw" style="left:186px;top:-34px"><svg viewBox="0 0 30 38" style="--pin:#c4302b"><use href="#pin"/></svg><i class="anc" id="a-memo"></i></span>
+  </div>
+
+  <!-- 小物 -->
+  <div class="note paper" id="hint">
+    <b>使いかた</b>
+    紙をクリックで開く。ドラッグで動かすと、糸もついてくる。下の鉛筆で赤く書き込める。
+    <span class="pinw" style="left:80px;top:-24px"><svg viewBox="0 0 30 38" style="--pin:#5e8a80"><use href="#pin"/></svg></span>
+  </div>
+  <svg class="note leaf" viewBox="0 0 170 120" fill="none" stroke="#2a2018" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="--r:5deg;z-index:3;left:1196px;top:60px;width:150px">
+    <path d="M10 108 C30 30 90 6 156 12 C150 70 100 112 10 108Z" fill="#cfe0d6"/>
+    <path d="M10 108 C50 78 90 50 150 16" /><path d="M40 90 L52 66M62 76 L80 52M86 62l16-26M52 68 L72 78M84 56l22 10" stroke-opacity=".55"/>
+  </svg>
+  <svg class="note" id="stamp5" viewBox="0 0 116 116" fill="none" stroke="#c4302b" stroke-width="3">
+    <circle cx="58" cy="58" r="52"/><circle cx="58" cy="58" r="44" stroke-width="1.4"/>
+    <text x="58" y="50" text-anchor="middle" font-family="Special Elite,monospace" font-size="12" fill="#c4302b" stroke="none" letter-spacing="2">OPEN CASES</text>
+    <text x="58" y="82" text-anchor="middle" font-family="Special Elite,monospace" font-size="34" fill="#c4302b" stroke="none">05</text>
+    <path d="M26 92 Q58 100 90 92" stroke-width="1.6"/>
+  </svg>
+
+  <svg id="pen"></svg>
+
+  <div class="tray">
+    <button class="pen-btn" data-action="pen" aria-pressed="false"><svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M3 19l1.2-4.6L15.4 3.2a2 2 0 0 1 2.8 0l.6.6a2 2 0 0 1 0 2.8L7.6 17.8z"/><path d="M13.6 5l3.4 3.4"/></svg>書き込む</button>
+    <span class="sep"></span>
+    <button class="sw" style="--c:#c4302b" data-pen-color="#c4302b" aria-label="赤" aria-pressed="true"></button>
+    <button class="sw" style="--c:#1f4a7a" data-pen-color="#1f4a7a" aria-label="青" aria-pressed="false"></button>
+    <button class="sw" style="--c:#2a2018" data-pen-color="#2a2018" aria-label="黒" aria-pressed="false"></button>
+    <span class="sep"></span>
+    <button class="mini" data-action="pen-undo">ひとつ戻す</button>
+    <button class="mini" data-action="pen-clear">全部消す</button>
+  </div>
+</div>
+
+<div id="editor">
+  <svg class="cork-bg" aria-hidden="true"><rect width="100%" height="100%" fill="#c69a63"/><rect width="100%" height="100%" filter="url(#corkf)" opacity=".92"/></svg>
+  <header class="bar">
+    <span class="back-w"><button class="back" data-action="back">ボードへもどる</button></span>
+    <div class="ttl"><span data-slot="title"></span><span class="lang" data-slot="lang"></span><span data-slot="blurb"></span></div>
+    <span class="sp"></span>
+    <div class="info"><span data-slot="path"></span><span class="br" data-slot="branch"></span><span class="rvn">レビュー <span data-slot="count-review"></span></span></div>
+  </header>
+  <aside class="pp" id="p-tree"><span class="pinw"><svg viewBox="0 0 30 38" style="--pin:#3d6a9a"><use href="#pin"/></svg></span><div class="pl">FILES</div><div data-slot="tree"></div></aside>
+  <main class="pp" id="p-doc"><span class="pinw" style="left:22%"><svg viewBox="0 0 30 38" style="--pin:#d6453a"><use href="#pin"/></svg></span><span class="pinw" style="left:78%"><svg viewBox="0 0 30 38" style="--pin:#e0b43c"><use href="#pin"/></svg></span><div data-slot="tabs"></div><div data-slot="doc"></div></main>
+  <aside class="pp" id="p-chat"><span class="pinw"><svg viewBox="0 0 30 38" style="--pin:#5e8a80"><use href="#pin"/></svg></span><div class="pl">AIとの会話</div><div data-slot="chat"></div></aside>
+</div>
+
+<script src="assets/common.js"></script>
+<script>
+MemoLab.ready(function(){
+  /* 赤い糸: 画鋲どうしを結ぶ。上に細いハイライトの糸を重ねて撚りの感じを出す */
+  var pairs=[['#a-todo','#a-memo',.1],['#a-todo','#a-dbt',-.14],['#a-dbt','#a-memo',.16],['#a-life','#a-memo',.06],['#a-life','#a-todo',-.1]];
+  pairs.forEach(function(p){
+    MemoLab.link(p[0],p[1],{color:'#b52a26',width:3.4,curve:p[2],dotR:5.2});
+    MemoLab.link(p[0],p[1],{color:'#f07a68',width:1.2,dash:'2 7',curve:p[2],dots:false});
+  });
+  /* 手書きの丸囲み・下線・蛍光ペン(青インクと赤インクで) */
+  MemoLab.around('#t-sales',{shape:'underline',color:'#1f4a7a',width:2.4,pad:8,seed:4});
+  MemoLab.around('#t-dbt',{shape:'highlight',color:'#e8c13a',pad:4,seed:2});
+  MemoLab.around('#c-todo .stamp',{shape:'circle',color:'#1f4a7a',width:2.2,pad:6,seed:9});
+  MemoLab.around('#t-life',{shape:'underline',color:'#c4302b',width:2.4,pad:6,seed:6});
+  MemoLab.around('#t-memo',{shape:'box',color:'#c4302b',width:2.2,pad:6,seed:12});
+  MemoLab.scribble('arrow',1090,420,-0,0,{color:'#2a2018',width:2.2});
+  MemoLab.scribble('arrow',1060,560,-90,-50,{color:'#2a2018',width:2.4,bend:-30});
+  MemoLab.scribble('star',1260,430,34,34,{color:'#c4302b',width:2.2});
+  MemoLab.scribble('zigzag',440,420,60,12,{color:'#1f4a7a',width:2.2});
+});
+</script>
+</body>
+</html>

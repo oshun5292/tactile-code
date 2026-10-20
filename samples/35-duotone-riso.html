@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>35 duotone-riso</title>
+<meta name="ml-title" content="35 デュオトーン・リソ">
+<meta name="ml-concept" content="生成りの紙にコバルトブルーと蛍光オレンジの2色だけで刷るリソグラフ風。重ね刷りで生まれる第3の色と、ごく細かいハーフトーン、わずかな版ズレが唯一の装飾。太いゴシックと細い明朝で面と文字だけを組み、エディタは無地の3カラムで差分も2色の淡い塗りで示す。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=Shippori+Mincho:wght@400;500;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* 配色: 生成りの紙・コバルト(青インク)・蛍光オレンジ(橙インク)・青黒(文字)の4色+重なりの褐紫。リソ印刷の「2版」だけで全面を構成し、重ねた所は multiply で第3の色が出る */
+:root{
+  --paper:#f4efe4; --paper-hi:#faf7ef; --paper-lo:#ebe5d6;
+  --blue:#2340c8; --blue-soft:rgba(35,64,200,.10); --blue-mid:rgba(35,64,200,.22);
+  --orange:#ff6a2b; --orange-soft:rgba(255,106,43,.16); --orange-mid:rgba(255,106,43,.5);
+  --ink:#141838; --ink-soft:#5d5f7c; --rule:rgba(20,24,56,.16);
+  --gothic:"Zen Kaku Gothic New","Yu Gothic UI","Yu Gothic","Meiryo",sans-serif;
+  --mincho:"Shippori Mincho","Yu Mincho","YuMincho","Hiragino Mincho ProN","MS PMincho",serif;
+  --mono:"JetBrains Mono","Cascadia Mono",Consolas,"BIZ UDGothic","MS Gothic",monospace;
+  --grain:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .2 0 0 0 0 .2 0 0 0 0 .3 0 0 0 .8 -.3'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  --dotB:radial-gradient(circle at center,var(--blue) 0 24%,transparent 27%);
+  --dotO:radial-gradient(circle at center,var(--orange) 0 24%,transparent 27%);
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{position:relative;overflow:hidden;background:var(--paper);color:var(--ink);font-family:var(--gothic);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased}
+button{font-family:inherit;color:inherit}
+#board,#editor{position:absolute;inset:0;background:var(--paper)}
+#board::after,#editor::after{content:"";position:absolute;inset:0;pointer-events:none;background-image:var(--grain);mix-blend-mode:multiply;opacity:.5;z-index:40}
+/* 切り替えは瞬時。非アクティブ側を消すだけ */
+body[data-view="board"] #editor{opacity:0}
+body[data-view="editor"] #board{opacity:0}
+
+.mono{font-family:var(--mono)}
+.lbl{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft)}
+
+/* ======================= BOARD ======================= */
+.head{position:absolute;left:70px;right:70px;top:34px;display:flex;align-items:flex-end;gap:24px;z-index:5;pointer-events:none}
+.head h1{margin:0;font-weight:900;font-size:40px;line-height:1;letter-spacing:-.01em;color:var(--blue);text-shadow:2px 1px 0 var(--orange-mid)}
+.head h1 em{font-style:normal;font-family:var(--mincho);font-weight:400;color:var(--ink);text-shadow:none;margin-left:10px;font-size:28px}
+.head .lbl{margin-bottom:5px}
+.head .rule{flex:1;height:1px;background:var(--ink);margin-bottom:9px;opacity:.7}
+.reg{position:absolute;width:18px;height:18px;z-index:5;pointer-events:none}
+.reg::before,.reg::after{content:"";position:absolute;background:var(--ink)}
+.reg::before{left:8.5px;top:0;bottom:0;width:1px}.reg::after{top:8.5px;left:0;right:0;height:1px}
+.reg i{position:absolute;inset:3px;border:1px solid var(--ink);border-radius:50%}
+
+.card{position:absolute;z-index:10;background:var(--paper-hi);border:1px solid var(--ink);
+  box-shadow:0 1px 0 rgba(20,24,56,.35),0 14px 26px -16px rgba(20,24,56,.45);transition:box-shadow .2s,transform .2s;cursor:pointer}
+.card:hover{box-shadow:0 1px 0 rgba(20,24,56,.35),0 20px 30px -14px rgba(20,24,56,.5);transform:translateY(-2px)}
+.card[data-dragging]{transform:rotate(-.6deg);box-shadow:0 24px 36px -14px rgba(20,24,56,.55)}
+.card .no{font-family:var(--mincho);font-weight:400;line-height:.8;color:var(--blue);letter-spacing:-.04em;position:relative}
+.card .no::after{content:attr(data-n);position:absolute;left:3px;top:2px;color:var(--orange);mix-blend-mode:multiply;z-index:-1}
+.card h2{margin:0;font-weight:900;line-height:1.15;letter-spacing:.01em;color:var(--ink)}
+.card p{margin:8px 0 0;font-size:12px;line-height:1.75;color:#33365a}
+.facts{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px}
+.chip{font-family:var(--mono);font-size:10.5px;line-height:18px;padding:0 8px;border:1px solid var(--ink);border-radius:99px;background:var(--paper-hi);white-space:nowrap}
+.chip.b{background:var(--blue);border-color:var(--blue);color:#fff}
+.chip.dot::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--orange);margin-right:6px;vertical-align:1px}
+.rv{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;color:var(--ink)}
+.rv b{display:inline-grid;place-items:center;min-width:20px;height:20px;border-radius:50%;background:var(--orange);color:var(--ink);font-weight:700;font-size:11px}
+.rv b.z{background:transparent;border:1px solid var(--ink-soft);color:var(--ink-soft)}
+.upd{font-family:var(--mono);font-size:10.5px;color:var(--ink-soft);margin-left:auto}
+
+/* 01: 青ベタの面+巨大な索引 */
+.c1{width:430px;height:262px;overflow:hidden}
+.c1 .slab{position:absolute;left:0;top:0;bottom:0;width:150px;background:var(--blue)}
+.c1 .slab::after{content:"";position:absolute;inset:0;background:var(--dotO);background-size:5px 5px;mix-blend-mode:multiply;opacity:.55;-webkit-mask:linear-gradient(180deg,transparent 15%,#000 100%);mask:linear-gradient(180deg,transparent 15%,#000 100%)}
+.c1 .no{position:absolute;left:12px;top:22px;font-size:112px;color:var(--paper-hi)}
+.c1 .no::after{color:var(--orange);mix-blend-mode:normal;z-index:0;left:4px;top:3px;opacity:.9}
+.c1 .no span{position:relative;z-index:1}
+.c1 .slab .lbl{position:absolute;left:16px;bottom:14px;color:#cfd7ff;z-index:2}
+.c1 .tx{position:absolute;left:174px;right:22px;top:24px}
+.c1 h2{font-size:30px}
+.c1 .tx .lbl{display:block;margin-bottom:6px}
+/* 02: 大きな2色ハーフトーン棒グラフ */
+.c2{width:350px;height:300px;overflow:hidden}
+.c2 .plot{position:absolute;left:0;right:0;top:0;height:168px;border-bottom:1px solid var(--ink)}
+.c2 .bar{position:absolute;bottom:0;width:30px;background-image:var(--dotO);background-size:4px 4px;mix-blend-mode:multiply}
+.c2 .bar::before{content:"";position:absolute;inset:0;border-top:2px solid var(--orange)}
+.c2 .band{position:absolute;left:0;right:0;bottom:0;height:68px;background:var(--blue);mix-blend-mode:multiply;opacity:.88}
+.c2 .band::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.0))}
+.c2 .no{position:absolute;right:16px;top:12px;font-size:56px;z-index:3}
+.c2 .tx{position:absolute;left:22px;right:22px;top:184px}
+.c2 h2{font-size:24px}
+.c2 .tx .lbl{display:block;margin-bottom:4px}
+/* 03: 薄い横長ストリップ */
+.c3{width:390px;height:158px;background:var(--paper)}
+.c3 .tx{position:absolute;left:104px;right:20px;top:18px}
+.c3 .no{position:absolute;left:18px;top:20px;font-size:64px}
+.c3 h2{font-size:22px;display:inline-block}
+.c3 .flow{position:absolute;left:104px;right:20px;top:66px;display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px}
+.c3 .flow s{text-decoration:none;padding:0 7px;line-height:18px;border:1px solid var(--ink);background:var(--paper-hi)}
+.c3 .flow s.o{background:var(--orange);border-color:var(--orange)}
+.c3 .flow s.b{background:var(--blue);border-color:var(--blue);color:#fff}
+.c3 .flow i{flex:0 0 14px;height:1px;background:var(--ink)}
+.c3 .facts{position:absolute;left:104px;right:20px;bottom:14px;margin:0}
+/* 04: 縦長・明朝の縦組み */
+.c4{width:226px;height:330px;overflow:hidden}
+.c4 .no{position:absolute;left:16px;top:14px;font-size:64px}
+.c4 h2{position:absolute;right:18px;top:20px;writing-mode:vertical-rl;font-family:var(--mincho);font-weight:800;font-size:28px;line-height:1.3;letter-spacing:.12em}
+.c4 .band{position:absolute;left:0;right:0;bottom:0;height:134px;background:var(--orange);mix-blend-mode:multiply}
+.c4 .band::after{content:"";position:absolute;inset:0;background:var(--dotB);background-size:4px 4px;opacity:.45;-webkit-mask:linear-gradient(0deg,#000,transparent);mask:linear-gradient(0deg,#000,transparent)}
+.c4 p{position:absolute;left:16px;width:96px;top:104px;font-size:11.5px}
+.c4 .facts{position:absolute;left:16px;right:14px;bottom:14px;margin:0;z-index:2}
+/* 05: 橙ベタ+青文字(反転) */
+.c5{width:450px;height:208px;background:var(--orange);border-color:var(--ink);overflow:hidden}
+.c5 .no{position:absolute;right:22px;top:14px;font-size:92px;color:var(--blue)}
+.c5 .no::after{color:var(--paper-hi);mix-blend-mode:normal;opacity:.55;z-index:0}
+.c5 .no span{position:relative;z-index:1}
+.c5 .tx{position:absolute;left:24px;top:22px;right:150px}
+.c5 h2{font-size:30px;color:var(--ink)}
+.c5 p{color:var(--ink)}
+.c5 .facts{position:absolute;left:24px;right:22px;bottom:16px;margin:0}
+.c5 .chip{background:transparent;border-color:var(--ink)}
+.c5 .chip.b{background:var(--blue);border-color:var(--blue)}
+.c5 .upd{color:var(--ink)}
+.c5 .tx .lbl{display:block;margin-bottom:6px;color:var(--ink)}
+
+/* 重ね刷りの見本 */
+.proof{position:absolute;left:960px;top:300px;width:390px;height:380px;z-index:3;pointer-events:none}
+.proof .disc{position:absolute;border-radius:50%;mix-blend-mode:multiply}
+.proof .d1{left:20px;top:46px;width:236px;height:236px;background:var(--blue)}
+.proof .d2{left:136px;top:104px;width:216px;height:216px;background:var(--orange);margin-left:2px}
+.proof .d1::after{content:"";position:absolute;inset:0;border-radius:50%;background:var(--dotO);background-size:6px 6px;opacity:.5;-webkit-mask:linear-gradient(120deg,#000 0%,transparent 55%);mask:linear-gradient(120deg,#000 0%,transparent 55%)}
+.proof .d2::after{content:"";position:absolute;inset:0;border-radius:50%;background:var(--dotB);background-size:5px 5px;opacity:.4;-webkit-mask:linear-gradient(300deg,#000 0%,transparent 55%);mask:linear-gradient(300deg,#000 0%,transparent 55%)}
+.proof .cap{position:absolute;left:0;top:0;display:flex;gap:14px}
+.proof .sw{display:flex;align-items:center;gap:6px}
+.proof .sw i{display:block;width:12px;height:12px}
+.proof .note{position:absolute;left:22px;bottom:6px;width:340px;font-family:var(--mincho);font-size:15px;line-height:1.7;color:var(--ink)}
+.proof .note b{font-weight:800}
+
+/* ペンツールバー */
+.tools{position:absolute;left:70px;bottom:26px;z-index:60;display:flex;gap:8px;align-items:center}
+.tools button{appearance:none;border:1px solid var(--ink);background:var(--paper-hi);height:30px;padding:0 14px;border-radius:99px;font-weight:700;cursor:pointer;letter-spacing:.06em;font-size:12px;transition:background .15s,color .15s}
+.tools button:hover{background:var(--blue-soft)}
+.tools [data-action="pen"][aria-pressed="true"]{background:var(--blue);border-color:var(--blue);color:#fff}
+.tools .dot{width:30px;padding:0;position:relative}
+.tools .dot::after{content:"";position:absolute;inset:6px;border-radius:50%;background:var(--c)}
+.tools .dot[aria-pressed="true"]{box-shadow:0 0 0 3px var(--paper),0 0 0 4px var(--ink)}
+.hint{margin-left:6px}
+
+/* ======================= EDITOR ======================= */
+#editor{display:grid;grid-template-columns:262px minmax(0,1fr) 340px;grid-template-rows:92px minmax(0,1fr)}
+.ehead{grid-column:1/4;grid-row:1;display:flex;align-items:center;gap:20px;padding:0 28px 0 20px;border-bottom:1px solid var(--ink);position:relative}
+.back{flex:none;width:42px;height:42px;border-radius:50%;border:1px solid var(--ink);background:var(--paper-hi);cursor:pointer;display:grid;place-items:center;transition:background .15s,color .15s}
+.back:hover{background:var(--blue);border-color:var(--blue)}
+.back:hover svg{stroke:#fff}
+.big{font-family:var(--mincho);font-size:60px;line-height:.8;color:var(--blue);letter-spacing:-.04em;position:relative;min-width:84px}
+.big::before{position:relative;z-index:1}
+.big::after{position:absolute;left:3px;top:2px;color:var(--orange);mix-blend-mode:multiply}
+body[data-project="todo-app"] .big::before,body[data-project="todo-app"] .big::after{content:"01"}
+body[data-project="sales-analysis"] .big::before,body[data-project="sales-analysis"] .big::after{content:"02"}
+body[data-project="dbt-snowflake"] .big::before,body[data-project="dbt-snowflake"] .big::after{content:"03"}
+body[data-project="life-plan"] .big::before,body[data-project="life-plan"] .big::after{content:"04"}
+body[data-project="memo-editor"] .big::before,body[data-project="memo-editor"] .big::after{content:"05"}
+.ehead h1{margin:0;font-weight:900;font-size:26px;line-height:1.2}
+.sub{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--ink-soft);margin-top:3px}
+.tag{font-family:var(--mono);font-size:10.5px;line-height:18px;padding:0 9px;background:var(--blue);color:#fff;border-radius:99px;white-space:nowrap}
+.efacts{margin-left:auto;display:flex;gap:26px;align-items:flex-end;min-width:0}
+.fact{display:flex;flex-direction:column;min-width:0;gap:1px}
+.fact i{font-style:normal;font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;color:var(--ink-soft);text-transform:uppercase}
+.fact b{font-family:var(--mono);font-weight:500;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fact.path{max-width:330px}
+.fact .rvn{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--orange);font-weight:700}
+
+.side{grid-column:1;grid-row:2;padding:16px 10px 16px 16px;overflow:auto;border-right:1px solid var(--rule);min-height:0}
+.side h3,.talk h3{margin:0 0 10px;font-weight:900;font-size:13px;letter-spacing:.12em;display:flex;align-items:baseline;gap:10px}
+.side h3 small,.talk h3 small{font-family:var(--mono);font-weight:400;font-size:9.5px;letter-spacing:.16em;color:var(--ink-soft)}
+[data-slot="tree"]{font-size:13px}
+.ml-tree-dirname,.ml-tree-file{display:flex;align-items:center;gap:8px;padding:4px 8px;border-radius:3px;margin:1px 0;transition:background .12s}
+.ml-tree-dirname{font-weight:700}
+.ml-tree-children{margin-left:10px;padding-left:9px;border-left:1px solid var(--rule)}
+.ml-tree-file:hover{background:var(--blue-soft)}
+.ml-tree-file[data-active]{background:var(--blue);color:#fff;font-weight:700}
+.ml-ico{width:18px;height:14px;font-size:7.5px;font-weight:700;line-height:14px;text-align:center;border:1px solid currentColor;border-radius:2px;font-family:var(--mono);letter-spacing:-.04em;flex:none;color:var(--blue)}
+.ml-tree-file[data-active] .ml-ico{color:#fff}
+.ml-ico::before{content:"·"}
+.ml-ico[data-kind="md"]::before{content:"MD"}
+.ml-ico[data-kind="ts"]::before{content:"TS"}
+.ml-ico[data-kind="py"]::before{content:"PY"}
+.ml-ico[data-kind="sql"]::before{content:"SQ"}
+.ml-ico[data-kind="yaml"]::before{content:"YM"}
+.ml-ico[data-kind="rs"]::before{content:"RS"}
+.ml-ico[data-kind="diff"]{color:var(--orange);background:var(--ink);border-color:var(--ink)}
+.ml-ico[data-kind="diff"]::before{content:"±"}
+.ml-ico[data-kind="dir"]{border:0;color:var(--ink)}
+.ml-ico[data-kind="dir"]::before{content:"";display:block;margin:2px 0 0 4px;border:4.5px solid transparent;border-left:7px solid var(--ink);border-right:0;transition:transform .15s}
+.ml-tree-dir[data-open="true"]>.ml-tree-dirname .ml-ico::before{transform:rotate(90deg) translate(1px,-1px)}
+
+.main{grid-column:2;grid-row:2;display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--paper-hi)}
+[data-slot="tabs"]{display:flex;border-bottom:1px solid var(--rule);padding-left:12px;overflow:hidden;flex:none;background:var(--paper)}
+.ml-tab{display:flex;align-items:center;gap:7px;padding:10px 14px 9px;font-size:12.5px;border-bottom:3px solid transparent;margin-bottom:-1px;color:var(--ink-soft);white-space:nowrap;transition:color .12s}
+.ml-tab:hover{color:var(--ink)}
+.ml-tab[data-active]{color:var(--ink);font-weight:700;border-bottom-color:var(--orange);background:var(--paper-hi)}
+.ml-tab-close{opacity:.4;font-size:14px;line-height:1}.ml-tab-close:hover{opacity:1}
+[data-slot="doc"]{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.ml-doc{flex:1;display:flex;flex-direction:column;min-height:0}
+.ml-doc-bar{padding:7px 18px 7px 22px;border-bottom:1px solid var(--rule);font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);flex:none}
+.ml-mode{appearance:none;border:1px solid var(--ink);background:transparent;padding:1px 12px;border-radius:99px;font-size:11.5px;cursor:pointer;transition:background .12s}
+.ml-mode:hover{background:var(--blue-soft)}
+.ml-mode[data-active]{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:700}
+.ml-empty{padding:40px;color:var(--ink-soft)}
+.ml-md{flex:1;min-height:0}
+.ml-md-src{padding:22px 22px 22px 26px;font-family:var(--mono);font-size:13px;line-height:1.9;color:var(--ink);overflow:auto;min-height:0;background:var(--paper);border-right:1px solid var(--rule);width:100%;height:100%}
+.ml-md-out{padding:26px 36px 30px;overflow:auto;min-height:0;font-size:14.5px;line-height:1.9;color:#1d2145}
+.ml-md-out h1{font-weight:900;font-size:34px;line-height:1.2;margin:0 0 16px;letter-spacing:.01em;color:var(--blue);display:inline-block;position:relative;text-shadow:2px 1px 0 var(--orange-mid)}
+.ml-md-out h2{font-family:var(--mincho);font-weight:800;font-size:21px;margin:26px 0 6px;display:flex;align-items:center;gap:12px;color:var(--ink)}
+.ml-md-out h2::after{content:"";height:1px;background:var(--ink);flex:1;opacity:.5}
+.ml-md-out h3{font-weight:700;font-size:16px}
+.ml-md-out p{margin:8px 0}
+.ml-md-out ul,.ml-md-out ol{padding-left:1.5em;margin:6px 0}
+.ml-md-out ul:not(.ml-tasks) li::marker{content:"■ ";font-size:.5em;color:var(--orange)}
+.ml-md-out ol li::marker{font-family:var(--mincho);font-weight:800;color:var(--blue)}
+.ml-md-out li{margin:3px 0}
+.ml-md-out blockquote{margin:16px 0;padding:8px 18px;border-left:4px solid var(--orange);background:var(--orange-soft);font-family:var(--mincho);font-weight:500;font-size:15.5px}
+.ml-md-out code{font-family:var(--mono);font-size:.88em;background:var(--blue-soft);color:var(--blue);padding:1px 6px;border-radius:3px}
+.ml-md-out hr{border:0;border-top:1px solid var(--ink);margin:22px 0;opacity:.5}
+.ml-md-out strong{background:linear-gradient(transparent 58%,var(--orange-mid) 58% 92%,transparent 92%);font-weight:700}
+.ml-pre{background:var(--ink);color:#f0efe8;border-radius:3px;padding:12px 16px;margin:10px 0;overflow:auto}
+.ml-pre code{background:none;color:inherit;padding:0;font-size:13px;line-height:1.7}
+.ml-tasks{padding-left:0 !important}
+.ml-task{display:flex;align-items:baseline;margin:4px 0}
+.ml-check{width:1.05em;height:1.05em;border:1.5px solid var(--ink);border-radius:3px;flex:none;display:inline-grid;place-items:center;font-weight:900;font-size:.95em;position:relative}
+.ml-task[data-done="true"] .ml-check{background:var(--blue);border-color:var(--blue);color:#fff;mix-blend-mode:normal}
+.ml-task[data-done="true"] .ml-check::after{content:"";width:.5em;height:.28em;border-left:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(-45deg) translate(1px,-1px)}
+.ml-task[data-done="true"]{color:var(--ink-soft)}
+
+.ml-code{flex:1;min-height:0;padding:10px 0 30px;font-family:var(--mono);font-size:13.5px;line-height:1.75;background:var(--paper-hi);color:var(--ink)}
+.ml-line{padding-right:24px}
+.ml-ln{color:#9b9cb2;font-size:12px;border-right:1px solid var(--rule);margin-right:6px}
+.ml-line[data-k="add"]{background:var(--blue-soft)}
+.ml-line[data-k="add"] .ml-ln{color:var(--blue);border-right:2px solid var(--blue)}
+.ml-line[data-k="add"] .ml-sign{color:var(--blue);font-weight:700}
+.ml-line[data-k="del"]{background:var(--orange-soft)}
+.ml-line[data-k="del"] .ml-ln{color:#c2410c;border-right:2px solid var(--orange)}
+.ml-line[data-k="del"] .ml-sign{color:#c2410c;font-weight:700}
+.ml-line[data-k="hunk"]{background:var(--paper-lo);color:var(--ink-soft);margin:6px 0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);font-size:12px}
+.ml-ln:hover{color:var(--paper-hi);background:var(--blue)}
+.tk-kw{color:var(--blue);font-weight:700}.tk-str{color:#c2410c}.tk-com{color:#8b8ca6;font-style:italic}.tk-num{color:#c2410c}.tk-fn{color:#1a2f98}.tk-meta{color:#7a3a8a}
+.ml-comment{position:relative;margin:8px 24px 10px 66px;padding:7px 14px;border:1px solid var(--blue);background:var(--paper-hi);box-shadow:3px 3px 0 var(--blue-mid);font-family:var(--gothic);font-size:12.5px;line-height:1.65;border-radius:2px}
+.ml-comment-who{flex:none;font-family:var(--mono);font-weight:700;font-size:10px;letter-spacing:.1em;padding:0 7px;line-height:1.7;background:var(--blue);color:#fff;border-radius:2px}
+.ml-comment[data-who="me"]{border-color:var(--orange);box-shadow:3px 3px 0 var(--orange-mid)}
+.ml-comment[data-who="me"] .ml-comment-who{background:var(--orange);color:var(--ink)}
+.ml-compose-input{font-size:12.5px}
+
+.talk{grid-column:3;grid-row:2;display:flex;flex-direction:column;min-height:0;border-left:1px solid var(--rule);padding:16px 20px 18px;background:var(--paper)}
+[data-slot="chat"]{flex:1;min-height:0}
+.ml-chat-log{display:flex;flex-direction:column;gap:14px;padding:4px 0 12px;font-size:13px}
+.ml-msg{display:flex;max-width:100%}
+.ml-msg[data-role="user"]{justify-content:flex-end}
+.ml-msg-body{padding:9px 13px;line-height:1.7;border-radius:12px 12px 12px 2px;background:var(--paper-hi);border:1px solid var(--ink)}
+.ml-msg[data-role="user"] .ml-msg-body{background:var(--blue);border-color:var(--blue);color:#fff;border-radius:12px 12px 2px 12px}
+.ml-perm{border:1px solid var(--orange);background:var(--orange-soft);padding:10px 12px;font-size:12px;border-radius:3px}
+.ml-perm-title{font-weight:700;letter-spacing:.08em;margin-bottom:4px}
+.ml-perm-cmd{display:block;font-family:var(--mono);background:var(--ink);color:#ffd9c7;padding:6px 10px;margin:4px 0 8px;font-size:12px;border-radius:2px}
+.ml-perm-row{display:flex;gap:8px}
+.ml-perm-ok,.ml-perm-ng{appearance:none;border:1px solid var(--ink);padding:2px 16px;font-weight:700;border-radius:99px;cursor:pointer;font-size:12px}
+.ml-perm-ok{background:var(--ink);color:var(--paper-hi)}.ml-perm-ng{background:transparent}
+.ml-chat-form{padding-top:12px;border-top:1px solid var(--rule);align-items:stretch;gap:8px}
+.ml-chat-form textarea{border:1px solid var(--ink);padding:8px 10px;font:13px/1.6 var(--gothic);background:var(--paper-hi);border-radius:3px;outline:none}
+.ml-chat-form textarea:focus{box-shadow:0 0 0 3px var(--blue-mid)}
+.ml-send{appearance:none;border:0;background:var(--orange);color:var(--ink);font-weight:900;padding:0 16px;border-radius:3px;cursor:pointer;letter-spacing:.1em;transition:background .15s,color .15s}
+.ml-send:hover{background:var(--blue);color:#fff}
+</style>
+</head>
+<body data-view="board">
+
+<div id="board">
+  <div class="reg" style="left:34px;top:34px"><i></i></div>
+  <div class="reg" style="right:34px;top:34px"><i></i></div>
+  <div class="reg" style="left:34px;bottom:34px"><i></i></div>
+
+  <div class="head">
+    <h1>Projects<em>プロジェクト</em></h1>
+    <span class="lbl">2色刷り / BLUE + ORANGE</span>
+    <span class="rule"></span>
+    <span class="lbl">2026.10.20 &nbsp;·&nbsp; SHEET 1/1</span>
+  </div>
+
+  <svg id="deco"></svg>
+
+  <!-- 01 -->
+  <article class="card c1" data-project="todo-app" data-drag style="left:70px;top:110px">
+    <div class="slab"><div class="no" data-n="01"><span id="n1">01</span></div><span class="lbl">TypeScript</span></div>
+    <div class="tx">
+      <span class="lbl">React + TS</span>
+      <h2 id="t1">ToDoアプリ</h2>
+      <p>小さなタスク管理。完了トグルを実装している途中。</p>
+      <div class="facts"><span class="chip b">feat/toggle-done</span><span class="rv" id="rv1"><b>2</b>REVIEW</span></div>
+      <div class="facts" style="margin-top:8px"><span class="upd" style="margin-left:0">UPDATED 10/18</span></div>
+    </div>
+  </article>
+
+  <!-- 02 -->
+  <article class="card c2" data-project="sales-analysis" data-drag style="left:560px;top:150px">
+    <div class="plot">
+      <span class="bar" style="left:22px;height:46px"></span><span class="bar" style="left:62px;height:58px"></span><span class="bar" style="left:102px;height:40px"></span>
+      <span class="bar" style="left:142px;height:72px"></span><span class="bar" style="left:182px;height:64px"></span><span class="bar" style="left:222px;height:96px"></span>
+      <span class="bar" style="left:262px;height:130px"></span><span class="bar" style="left:302px;height:112px"></span>
+      <span class="band"></span>
+    </div>
+    <div class="no" data-n="02" style="font-size:56px"><span>02</span></div>
+    <div class="tx">
+      <span class="lbl">Python</span>
+      <h2 id="t2">売上データ分析</h2>
+      <p>月別の売上推移と前年比。11月と12月に山がある。</p>
+      <div class="facts"><span class="chip">main</span><span class="rv"><b>1</b>REVIEW</span><span class="upd">UPDATED 10/16</span></div>
+    </div>
+  </article>
+
+  <!-- 03 -->
+  <article class="card c3" data-project="dbt-snowflake" data-drag style="left:970px;top:92px">
+    <div class="no" data-n="03">03</div>
+    <div class="tx"><h2 id="t3">dbt × Snowflake</h2></div>
+    <div class="flow"><s>raw</s><i></i><s class="o">staging</s><i></i><s class="b">marts</s></div>
+    <div class="facts"><span class="chip dot">SQL / dbt</span><span class="chip">main</span><span class="rv"><b>1</b></span><span class="upd">10/12</span></div>
+  </article>
+
+  <!-- 04 -->
+  <article class="card c4" data-project="life-plan" data-drag style="left:90px;top:470px">
+    <div class="band"></div>
+    <div class="no" data-n="04">04</div>
+    <h2 id="t4">人生設計<br>2027-2029</h2>
+    <p>3年後にどうなっていたいかを、言葉にしていく。</p>
+    <div class="facts"><span class="chip">Markdown</span><span class="chip">main</span><span class="rv"><b class="z">0</b></span></div>
+  </article>
+
+  <!-- 05 -->
+  <article class="card c5" data-project="memo-editor" data-drag style="left:420px;top:560px">
+    <div class="no" data-n="05"><span>05</span></div>
+    <div class="tx">
+      <span class="lbl">Rust + TypeScript</span>
+      <h2 id="t5">このアプリ自身</h2>
+      <p>メモ型AIエディタ(Tauri)。いま、まさに作っているもの。</p>
+    </div>
+    <div class="facts"><span class="chip b">main</span><span class="rv"><b style="background:var(--paper-hi)">1</b>REVIEW</span><span class="upd">UPDATED 今日</span></div>
+  </article>
+
+  <!-- 重ね刷りの見本 -->
+  <div class="proof" aria-hidden="true">
+    <div class="disc d1"></div><div class="disc d2"></div>
+    <div class="note" id="pn">青と橙を重ねると、<b>第3の色</b>が生まれる。</div>
+  </div>
+
+  <svg id="pen"></svg>
+
+  <div class="tools">
+    <button data-action="pen" aria-pressed="false">ペン</button>
+    <button class="dot" data-pen-color="#2340c8" style="--c:#2340c8" aria-label="青"></button>
+    <button class="dot" data-pen-color="#ff6a2b" style="--c:#ff6a2b" aria-label="橙"></button>
+    <button class="dot" data-pen-color="#141838" style="--c:#141838" aria-label="墨"></button>
+    <button data-action="pen-undo">戻す</button>
+    <button data-action="pen-clear">消す</button>
+    <span class="lbl hint">PEN ON → 紙面に書き込み</span>
+  </div>
+</div>
+
+<div id="editor">
+  <header class="ehead">
+    <button class="back" data-action="back" aria-label="ボードへ戻る">
+      <svg width="22" height="16" viewBox="0 0 22 16" fill="none" stroke="#141838" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8H2M8 2 2 8l6 6"/></svg>
+    </button>
+    <div class="big"></div>
+    <div>
+      <h1 data-slot="title"></h1>
+      <div class="sub"><span class="tag" data-slot="lang"></span><span data-slot="blurb"></span></div>
+    </div>
+    <div class="efacts">
+      <span class="fact"><i>branch</i><b data-slot="branch"></b></span>
+      <span class="fact"><i>review</i><b class="rvn" data-slot="count-review"></b></span>
+      <span class="fact path"><i>path</i><b data-slot="path"></b></span>
+    </div>
+  </header>
+  <aside class="side">
+    <h3>FILES<small>ファイル</small></h3>
+    <div data-slot="tree"></div>
+  </aside>
+  <main class="main">
+    <div data-slot="tabs"></div>
+    <div data-slot="doc"></div>
+  </main>
+  <aside class="talk">
+    <h3>CHAT<small>対話</small></h3>
+    <div data-slot="chat"></div>
+  </aside>
+</div>
+
+<script src="assets/common.js"></script>
+<script>
+MemoLab.ready(function(){
+  var blue='#2340c8', orange='#ff6a2b', ink='#141838';
+  /* コネクタ(青と橙の2色) */
+  MemoLab.link('.c1','.c2',{color:blue,width:1.6,curve:.12,dots:true});
+  MemoLab.link('.c2','.c3',{color:orange,width:1.8,curve:-.14,dots:true});
+  MemoLab.link('.c1','.c4',{color:ink,width:1.2,curve:.1,dash:'2 6'});
+  MemoLab.link('.c4','.c5',{color:blue,width:1.6,curve:-.1,dots:true});
+  /* 手書きの囲み・下線 */
+  MemoLab.around('#t1',{shape:'underline',color:orange,width:3,pad:4,seed:3});
+  MemoLab.around('#rv1',{shape:'circle',color:blue,width:2,pad:7,seed:4});
+  MemoLab.around('#t3',{shape:'highlight',color:orange,opacity:.35,pad:3});
+  MemoLab.around('#pn',{shape:'underline',color:blue,width:2.2,pad:3,seed:6});
+  MemoLab.around('#t5',{shape:'box',color:blue,width:2.2,pad:7,seed:5});
+  /* 落書き */
+  MemoLab.scribble('arrow',900,470,90,60,{color:blue,width:2,bend:-24,seed:3});
+  MemoLab.scribble('star',1260,200,32,32,{color:orange,width:2.2});
+  MemoLab.scribble('spiral',1290,700,40,40,{color:blue,width:1.8});
+});
+</script>
+</body>
+</html>

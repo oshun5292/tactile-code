@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>15 星図の机</title>
+<meta name="ml-title" content="15 constellation ― 星座・天体図">
+<meta name="ml-concept" content="濃紺の夜空に広がる星図。プロジェクトは星で、星座線で結んで考えを整理する。星をクリックすると星へ近づき、光の輪が開いて夜の作業机(エディタ)になる。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@500;700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Yomogi&family=Cormorant+Garamond:ital,wght@0,500;0,700;1,500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* 配色: 夜空の濃紺2段(--night/--navy)に、星と罫の金(--gold)、紙のクリーム(--cream)。差し色は薔薇(--rose=星雲/レビュー)と氷青(--ice=線/関数)の計6色 */
+:root{
+  --night:#070b24;
+  --navy:#131c4d;
+  --gold:#e9c46a;
+  --cream:#f6efdc;
+  --rose:#ea8b7c;
+  --ice:#8fc5da;
+  --f-head:"Shippori Mincho B1","Shippori Mincho","Yu Mincho","Hiragino Mincho ProN",serif;
+  --f-body:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic UI",Meiryo,sans-serif;
+  --f-hand:"Yomogi","Zen Kaku Gothic New","Yu Gothic",cursive;
+  --f-latin:"Cormorant Garamond","Shippori Mincho B1",Georgia,serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Consolas,"Cascadia Mono",monospace;
+  --noise:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .9  0 0 0 0 .85  0 0 0 0 .7  0 0 0 .09 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  --paper-noise:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .45  0 0 0 0 .35  0 0 0 0 .2  0 0 0 .16 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  --plate:linear-gradient(155deg,rgba(30,42,104,.88),rgba(10,15,48,.94));
+  /* 光源は左上(星明かり)、影は右下に統一 */
+  --sh:6px 10px 18px rgba(0,0,12,.5),16px 26px 44px rgba(0,0,12,.38);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--night);color:var(--cream);font-family:var(--f-body)}
+svg.sym{position:absolute;width:0;height:0}
+
+/* ---------- ボード(星図) ---------- */
+#board{position:absolute;inset:0;overflow:hidden;
+  background:radial-gradient(ellipse 70% 60% at 50% 55%,#16215e 0%,transparent 70%),radial-gradient(ellipse 50% 40% at 12% 8%,rgba(233,196,106,.1),transparent 70%),radial-gradient(ellipse 60% 50% at 90% 100%,rgba(234,139,124,.1),transparent 70%),var(--noise),var(--night)}
+#sky,#chart{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.tw{animation:tw 4s ease-in-out infinite}
+@keyframes tw{0%,100%{opacity:.35}50%{opacity:1}}
+#deco,#pen{position:absolute;inset:0;width:100%;height:100%}
+#deco{pointer-events:none}
+
+.title{position:absolute;left:46px;top:30px;z-index:3;pointer-events:none}
+.title .la{font:italic 500 15px var(--f-latin);letter-spacing:.32em;color:var(--gold);margin:0 0 4px}
+.title h1{margin:0;font:800 40px/1.1 var(--f-head);letter-spacing:.14em;text-shadow:0 0 24px rgba(233,196,106,.35)}
+.title h1 span{color:var(--gold)}
+.title p{margin:18px 0 0;font:500 12px/1.6 var(--f-body);color:#aab4e0;letter-spacing:.08em}
+.epoch{position:absolute;right:46px;top:34px;z-index:3;text-align:right;font:500 11px/1.8 var(--f-mono);color:#8e9ac9;letter-spacing:.12em;pointer-events:none}
+.epoch b{font:italic 700 26px var(--f-latin);color:var(--gold);letter-spacing:.06em;display:block}
+
+/* カード共通: 星(ひかり)+プレート */
+.card{position:absolute;z-index:5;color:var(--cream)}
+.card .star{z-index:3;position:absolute;pointer-events:none;overflow:visible;filter:drop-shadow(0 0 8px rgba(255,236,170,.65))}
+.card[data-dragging]{z-index:20}
+.plate{position:relative;background:var(--plate),var(--noise);border-radius:14px;box-shadow:inset 1px 1px 0 rgba(255,240,200,.22),0 0 0 1px rgba(233,196,106,.45),var(--sh);backdrop-filter:blur(3px)}
+.cap{display:block;font:italic 500 13px/1.2 var(--f-latin);letter-spacing:.1em;color:var(--gold)}
+.card h3{margin:3px 0 0;font:800 21px/1.25 var(--f-head);letter-spacing:.04em}
+.meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:10px 0 0}
+.tag{display:inline-block;font:700 11px/1 var(--f-mono);letter-spacing:.04em;padding:5px 9px;border-radius:3px;border:1px solid currentColor;white-space:nowrap}
+.br{display:inline-flex;align-items:center;gap:4px;font:500 11px var(--f-mono);color:#aab4e0;white-space:nowrap}
+.br svg{width:12px;height:12px}
+.obs{display:inline-flex;align-items:center;gap:5px;font:700 11px var(--f-body);color:var(--rose);letter-spacing:.04em;white-space:nowrap}
+.obs i{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--rose);box-shadow:0 0 6px var(--rose)}
+.obs i+i{margin-left:-1px}
+.coord{position:absolute;font:500 9.5px var(--f-mono);letter-spacing:.14em;color:#7d89bb;white-space:nowrap}
+/* 角の飾り(星図のトンボ) */
+.corners::before,.corners::after{content:"";position:absolute;width:12px;height:12px;border:2px solid var(--gold);opacity:.9}
+.corners::before{left:-5px;top:-5px;border-right:0;border-bottom:0}
+.corners::after{right:-5px;bottom:-5px;border-left:0;border-top:0}
+
+/* 1 todo-app: 一等星 */
+.c1{width:350px}
+.c1 .star{left:-52px;top:50%;width:128px;height:128px;margin-top:-64px}
+.c1 .plate{padding:20px 22px 18px 76px;transform:rotate(-1deg)}
+.c1 .coord{right:12px;top:8px}
+.c1 .obs{margin-left:auto}
+/* 2 sales-analysis: 天球儀の円盤 */
+.c2{width:290px;height:290px}
+.c2 .dial{position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle at 34% 28%,rgba(143,197,218,.2),transparent 55%),var(--plate),var(--noise);
+  box-shadow:inset 1px 2px 0 rgba(255,240,200,.25),0 0 0 1px rgba(233,196,106,.55),0 0 0 9px rgba(7,11,36,.55),0 0 0 10px rgba(143,197,218,.5),var(--sh)}
+.c2 .ticks{position:absolute;inset:-24px;width:calc(100% + 48px);height:calc(100% + 48px);pointer-events:none}
+.c2 .body{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px}
+.c2 h3{font-size:20px}
+.c2 .chart{display:block;width:176px;height:64px;margin:8px 0 2px}
+.c2 .meta{justify-content:center;margin-top:6px}
+.c2 .star{right:-6px;top:6px;width:64px;height:64px}
+/* 3 dbt-snowflake: 連星+面取りプレート */
+.c3{width:340px}
+.c3 .star.a{left:-34px;top:-30px;width:90px;height:90px}
+.c3 .star.b{left:48px;top:-40px;width:42px;height:42px}
+.c3 .shell{position:relative;margin-top:14px;padding:1px;background:linear-gradient(135deg,var(--gold),rgba(233,196,106,.25) 55%,var(--ice));
+  clip-path:polygon(18px 0,100% 0,100% calc(100% - 18px),calc(100% - 18px) 100%,0 100%,0 18px);filter:none}
+.c3 .in{padding:24px 24px 18px;background:var(--plate),var(--noise);clip-path:polygon(17px 0,100% 0,100% calc(100% - 17px),calc(100% - 17px) 100%,0 100%,0 17px);background-color:var(--night)}
+.c3 .wrap{filter:drop-shadow(6px 10px 10px rgba(0,0,12,.55)) drop-shadow(14px 24px 22px rgba(0,0,12,.35))}
+.c3 .flow{display:block;width:100%;height:46px;margin-top:12px}
+.c3 .tag{color:var(--ice)}
+/* 4 life-plan: 月と観測ノート(紙) */
+.c4{width:330px}
+.c4 .moon{position:absolute;right:-30px;top:-52px;width:104px;height:104px;z-index:2;filter:drop-shadow(0 0 14px rgba(246,239,220,.5))}
+.c4 .note{position:relative;padding:24px 24px 18px 40px;color:#1b2253;transform:rotate(2deg);border-radius:3px 3px 12px 3px;
+  background:var(--paper-noise),repeating-linear-gradient(transparent 0 27px,rgba(60,80,150,.22) 27px 28px),linear-gradient(170deg,#fbf4e0,#efe4c4);
+  box-shadow:0 0 0 1px rgba(0,0,0,.3),2px 3px 0 rgba(0,0,0,.2),9px 15px 20px rgba(0,0,12,.5),20px 32px 44px rgba(0,0,12,.35)}
+.c4 .note::before{content:"";position:absolute;left:28px;top:0;bottom:0;border-left:2px solid var(--rose);opacity:.6}
+.c4 .tape{position:absolute;left:104px;top:-13px;width:84px;height:24px;transform:rotate(-4deg);background:linear-gradient(90deg,rgba(143,197,218,.85),rgba(190,224,236,.75));box-shadow:0 1px 3px rgba(0,0,0,.35);
+  clip-path:polygon(0 0,4% 14%,0 28%,4% 42%,0 56%,4% 70%,0 84%,2% 100%,100% 100%,96% 86%,100% 72%,96% 58%,100% 44%,96% 30%,100% 16%,97% 0)}
+.c4 .cap{color:#9a6a1c;font-size:13px}
+.c4 h3{color:#1b2253;font-size:20px;line-height:28px;margin:0;position:relative;z-index:1}
+.c4 .hand{font:400 16px/28px var(--f-hand);color:#35417f;margin:0}
+.c4 .tag{color:#1b2253}
+.c4 .br{color:#4a5590}
+.c4 .tl{display:block;width:100%;height:44px;margin-top:6px}
+/* 5 memo-editor: 星雲と彗星 */
+.c5{width:392px}
+.c5 .neb{position:absolute;left:-90px;top:-80px;width:560px;height:330px;pointer-events:none;z-index:-1;filter:blur(2px);
+  background:radial-gradient(ellipse 45% 50% at 38% 52%,rgba(234,139,124,.5),transparent 70%),radial-gradient(ellipse 40% 42% at 66% 40%,rgba(143,110,214,.38),transparent 70%),radial-gradient(ellipse 30% 30% at 26% 30%,rgba(143,197,218,.28),transparent 70%)}
+.c5 .comet{position:absolute;right:-70px;top:-62px;width:230px;height:118px;pointer-events:none;z-index:2;overflow:visible;filter:drop-shadow(0 0 7px rgba(255,236,170,.7))}
+.c5 .plate{padding:22px 24px 18px;background:linear-gradient(155deg,rgba(60,36,86,.9),rgba(10,15,48,.95)),var(--noise);box-shadow:inset 1px 1px 0 rgba(255,220,200,.26),0 0 0 1px rgba(234,139,124,.7),var(--sh)}
+.c5 .row{display:flex;align-items:center;gap:16px}
+.c5 .star{position:relative;flex:none;width:76px;height:76px;filter:drop-shadow(0 0 10px rgba(255,200,170,.7))}
+.c5 .cap{color:var(--rose)}
+.c5 h3{font-size:23px}
+.c5 .tag{color:var(--rose)}
+.c5 .blurb{margin:12px 0 0;font:500 12.5px/1.7 var(--f-body);color:#d5d9f0}
+.c5 .flag{z-index:4;position:absolute;left:22px;top:-12px;background:var(--rose);color:var(--night);font:700 10.5px var(--f-mono);letter-spacing:.18em;padding:4px 10px 3px;border-radius:3px;box-shadow:3px 4px 0 rgba(0,0,12,.4)}
+
+/* 道具 */
+.tools{position:absolute;left:46px;bottom:34px;z-index:30;display:flex;align-items:center;gap:8px;padding:8px 10px 8px 16px;border-radius:999px;
+  background:var(--plate),var(--noise);box-shadow:inset 1px 1px 0 rgba(255,240,200,.2),0 0 0 1px rgba(233,196,106,.5),6px 10px 18px rgba(0,0,12,.5)}
+.tools .lab{font:italic 700 15px var(--f-latin);letter-spacing:.14em;color:var(--gold);margin-right:4px}
+.tools button{font:700 12px var(--f-body);border:1px solid rgba(233,196,106,.6);background:transparent;color:var(--cream);border-radius:999px;padding:5px 13px;cursor:pointer}
+.tools button:hover{background:rgba(233,196,106,.15)}
+.tools button[aria-pressed=true]{background:var(--gold);color:var(--night)}
+.tools button[data-pen-color]{width:22px;height:22px;padding:0;border-radius:50%;box-shadow:0 0 8px currentColor}
+.tools button[data-pen-color][aria-pressed=true]{outline:2px solid var(--cream);outline-offset:2px}
+.legend{position:absolute;right:46px;bottom:34px;z-index:3;width:300px;padding:14px 18px 14px;border-radius:4px;border:1px solid rgba(233,196,106,.4);background:rgba(7,11,36,.55);pointer-events:none}
+.legend h4{margin:0 0 6px;font:italic 700 14px var(--f-latin);letter-spacing:.2em;color:var(--gold)}
+.legend ol{margin:0;padding-left:1.4em;font:500 12px/1.8 var(--f-body);color:#c6cdee}
+.legend li::marker{font:italic 700 13px var(--f-latin);color:var(--gold)}
+
+/* ---------- エディタ(夜の作業机) ---------- */
+#editor{position:absolute;inset:0;padding:14px 18px 18px;display:grid;grid-template-columns:260px minmax(0,1fr) 350px;grid-template-rows:62px minmax(0,1fr);gap:0 12px;
+  background:radial-gradient(ellipse 60% 50% at 50% 0,#1b2874 0%,transparent 70%),var(--noise),var(--night)}
+#editor::before{content:"";position:absolute;left:50%;top:50%;width:1500px;height:1500px;margin:-750px 0 0 -750px;border-radius:50%;pointer-events:none;opacity:.5;
+  background:repeating-radial-gradient(circle,transparent 0 98px,rgba(143,197,218,.07) 98px 99px)}
+.eh{grid-column:1/4;position:relative;display:flex;align-items:center;gap:14px;padding:0 6px 10px}
+.back{flex:none;width:42px;height:42px;border-radius:50%;border:1px solid rgba(233,196,106,.7);background:var(--navy);color:var(--gold);cursor:pointer;display:grid;place-items:center;box-shadow:0 0 14px rgba(233,196,106,.25),3px 4px 8px rgba(0,0,12,.5)}
+.back:hover{background:rgba(233,196,106,.18)}
+.back svg{width:22px;height:22px}
+.eh h2{margin:0;font:800 25px var(--f-head);letter-spacing:.08em}
+.eh .tag{color:var(--gold)}
+.eh .chip{display:inline-flex;align-items:center;gap:6px;font:500 12px var(--f-mono);color:#c6cdee;border:1px solid rgba(143,197,218,.45);border-radius:999px;padding:5px 12px}
+.eh .chip svg{width:13px;height:13px}
+.eh .rv{font:700 12px var(--f-body);color:var(--night);background:var(--rose);padding:5px 12px;border-radius:3px;letter-spacing:.04em}
+.eh .rv b{font:700 14px var(--f-mono);margin-left:3px}
+.eh .path{margin-left:auto;font:400 11.5px var(--f-mono);color:#7d89bb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:34%}
+.pane{position:relative;min-height:0;display:flex;flex-direction:column;overflow:hidden;background:linear-gradient(170deg,rgba(24,34,90,.92),rgba(11,16,50,.96)),var(--night);border-radius:12px;
+  box-shadow:inset 1px 1px 0 rgba(255,240,200,.14),0 0 0 1px rgba(233,196,106,.28),5px 8px 18px rgba(0,0,12,.5),14px 22px 40px rgba(0,0,12,.35)}
+.pane-h{flex:none;display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px;padding:14px 16px 8px;font:italic 700 15px var(--f-latin);letter-spacing:.22em;color:var(--gold);text-transform:uppercase}
+.pane-h small{font:500 11px/1.4 var(--f-body);color:#8e9ac9;letter-spacing:.02em;text-transform:none}
+[data-slot=tree]{flex:1;min-height:0;overflow:auto;padding:4px 10px 16px}
+.ml-tree-dirname,.ml-tree-file{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;font:500 13px var(--f-body);color:#d0d6f0}
+.ml-tree-file:hover,.ml-tree-dirname:hover{background:rgba(143,197,218,.1)}
+.ml-tree-file[data-active]{background:rgba(233,196,106,.18);color:var(--cream);box-shadow:inset 2px 0 0 var(--gold)}
+.ml-tree-children{margin-left:14px;padding-left:8px;border-left:1px dotted rgba(143,197,218,.5)}
+.ml-ico{width:20px;height:16px;flex:none;border-radius:3px;border:1px solid rgba(143,197,218,.6);color:var(--ice);position:relative;font:700 8px/14px var(--f-mono);text-align:center}
+.ml-ico[data-kind=dir]{border-color:var(--gold);background:rgba(233,196,106,.2);border-radius:2px 6px 2px 2px}
+.ml-ico[data-kind=md]::before{content:"M"}.ml-ico[data-kind=ts]::before{content:"TS"}.ml-ico[data-kind=py]::before{content:"Py"}.ml-ico[data-kind=sql]::before{content:"SQ"}
+.ml-ico[data-kind=yaml]::before{content:"Y"}.ml-ico[data-kind=rs]::before{content:"Rs"}.ml-ico[data-kind=diff]::before{content:"±"}.ml-ico[data-kind=file]::before{content:"・"}
+.ml-ico[data-kind=diff]{background:var(--rose);border-color:var(--rose);color:var(--night)}
+[data-slot=tabs]{flex:none;display:flex;gap:2px;padding:10px 12px 0;background:rgba(5,8,28,.55);border-bottom:1px solid rgba(233,196,106,.45);overflow:hidden}
+.ml-tab{display:flex;align-items:center;gap:8px;padding:8px 14px 7px;font:500 12.5px var(--f-body);border-radius:8px 8px 0 0;background:transparent;color:#8e9ac9;margin-bottom:-1px;white-space:nowrap;border:1px solid transparent;border-bottom:0}
+.ml-tab[data-active]{background:#0b1131;color:var(--cream);font-weight:700;border-color:rgba(233,196,106,.45);box-shadow:inset 0 2px 0 var(--gold)}
+.ml-tab-close{opacity:.5;font-size:14px;line-height:1}
+.ml-tab-close:hover{opacity:1;color:var(--rose)}
+[data-slot=doc]{flex:1;min-height:0;display:flex;flex-direction:column;background:#0b1131}
+.ml-doc{flex:1;min-height:0;display:flex;flex-direction:column}
+.ml-doc-bar{flex:none;display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid rgba(143,197,218,.18);background:rgba(19,28,77,.6)}
+.ml-doc-path{font:500 12px var(--f-mono);color:#8e9ac9;margin-right:auto}
+.ml-mode{font:700 11.5px var(--f-body);border:1px solid rgba(233,196,106,.55);background:transparent;border-radius:999px;padding:3px 12px;cursor:pointer;color:var(--cream)}
+.ml-mode[data-active]{background:var(--gold);color:var(--night)}
+.ml-md{flex:1;min-height:0;overflow:hidden}
+.ml-md-src{height:100%;padding:18px 20px;font:400 13px/1.8 var(--f-mono);color:#dfe3f6;background:#0b1131;border-right:1px solid rgba(143,197,218,.25)!important;overflow:auto}
+.ml-md-out{height:100%;overflow:auto;padding:22px 30px 32px;font:400 14.5px/1.9 var(--f-body);color:#e6e8f6;background:#0b1131}
+.ml-md-out h1{font:800 28px/1.3 var(--f-head);margin:0 0 12px;letter-spacing:.06em;color:var(--gold);display:flex;align-items:center;gap:12px}
+.ml-md-out h1::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--gold),transparent)}
+.ml-md-out h2{font:700 18px/1.3 var(--f-head);margin:26px 0 10px;letter-spacing:.08em;color:var(--cream);display:flex;align-items:center;gap:10px}
+.ml-md-out h2::before{content:"";width:14px;height:14px;flex:none;background:var(--gold);clip-path:polygon(50% 0,62% 38%,100% 50%,62% 62%,50% 100%,38% 62%,0 50%,38% 38%);filter:drop-shadow(0 0 4px var(--gold))}
+.ml-md-out h3{font:700 15px var(--f-body);margin:18px 0 4px;color:var(--ice);border-left:3px solid var(--ice);padding-left:8px}
+.ml-md-out p{margin:6px 0}
+.ml-md-out ul:not(.ml-tasks),.ml-md-out ol{margin:6px 0 8px;padding-left:0;list-style:none;border-left:1px solid rgba(233,196,106,.5);margin-left:8px;counter-reset:n}
+.ml-md-out ul:not(.ml-tasks) li,.ml-md-out ol li{position:relative;padding-left:24px;counter-increment:n}
+.ml-md-out ul:not(.ml-tasks) li::before{content:"";position:absolute;left:-4px;top:.78em;width:8px;height:8px;border-radius:50%;background:var(--gold);box-shadow:0 0 6px var(--gold)}
+.ml-md-out ol li::before{content:counter(n);position:absolute;left:-11px;top:.2em;width:22px;height:22px;border-radius:50%;background:var(--night);border:1px solid var(--gold);color:var(--gold);font:700 11px/20px var(--f-mono);text-align:center}
+.ml-tasks li{padding:2px 0}
+.ml-check{width:17px!important;height:17px!important;border:1.5px solid var(--gold)!important;border-radius:50%!important;background:transparent;color:var(--night);vertical-align:-3px!important;font-size:11px!important}
+.ml-task[data-done=true] .ml-check{background:var(--gold)}
+.ml-task[data-done=true]{color:#9aa5d0}
+.ml-md-out blockquote{margin:14px 0;padding:10px 18px;border-left:3px solid var(--rose);background:rgba(234,139,124,.1);font:italic 500 14px/1.8 var(--f-head);color:#f4d9d2;border-radius:0 8px 8px 0}
+.ml-md-out code{font:500 .88em var(--f-mono);background:rgba(143,197,218,.14);color:#bfe3f0;padding:1px 6px;border-radius:4px}
+.ml-md-out hr{border:0;height:12px;margin:20px 0;background:radial-gradient(circle,var(--gold) 2px,transparent 3px) center/12px 12px no-repeat,linear-gradient(90deg,transparent,rgba(233,196,106,.6) 40%,rgba(233,196,106,.6) 60%,transparent) center/100% 1px no-repeat}
+.ml-md-out pre.ml-pre{background:#060a20;border:1px solid rgba(143,197,218,.3);border-radius:8px;padding:12px 16px;font:400 12.5px/1.7 var(--f-mono);overflow:auto;color:#dfe3f6}
+.ml-md-out pre code{background:none;padding:0;color:inherit}
+.ml-code,.ml-md-src,.ml-pre{font-variant-ligatures:none}
+.ml-code{flex:1;min-height:0;padding:10px 0 24px;font:400 13px/1.75 var(--f-mono);background:#0b1131;color:#e4e7f6}
+.ml-line{min-height:1.75em}
+.ml-ln{color:#6f7aa8;font-size:12px;border-right:1px solid rgba(143,197,218,.15);margin-right:.6em;background:rgba(5,8,28,.5)}
+.ml-ln:hover{color:var(--gold);font-weight:700}
+.ml-sign{color:#6f7aa8}
+.ml-src{flex:1}
+.ml-line[data-k=add]{background:rgba(90,200,140,.15)}.ml-line[data-k=add] .ml-ln{background:rgba(90,200,140,.2);color:#9be3b8}.ml-line[data-k=add] .ml-sign{color:#7fe0a6;font-weight:700}
+.ml-line[data-k=del]{background:rgba(240,110,100,.16)}.ml-line[data-k=del] .ml-ln{background:rgba(240,110,100,.2);color:#f5a79e}.ml-line[data-k=del] .ml-sign{color:#f58a7f;font-weight:700}
+.ml-line[data-k=hunk]{background:rgba(143,197,218,.1);color:#9fc9da;font-style:italic;border-block:1px dashed rgba(143,197,218,.3)}
+.tk-kw{color:#f0c765;font-weight:700}.tk-str{color:#a3dcab}.tk-com{color:#7f8ab6;font-style:italic}.tk-num{color:#f4a584}.tk-fn{color:#8fd0e8}.tk-meta{color:#cdaaf0}
+.ml-comment{position:relative;margin:6px 14px 8px 80px;padding:9px 14px;background:#1b2766;border:1px solid rgba(233,196,106,.55);border-left:3px solid var(--gold);border-radius:4px 12px 12px 12px;font:500 12.5px/1.65 var(--f-body);color:var(--cream);box-shadow:3px 5px 10px rgba(0,0,12,.4)}
+.ml-comment[data-who=me]{background:#3a2352;border-color:rgba(234,139,124,.6);border-left-color:var(--rose)}
+.ml-comment-who{flex:none;background:var(--gold);color:var(--night);font:700 10px var(--f-mono);padding:2px 8px;border-radius:999px;margin-right:6px}
+.ml-comment[data-who=me] .ml-comment-who{background:var(--rose)}
+.ml-chat{background:transparent}
+.ml-chat-log{padding:6px 14px 10px;display:flex;flex-direction:column;gap:12px}
+.ml-msg{max-width:92%;font:500 13px/1.7 var(--f-body)}
+.ml-msg-body{padding:10px 14px;background:#1a2562;border:1px solid rgba(143,197,218,.35);color:#e6e8f6;border-radius:4px 14px 14px 14px;white-space:pre-wrap;box-shadow:3px 5px 10px rgba(0,0,12,.35)}
+.ml-msg[data-role=user]{align-self:flex-end}
+.ml-msg[data-role=user] .ml-msg-body{background:var(--gold);color:var(--night);border-color:var(--gold);border-radius:14px 4px 14px 14px;font-weight:700}
+.ml-perm{margin-top:10px;border:1px dashed var(--gold);border-radius:10px;padding:10px 12px;background:rgba(233,196,106,.08);font-size:12.5px}
+.ml-perm-title{font:italic 700 13px var(--f-latin);letter-spacing:.12em;margin-bottom:6px;color:var(--gold)}
+.ml-perm-cmd{display:block;font:500 12px var(--f-mono);background:#060a20;color:#bfe3f0;padding:6px 10px;border-radius:6px}
+.ml-perm-row{display:flex;gap:8px;margin-top:8px}
+.ml-perm-row button{font:700 12px var(--f-body);border:1px solid var(--gold);border-radius:999px;padding:4px 14px;cursor:pointer;background:transparent;color:var(--cream)}
+.ml-perm-ok{background:var(--gold)!important;color:var(--night)!important}
+.ml-chat-form{flex:none;padding:10px 12px 56px;border-top:1px solid rgba(233,196,106,.4);background:rgba(5,8,28,.55);align-items:flex-end}
+.ml-chat-form textarea{font:500 13px/1.5 var(--f-body);border:1px solid rgba(143,197,218,.45);border-radius:10px;padding:8px 10px;background:#0b1131;outline:0;color:var(--cream)}
+.ml-chat-form textarea:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(233,196,106,.2)}
+.ml-send{font:700 13px var(--f-body);background:var(--gold);color:var(--night);border:0;border-radius:10px;padding:10px 14px;cursor:pointer;box-shadow:0 0 14px rgba(233,196,106,.35)}
+.ml-empty{padding:30px;color:#8e9ac9}
+
+/* ---------- 切り替え: 星に近づく→光の輪が開いて作業机になる ---------- */
+#board,#editor{transition:opacity .6s ease,transform 1s cubic-bezier(.6,0,.2,1),filter .8s,clip-path 1s cubic-bezier(.6,0,.2,1)}
+#board{transform-origin:var(--ox,50%) var(--oy,50%)}
+body[data-view=board] #editor{opacity:0;transform:scale(.94);clip-path:circle(0px at var(--ox,50%) var(--oy,50%));pointer-events:none}
+body[data-view=editor] #board{opacity:0;transform:scale(3.4);filter:blur(5px) brightness(1.6)}
+body[data-view=editor] #editor{opacity:1;transform:none;clip-path:circle(160% at var(--ox,50%) var(--oy,50%))}
+body[data-phase=to-board] #board{transition-delay:.2s}
+.ml-about{font-family:var(--f-body)}
+</style>
+</head>
+<body data-view="board">
+<svg class="sym" aria-hidden="true">
+  <defs>
+    <symbol id="i-branch" viewBox="0 0 16 16"><circle cx="4" cy="3.5" r="1.9" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="4.2" cy="12.6" r="1.9" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="5.2" r="1.9" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M4 5.5C4.3 8 3.9 9.5 4.2 10.6M12 7.1C11.9 9.2 8.3 8.6 4.6 10.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+    <radialGradient id="glow"><stop offset="0" stop-color="#fff6d6" stop-opacity=".95"/><stop offset=".25" stop-color="#ffe49a" stop-opacity=".55"/><stop offset="1" stop-color="#e9c46a" stop-opacity="0"/></radialGradient>
+    <radialGradient id="glowR"><stop offset="0" stop-color="#ffe9e0" stop-opacity=".95"/><stop offset=".25" stop-color="#ffb3a2" stop-opacity=".55"/><stop offset="1" stop-color="#ea8b7c" stop-opacity="0"/></radialGradient>
+    <radialGradient id="glowI"><stop offset="0" stop-color="#eefaff" stop-opacity=".95"/><stop offset=".25" stop-color="#b6e2f2" stop-opacity=".5"/><stop offset="1" stop-color="#8fc5da" stop-opacity="0"/></radialGradient>
+    <!-- 四方に尖る星(縦横を長く、斜めを短く) -->
+    <symbol id="spark" viewBox="-50 -50 100 100"><path d="M0 -48 C3 -14 14 -3 48 0 C14 3 3 14 0 48 C-3 14 -14 3 -48 0 C-14 -3 -3 -14 0 -48Z" fill="#fff8e0"/><path d="M0 -22 L5 -5 L22 0 L5 5 L0 22 L-5 5 L-22 0 L-5 -5Z" fill="#fff" opacity=".9" transform="rotate(45)"/></symbol>
+  </defs>
+</svg>
+
+<div id="board">
+  <svg id="sky" viewBox="0 0 1440 900" preserveAspectRatio="none"></svg>
+  <svg id="chart" viewBox="0 0 1440 900" preserveAspectRatio="none"></svg>
+
+  <div class="title">
+    <p class="la">Charta Memoriae</p>
+    <h1>メモ<span>星図</span></h1>
+    <p>星をひとつ選んで、近づいてみよう。<br>線で結べば、それが自分の星座になる。</p>
+  </div>
+  <div class="epoch"><b>2027 · 10 · 20</b>EPOCH J2027.8 ／ 北天 35°N</div>
+
+  <div class="legend">
+    <h4>Legenda</h4>
+    <ol>
+      <li>星(カード)をクリックで<b>近づく</b></li>
+      <li>左下の<b>ペン</b>で囲む・結ぶ</li>
+      <li>エディタでは <b>Esc</b> で星図へ戻る</li>
+    </ol>
+  </div>
+
+  <svg id="deco"></svg>
+
+  <!-- 1 -->
+  <article class="card c1" data-project="todo-app" data-drag style="left:170px;top:210px">
+    <svg class="star" viewBox="-50 -50 100 100"><circle r="50" fill="url(#glow)"/><use href="#spark" x="-50" y="-50" width="100" height="100"/></svg>
+    <div class="plate corners">
+      <span class="coord">α 05h 14m</span>
+      <span class="cap">Taskus Major ・ 1.2 mag</span>
+      <h3>ToDoアプリ</h3>
+      <p class="meta"><span class="tag" style="color:var(--ice)">TypeScript</span><span class="br"><svg><use href="#i-branch"/></svg>feat/toggle-done</span></p>
+      <p class="meta" style="margin-top:8px"><span class="obs"><i></i><i></i>観測メモ 2</span></p>
+    </div>
+  </article>
+
+  <!-- 2 -->
+  <article class="card c2" data-project="sales-analysis" data-drag style="left:600px;top:92px">
+    <svg class="ticks" viewBox="-170 -170 340 340" fill="none" stroke="#e9c46a"><circle r="152" stroke-width=".8" opacity=".5"/><g id="tk" stroke-width="1.2"></g></svg>
+    <div class="dial"></div>
+    <div class="body">
+      <span class="cap" style="font-size:12px">Annus Ratio ・ 2.0 mag</span>
+      <h3>売上データ分析</h3>
+      <svg class="chart" viewBox="0 0 176 64" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M4 60H172" stroke="#8e9ac9" stroke-width="1"/><path d="M4 50C24 46 34 38 52 40 70 42 78 22 98 24 118 26 126 8 148 12 160 14 166 8 172 6" stroke="#8fc5da" stroke-width="2.2"/><path d="M4 56C26 54 40 50 58 50 76 50 90 44 110 40 130 36 150 34 172 28" stroke="#e9c46a" stroke-width="1.4" stroke-dasharray="2 5"/><g fill="#fff6d6"><circle cx="52" cy="40" r="2.4"/><circle cx="98" cy="24" r="2.4"/><circle cx="148" cy="12" r="3.2"/></g></svg>
+      <p class="meta"><span class="tag" style="color:var(--gold)">Python</span><span class="br"><svg><use href="#i-branch"/></svg>main</span></p>
+      <p class="meta" style="margin-top:7px"><span class="obs"><i></i>観測メモ 1</span></p>
+    </div>
+    <svg class="star" viewBox="-50 -50 100 100"><circle r="50" fill="url(#glowI)"/><use href="#spark" x="-50" y="-50" width="100" height="100"/></svg>
+  </article>
+
+  <!-- 3 -->
+  <article class="card c3" data-project="dbt-snowflake" data-drag style="left:1000px;top:196px">
+    <svg class="star a" viewBox="-50 -50 100 100"><circle r="50" fill="url(#glowI)"/><use href="#spark" x="-50" y="-50" width="100" height="100"/></svg>
+    <svg class="star b" viewBox="-50 -50 100 100"><circle r="50" fill="url(#glowR)"/><use href="#spark" x="-50" y="-50" width="100" height="100"/></svg>
+    <div class="wrap"><div class="shell corners"><div class="in">
+      <span class="coord" style="right:22px;top:12px">β 11h 02m</span>
+      <span class="cap" style="margin-top:6px">Duplex Nivalis ・ 2.6 mag</span>
+      <h3>dbt × Snowflake</h3>
+      <svg class="flow" viewBox="0 0 290 46" fill="none" stroke="#8fc5da" stroke-width="1.6" stroke-linecap="round"><rect x="4" y="4" width="50" height="14" rx="2"/><rect x="4" y="28" width="50" height="14" rx="2"/><rect x="118" y="16" width="56" height="14" rx="2"/><rect x="236" y="16" width="50" height="14" rx="7" stroke="#e9c46a"/><path d="M54 11C86 11 86 23 118 23M54 35C86 35 86 23 118 23M174 23H236" stroke-dasharray="2 5"/></svg>
+      <p class="meta"><span class="tag">SQL / dbt</span><span class="br"><svg><use href="#i-branch"/></svg>main</span><span class="obs" style="margin-left:auto"><i></i>観測メモ 1</span></p>
+    </div></div></div>
+  </article>
+
+  <!-- 4 -->
+  <article class="card c4" data-project="life-plan" data-drag style="left:260px;top:560px">
+    <svg class="moon" viewBox="0 0 104 104"><defs><radialGradient id="mg" cx=".35" cy=".3"><stop offset="0" stop-color="#fffaf0"/><stop offset="1" stop-color="#e3d3a8"/></radialGradient><mask id="mm"><rect width="104" height="104" fill="#fff"/><circle cx="68" cy="40" r="38" fill="#000"/></mask></defs><circle cx="50" cy="54" r="40" fill="url(#mg)" mask="url(#mm)"/><g fill="#c9b684" opacity=".55" mask="url(#mm)"><circle cx="30" cy="62" r="6"/><circle cx="22" cy="46" r="3.5"/><circle cx="38" cy="80" r="4"/></g></svg>
+    <div class="note">
+      <i class="tape"></i>
+      <span class="cap">Luna Futura ・ 3.0 mag</span>
+      <h3>人生設計 2027-2029</h3>
+      <p class="hand">3年後のわたしを、ことばに。</p>
+      <svg class="tl" viewBox="0 0 270 44" fill="none" stroke="#1b2253" stroke-width="1.6" stroke-linecap="round"><path d="M10 24C60 18 100 28 140 18S220 8 258 12" stroke-dasharray="1 5"/><g fill="#e9a42e" stroke="#1b2253" stroke-width="1.2" stroke-linejoin="round"><path d="M10 16l3 6 6 2-6 2-3 6-3-6-6-2 6-2z"/><path d="M140 10l3 6 6 2-6 2-3 6-3-6-6-2 6-2z"/><path d="M258 2l3 6 6 2-6 2-3 6-3-6-6-2 6-2z"/></g><g font-family="Yomogi,cursive" font-size="12" fill="#35417f" stroke="none"><text x="14" y="43">2027</text><text x="130" y="43">2028</text><text x="238" y="43">2029</text></g></svg>
+      <p class="meta" style="margin-top:6px"><span class="tag">Markdown</span><span class="br"><svg><use href="#i-branch"/></svg>main</span></p>
+    </div>
+  </article>
+
+  <!-- 5 -->
+  <article class="card c5" data-project="memo-editor" data-drag style="left:810px;top:530px">
+    <i class="neb"></i>
+    <svg class="comet" viewBox="0 0 230 118" fill="none"><defs><linearGradient id="ct" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff3c8" stop-opacity=".95"/><stop offset="1" stop-color="#e9c46a" stop-opacity="0"/></linearGradient></defs><path d="M190 22 C140 40 80 74 4 112 C70 94 126 84 176 52Z" fill="url(#ct)"/><path d="M196 18 C150 24 100 34 40 48" stroke="#fff6d6" stroke-width="1" opacity=".6" stroke-linecap="round"/><circle cx="196" cy="22" r="11" fill="url(#glow)"/><circle cx="196" cy="22" r="5" fill="#fffbe8"/></svg>
+    <span class="flag">NOW OBSERVING</span>
+    <div class="plate corners" style="border-radius:16px">
+      <div class="row">
+        <svg class="star" viewBox="-50 -50 100 100"><circle r="50" fill="url(#glowR)"/><use href="#spark" x="-50" y="-50" width="100" height="100"/></svg>
+        <div><span class="cap">Nova Memoria ・ 0.4 mag</span><h3>このアプリ自身</h3>
+        <p class="meta" style="margin-top:8px"><span class="tag">Rust + TypeScript</span></p></div>
+      </div>
+      <p class="blurb">メモ型AIエディタ(Tauri)。いま作っているもの。まだ名前のない、いちばん明るい新星。</p>
+      <p class="meta" style="margin-top:8px"><span class="br"><svg><use href="#i-branch"/></svg>main</span><span class="obs"><i></i>観測メモ 1</span></p>
+    </div>
+  </article>
+
+  <svg id="pen"></svg>
+  <div class="tools">
+    <span class="lab">Stylus</span>
+    <button data-action="pen" aria-pressed="false">書く</button>
+    <button data-pen-color="#e9c46a" style="background:#e9c46a;color:#e9c46a" title="金"></button>
+    <button data-pen-color="#ea8b7c" style="background:#ea8b7c;color:#ea8b7c" title="薔薇"></button>
+    <button data-pen-color="#8fc5da" style="background:#8fc5da;color:#8fc5da" title="氷青"></button>
+    <button data-pen-color="#f6efdc" style="background:#f6efdc;color:#f6efdc" title="白"></button>
+    <button data-action="pen-undo">戻す</button>
+    <button data-action="pen-clear">消す</button>
+  </div>
+</div>
+
+<div id="editor">
+  <header class="eh">
+    <button class="back" data-action="back" aria-label="星図に戻る"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12H5M11 5L4.5 12 11 19"/></svg></button>
+    <h2 data-slot="title"></h2>
+    <span class="tag" data-slot="lang"></span>
+    <span class="chip"><svg><use href="#i-branch"/></svg><span data-slot="branch"></span></span>
+    <span class="rv">レビュー<b data-slot="count-review"></b></span>
+    <span class="path" data-slot="path"></span>
+  </header>
+  <aside class="pane"><div class="pane-h">Index</div><div data-slot="tree"></div></aside>
+  <section class="pane"><div data-slot="tabs"></div><div data-slot="doc"></div></section>
+  <aside class="pane"><div class="pane-h">Dialogus<small data-slot="blurb"></small></div><div data-slot="chat" style="flex:1;min-height:0"></div></aside>
+</div>
+
+<script>
+/* 星空と星図の目盛りを生成(見た目だけ。乱数は固定シード) */
+(function(){
+  var NS='http://www.w3.org/2000/svg',s=7;
+  function r(){s=(s*16807)%2147483647;return s/2147483647}
+  function mk(t,a,p){var e=document.createElementNS(NS,t);for(var k in a)e.setAttribute(k,a[k]);p.appendChild(e);return e}
+  var sky=document.getElementById('sky'),i,x,y,m;
+  for(i=0;i<230;i++){x=r()*1440;y=r()*900;m=r();
+    var c=mk('circle',{cx:x.toFixed(1),cy:y.toFixed(1),r:(m*m*1.5+.35).toFixed(2),fill:m>.85?'#ffe9b0':m>.7?'#cfe6f2':'#f6efdc',opacity:(.3+m*.6).toFixed(2)},sky);
+    if(i%9===0){c.setAttribute('class','tw');c.style.animationDelay=(r()*4).toFixed(1)+'s'}}
+  /* 背景の星座(ごく薄く) */
+  var cons=[[[60,520],[120,580],[200,560],[260,640],[330,610]],[[1120,70],[1190,110],[1260,90],[1320,150],[1380,130]],[[1180,420],[1250,470],[1340,440],[1390,520]]];
+  cons.forEach(function(pts){var d='M'+pts.map(function(p){return p.join(' ')}).join('L');mk('path',{d:d,fill:'none',stroke:'#8fc5da','stroke-width':.8,opacity:.28,'stroke-dasharray':'2 5'},sky);
+    pts.forEach(function(p){mk('circle',{cx:p[0],cy:p[1],r:2.2,fill:'#f6efdc',opacity:.75},sky)})});
+  /* 天球の目盛り(巨大な円) */
+  var ch=document.getElementById('chart'),cx=720,cy=480;
+  [330,414,520,640].forEach(function(R,k){mk('circle',{cx:cx,cy:cy,r:R,fill:'none',stroke:'#e9c46a','stroke-width':k===1?1.4:.8,opacity:k===1?.38:.2,'stroke-dasharray':k===2?'3 7':'none'},ch)});
+  var tk=mk('g',{stroke:'#e9c46a',opacity:.45},ch);
+  for(i=0;i<360;i+=2){var a=i*Math.PI/180,L=i%10===0?14:6,R0=414;
+    mk('line',{x1:cx+Math.cos(a)*R0,y1:cy+Math.sin(a)*R0,x2:cx+Math.cos(a)*(R0+L),y2:cy+Math.sin(a)*(R0+L),'stroke-width':i%10===0?1.2:.7},tk);}
+  for(i=0;i<360;i+=30){var a2=i*Math.PI/180;var t=mk('text',{x:cx+Math.cos(a2)*446,y:cy+Math.sin(a2)*446+4,'text-anchor':'middle',fill:'#e9c46a','font-family':'Cormorant Garamond,serif','font-style':'italic','font-size':13,opacity:.6},ch);t.textContent=(i/15)+'h';}
+  var cr=mk('path',{d:'M720 360 L738 462 L840 480 L738 498 L720 600 L702 498 L600 480 L702 462Z',fill:'none',stroke:'#e9c46a','stroke-width':1,opacity:.28},ch);mk('circle',{cx:cx,cy:cy,r:3,fill:'#e9c46a',opacity:.5},ch);
+  mk('line',{x1:0,y1:cy,x2:1440,y2:cy,stroke:'#8fc5da','stroke-width':.7,opacity:.2,'stroke-dasharray':'1 6'},ch);
+  mk('line',{x1:cx,y1:0,x2:cx,y2:900,stroke:'#8fc5da','stroke-width':.7,opacity:.2,'stroke-dasharray':'1 6'},ch);
+  mk('ellipse',{cx:cx,cy:cy,rx:620,ry:150,fill:'none',stroke:'#ea8b7c','stroke-width':1,opacity:.35,'stroke-dasharray':'6 6',transform:'rotate(-14 '+cx+' '+cy+')'},ch);
+  var el=mk('text',{x:1010,y:392,fill:'#ea8b7c','font-family':'Cormorant Garamond,serif','font-style':'italic','font-size':14,opacity:.7,transform:'rotate(-14 1010 392)','letter-spacing':'3'},ch);el.textContent='ecliptica';
+  /* 円盤の目盛り */
+  var g=document.getElementById('tk');
+  for(i=0;i<72;i++){var b=i*5*Math.PI/180,l=i%6===0?12:6;
+    mk('line',{x1:Math.cos(b)*152,y1:Math.sin(b)*152,x2:Math.cos(b)*(152+l),y2:Math.sin(b)*(152+l),opacity:i%6===0?.9:.5},g);}
+})();
+</script>
+<script src="assets/common.js"></script>
+<script>
+MemoLab.ready(function(){
+  var G='#e9c46a', R='#ea8b7c', I='#8fc5da', C='#f6efdc';
+  /* 星座線: 星どうしを結ぶ */
+  MemoLab.link('.c1 .star','.c2 .star',{color:G,width:1.6,dots:true,curve:-.12});
+  MemoLab.link('.c2 .star','.c3 .star.a',{color:G,width:1.6,dots:true,curve:.1});
+  MemoLab.link('.c1 .star','.c4 .moon',{color:I,width:1.4,dash:'2 7',curve:.2});
+  MemoLab.link('.c3 .star.b','.c5 .comet',{color:R,width:1.6,dash:'1 7',curve:-.2});
+  MemoLab.link('.c4 .moon','.c5 .star',{color:G,width:1.6,dots:true,curve:.15});
+  /* 手書きの印 */
+  MemoLab.around('.c1 h3',{shape:'underline',color:G,width:2.6,pad:5});
+  MemoLab.around('.c5 .flag',{shape:'circle',color:C,width:2,pad:7,seed:5});
+  MemoLab.around('.title h1 span',{shape:'underline',color:G,width:2.4,pad:6,seed:3});
+  MemoLab.around('.legend li:nth-child(1) b',{shape:'highlight',color:'#e9c46a',pad:2});
+  MemoLab.scribble('star',1240,640,34,34,{color:G,width:2});
+  MemoLab.scribble('arrow',1200,330,-70,60,{color:R,width:2.2,bend:22});
+  MemoLab.scribble('spiral',150,470,40,40,{color:I,width:1.8});
+});
+</script>
+</body>
+</html>

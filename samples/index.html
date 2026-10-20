@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>見た目サンプル 35案</title>
+<style>
+:root{
+  --bg:#f6f4ef; --panel:#ffffff; --ink:#26231f; --soft:#6d675e; --line:#ddd7cb; --accent:#b5473a; --ok:#3b7a57; --warn:#a2700f;
+  --chip:#efe9db;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#1c1a17; --panel:#26231f; --ink:#f0ebe0; --soft:#a79f90; --line:#3a352d; --accent:#e0705f; --ok:#6bbd8e; --warn:#e3b04a; --chip:#332f28; }
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.75 "Yu Gothic UI","Hiragino Sans","Noto Sans JP",system-ui,sans-serif}
+a{color:inherit}
+.wrap{max-width:1240px;margin:0 auto;padding:0 20px 80px}
+header{padding:36px 0 8px}
+h1{font-size:28px;margin:0 0 6px;letter-spacing:.02em}
+h2{font-size:19px;margin:34px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--line)}
+.lead{color:var(--soft);margin:0}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 20px}
+.box ol,.box ul{margin:6px 0;padding-left:1.4em}
+.tag{display:inline-block;font-size:12px;padding:0 8px;border-radius:999px;font-weight:700;margin-right:6px;vertical-align:1px}
+.tag.fact{background:color-mix(in srgb,var(--ok) 18%,transparent);color:var(--ok)}
+.tag.unk{background:color-mix(in srgb,var(--warn) 20%,transparent);color:var(--warn)}
+.tag.opn{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:20px;margin-top:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
+.shot{position:relative;display:block;aspect-ratio:16/10;background:var(--chip);overflow:hidden}
+.shot img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .35s}
+.shot:hover img{transform:scale(1.03)}
+.num{position:absolute;left:10px;top:10px;background:rgba(0,0,0,.72);color:#fff;font-weight:800;font-size:14px;padding:1px 10px;border-radius:999px;letter-spacing:.05em}
+.fav{position:absolute;right:10px;top:8px;width:34px;height:34px;border-radius:50%;border:0;background:rgba(255,255,255,.88);color:#999;font-size:20px;line-height:1;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.3)}
+.fav[aria-pressed="true"]{color:#e0a100}
+.body{padding:12px 16px 16px;display:flex;flex-direction:column;gap:8px;flex:1}
+.body h3{margin:0;font-size:17px}
+.body h3 small{color:var(--soft);font-weight:400;font-size:12px;margin-left:6px}
+.world{margin:0;color:var(--soft);font-size:13.5px}
+.views{display:flex;gap:6px}
+.views button{font:inherit;font-size:12px;padding:2px 12px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--soft);cursor:pointer}
+.views button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.meta{font-size:12.5px;color:var(--soft);margin:0}
+.meta b{color:var(--ink);font-weight:600}
+.open{margin-top:auto;display:inline-block;align-self:flex-start;text-decoration:none;font-weight:700;padding:5px 16px;border-radius:8px;background:var(--ink);color:var(--bg)}
+.open:hover{opacity:.85}
+.links{margin-top:auto;display:flex;gap:8px;flex-wrap:wrap}
+.links .open{margin-top:0}
+.open.sub{background:transparent;color:var(--ink);border:1px solid var(--line);font-weight:600;font-size:13px;padding:4px 12px}
+.badge{display:inline-block;font-size:11px;font-weight:700;padding:0 8px;border-radius:999px;margin-left:6px;vertical-align:2px}
+.badge.pickd{background:var(--accent);color:#fff}
+.badge.round2{background:var(--ink);color:var(--bg)}
+.pick{position:sticky;bottom:0;margin-top:30px}
+.pick .box{display:flex;gap:12px;align-items:center;flex-wrap:wrap;box-shadow:0 -4px 16px rgba(0,0,0,.12)}
+.pick output{font-weight:700;color:var(--accent)}
+.pick button{font:inherit;padding:3px 14px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--ink);cursor:pointer}
+nav.toc{columns:3 220px;font-size:14px}
+nav.toc a{display:block;text-decoration:none;padding:1px 0}
+nav.toc a:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>見た目サンプル 35案</h1>
+  <p class="lead">ビジュアルシンカーのための、新しいエディタの見た目の参考例(2026-10-20 作成)。第1弾 01〜30、第2弾 31〜35(02・10を選んだ後の、よりプレーンでモダンな方向)、36(32+34を合わせた確定版候補)</p>
+</header>
+
+<h2 id="purpose">目的</h2>
+<div class="box">
+  <p style="margin:0">ディレクトリを「プロジェクト」として覚え、<b>見た目の好きなボード</b>に自由に置く(手書きで囲む・線でつなぐ)。カードをクリックすると<b>従来のエディタ</b>が現れ、マークダウンを書き、コードをレビューし、AIと会話できる。その<b>見た目の方向</b>を選ぶための35案です。</p>
+  <p style="margin:8px 0 0;color:var(--soft)">選び方の目安: 「毎日開きたくなるか」「自分の好きな色と質感か」「エディタ画面でも読みやすいか」。気に入った案には ★ を付けると、下の「選んだ案」に集まります。</p>
+</div>
+
+<h2 id="toc">目次</h2>
+<div class="box">
+  <ol>
+    <li><a href="#purpose">目的</a></li>
+    <li><a href="#toc">目次</a></li>
+    <li><a href="#howto">見方と注意(事実 / 未確認 / 判断)</a></li>
+    <li><a href="#list">35案の一覧</a>(31〜35は第2弾。02・10に近いプレーン路線)
+      <nav class="toc" id="tocList"></nav>
+    </li>
+    <li><a href="#pick">選んだ案</a>(画面下に固定)</li>
+  </ol>
+</div>
+
+<h2 id="howto">見方と注意</h2>
+<div class="box">
+  <ul>
+    <li><span class="tag fact">事実</span>各案は1つのHTMLファイルです。「開く」でボードが表示され、カードのドラッグ、クリックでエディタ表示、手書きペン、マークダウン編集、行コメントが動きます(共通部品 <code>assets/common.js</code>)。ボード・マークダウン・レビューの3画面は、Edgeで撮影した画像を目視で確認済みです(1440×900)。</li>
+    <li><span class="tag unk">未確認</span><b>ボードからエディタへの切り替えアニメーション</b>は、静止画では見られないため、CSSを読んだ範囲でしか確認していません。実際の動きは、各案を開いてカードをクリックして確かめてください。ペンで描いた線の見え方、ブラウザのコンソールエラーの有無も、全案では未確認です。</li>
+    <li><span class="tag fact">事実</span>第2弾(31〜35)は、ボードとエディタの切り替えアニメーションを作らず、瞬時に切り替わります(「切り替え」欄の「なし」)。</li>
+    <li><span class="tag unk">未確認</span>日本語フォントはGoogle Fontsから読み込みます。オフラインでは代替フォントになり、見た目が変わります。</li>
+    <li><span class="tag opn">判断</span>各カードの「気になる点」は、制作したエージェントの自己申告で、私が全て再確認したものではありません。各案の優劣はまだ付けていません。</li>
+    <li><span class="tag unk">注意</span><b>Claudeアプリ内のプレビューでは、スクリプトが動かず、カードをクリックしてもエディタが開きません。</b>Edge / Chrome などの通常のブラウザで開いてください(各カードの「エディタ(レビュー)」「エディタ(マークダウン)」は、最初からエディタ画面で開きます)。</li>
+    <li>AIの返事や、フォルダ・ファイルの内容はすべて<b>ダミー</b>です。ボードに戻るには、エディタ左上のボタンかEscキーです。</li>
+  </ul>
+</div>
+
+<h2 id="list">35案の一覧</h2>
+<div class="grid" id="grid"></div>
+
+<div class="pick" id="pick">
+  <div class="box">
+    <span>選んだ案:</span><output id="picked">まだありません</output>
+    <button id="copyBtn" type="button">番号をコピー</button>
+    <button id="clearBtn" type="button">選択を消す</button>
+  </div>
+</div>
+</div>
+
+<script>
+// [番号, slug, 名前, 世界観(ボード→エディタ), 切り替え(設計意図), 気になる点(自己申告)]
+var ITEMS = [
+ ['01','pamphlet-grid','旅のしおり(方眼紙)','方眼紙と深緑の枠。縦のタイムラインに丸い時刻ラベルでカードが並ぶ','折りたたみのパンフレットが開き、パネルがエディタになる','(報告なし)'],
+ ['02','editorial-yellow','エディトリアル(黄色い縦帯)','白い紙面に太い黄色の縦帯。大きな索引記号 P1〜P5、細線と黒丸のコネクタ、ぷにぷにマスコット','見開きページが横にスライドして切り替わる','(報告なし)'],
+ ['03','travelers-notebook','トラベラーズノート','革カバーのクラフト紙。マステのラベル、切手や荷札のカード、数字ステッカー','ボードが左端を軸にページのようにめくれる','革の質感は縁だけでやや薄い'],
+ ['04','grid-highlighter','方眼ノート+蛍光ペン','リング綴じの方眼ノート。言語を蛍光ペンの色で塗り分け、手書きの凡例','上辺のリングを軸に、紙が奥へめくれる','下中央〜右下がやや空き気味'],
+ ['05','sticky-wall','付箋の壁','白い壁にパステル付箋。色=言語、赤い丸=レビュー待ち','付箋が手前に拡大してエディタの紙になる','(報告なし)'],
+ ['06','cork-yarn','コルクボード+赤い糸','画鋲留めの紙と赤い糸でのつながり','ボードに近づいて、ピン留めの紙がエディタになる','(報告なし)'],
+ ['07','chalkboard','黒板とチョーク','濃い緑の黒板、チョーク文字と磁石、黒板消しの跡','黒板が扉のように開く','(報告なし)'],
+ ['08','blueprint','製図用紙(青焼き)','青地に白線の図面。図面番号、寸法線、朱のスタンプ、拡大図の虫眼鏡','円形のマスクで、エディタが丸く開く','カード下半分がやや空きがち'],
+ ['09','tracing-layers','トレーシングペーパーの重ね','半透明の紙が奥行きで重なり、淡いインクで描かれる','一番上の紙が滑って重なりが入れ替わる','(報告なし)'],
+ ['10','proof-sheets','校正刷り(ゲラ)+赤字','トンボと色玉のあるゲラ。赤ペンの校正記号','ゲラ全面がエディタになる','(報告なし)'],
+ ['11','airmail-stamps','エアメール+切手','縞縁の封筒に切手5枚(気球・山グラフ・雪の結晶など)。額面=レビュー件数、消印=最終更新','封筒のフタが開き、手紙がせり上がる','左側の余白がやや寂しい'],
+ ['12','cassette-retro','レトロ家電・カセット','アイボリーのステレオデッキと5本のカセット(=プロジェクト)。つまみとVUメーター','盤面にズームし、モニターが一本線から点灯する','コネクタ線の存在感が薄い'],
+ ['13','library-cards','図書館のカード目録','クルミ材の引き出しと索引カード、タイプライター文字、朱のスタンプ','引き出しを引いてカードが広がる','右端の余白が寂しい'],
+ ['14','metro-map','路線図(メトロマップ)','駅=プロジェクト、路線の色=言語。このアプリ自身は乗換駅','電車が画面を横切り、駅の案内板がエディタになる','ドラッグすると路線と駅名板がずれる'],
+ ['15','constellation','星座・天体図','濃紺と金の星図。星=カードを星座線でつなぐ','星にズームし、円形に開いて夜の作業机になる','ボード中央がやや静か'],
+ ['16','watercolor','水彩ノート','にじみのある淡い水彩のカード。顔料名の索引、パレット型のペン','クリック位置から色がにじみ広がる','下中央がやや空白'],
+ ['17','felt-embroidery','フェルト+刺繍','藍の布にフェルトのワッペン。縫い目のコネクタ、ボタン=レビュー件数','クリックしたカードから円形に開く','コネクタ線が細く静か'],
+ ['18','washi-wa','和紙と和綴じ+判子','藍の青海波に和綴じ帖。判子で言語を表し、荷札でレビュー件数を見せる','右綴じを軸に頁がめくれる','左下・右下に余白'],
+ ['19','citypop-silkscreen','シティ・ポップ(シルクスクリーン)','赤・青・黄・白。夕陽と椰子、ハーフトーン、版ズレの見出し','ポスターが剥がれ、内側にエディタが現れる','右下の余白がやや単調'],
+ ['20','paper-collage','切り紙コラージュ','色紙を切り抜いた雲・花・葉・珊瑚の形のカード','青→黄→朱の切り抜きが画面を覆い、エディタが現れる','コネクタ線が短く目立たない'],
+ ['21','dagashi-package','駄菓子屋・昭和パッケージ','駄菓子の袋・箱・缶。言語=「味」、ブランチ=「賞味」','箱のフタが開き、中がエディタになる','袋のギザギザがほぼ出ていない'],
+ ['22','binder-tabs','リングバインダー+色タブ','紺のバインダー。透明ポケット、仕切り、右端の言語タブ','ページがリングを軸にめくれる','下部がやや空き気味'],
+ ['23','label-tape','ラベルライターのテープ','ペグボードに、黒地に白文字の凸テープ。ラベルプリンタ本体=このアプリ','引き出しを引くように、エディタが下から入る','余白が多め'],
+ ['24','stationery-desk','文房具の机上(俯瞰)','白樺の机に定規・鉛筆・消しゴム・クリップと、形の違うメモ','クリックしたメモが手前に来てエディタになる','中央下がやや空き。カード内の文字が小さめ'],
+ ['25','picture-book','絵本(丸いマスコット)','見開きの絵本。豆・しずくなど顔つきのマスコットが案内役','ページがめくれ、マスコットがチャット欄に飛び込む','ボードがパステル寄り'],
+ ['26','whiteboard','ホワイトボード(柔らかい)','アルミ枠の白板。マーカー置き場、マグネット、点グリッド','白板の一部にズームしてエディタになる','右下がやや空き'],
+ ['27','botanical','植物図鑑・標本','標本台紙に押し花と学名風ラベル。ガラス付き標本箱には蝶','標本箱の引き出しのように手前へせり出す','右下がやや寂しい'],
+ ['28','letterpress-mono','活版・モノクロ+朱1色','オフホワイトの紙、凹んだ活字、インクのかすれ。静かで上品','円形のマスクで静かに開く','静かで、他と並ぶと地味に見える'],
+ ['29','lamp-night','夜のデスクランプ(ダーク)','暗い机と暖色の光だまり。光に照らされた紙・革の帳面','閃光のあと、暗がりから明るくなる','左上が暗く地味'],
+ ['30','pixel-quest','ドット絵・レトロRPG','ドット絵のマップとクエストログ風のカード','石の扉が左右に開く','城・塔のドット絵がやや粗い'],
+ ['31','swiss-vermilion','モダン・スイス(朱1色)','オフホワイトと黒インクに朱1色。巨大な数字 01〜05 が主役、12カラムのグリッドと等幅ラベル','なし(瞬時に切り替え)','02の丸囲みが輪郭数字に近い。右下がやや空く'],
+ ['32','gentle-pastel','やさしいパステル','温白の地に、言語別の淡いパステル5色の面。丸ゴシックと大きな数字。手帳アプリのような親しみやすさ','なし(瞬時に切り替え)','手書きの強調が控えめで、やや地味'],
+ ['33','ink-yellow-dark','エディトリアルのダーク版','深いインク色の地にオフホワイトと黄だけ。大きな明朝の索引、罫線で区切る','なし(瞬時に切り替え)','右下・下の余白がやや空く'],
+ ['34','bento-cobalt','ベントーカード(コバルト)','冷たいグレーの地に白いカードを大小で散らす。ミニグラフ、コバルトの細い手書き','なし(瞬時に切り替え)','右下に空きが多く、手書きの丸囲みが細い'],
+ ['35','duotone-riso','リソグラフ風の2色刷り','生成りにコバルトと蛍光オレンジの2版だけ。重ね刷りの第3色、ハーフトーン、わずかな版ズレ','なし(瞬時に切り替え)','余白がやや広く、02の数字がグラフに重なる'],
+ ['36','gentle-bento','やさしいベントー(確定版候補)','32をベースに34のカードの形を採用。言語の自動検知バーとパステルの色分け、ディレクトリ名・パス・説明・進捗とメモ・最終更新・GitHub連携が1枚に。エディタにも色が続く','なし(瞬時に切り替え)','dbtカードの説明が狭い列で折り返す。ToDoカードのチェックリスト絵が小さい']
+];
+var CHOSEN=['02','10'];
+var KEY='memolab-gallery-picks';
+function load(){try{return JSON.parse(localStorage.getItem(KEY))||[]}catch(e){return []}}
+function save(v){try{localStorage.setItem(KEY,JSON.stringify(v))}catch(e){}}
+var picks=load();
+var grid=document.getElementById('grid'), toc=document.getElementById('tocList');
+ITEMS.forEach(function(it){
+  var n=it[0], slug=it[1], href=n+'-'+slug+'.html';
+  var a=document.createElement('a'); a.href='#c'+n; a.textContent=n+' '+it[2]; toc.appendChild(a);
+  var c=document.createElement('article'); c.className='card'; c.id='c'+n;
+  c.innerHTML=
+   '<a class="shot" href="'+href+'" target="_blank" rel="noopener"><img loading="lazy" alt="'+it[2]+' ボード" src="thumbs/small/'+n+'-board.jpg"><span class="num">'+n+'</span></a>'+
+   '<button class="fav" type="button" aria-label="'+n+'を選ぶ" aria-pressed="false">★</button>'+
+   '<div class="body"><h3>'+it[2]+'<small>'+slug+'</small>'+(CHOSEN.indexOf(n)>=0?'<span class="badge pickd">選んだ案</span>':'')+(+n>=31&&n!=='36'?'<span class="badge round2">第2弾</span>':'')+(n==='36'?'<span class="badge pickd">確定版候補</span>':'')+'</h3>'+
+   '<p class="world">'+it[3]+'</p>'+
+   '<div class="views"><button type="button" data-v="board" aria-pressed="true">ボード</button><button type="button" data-v="md" aria-pressed="false">マークダウン</button><button type="button" data-v="review" aria-pressed="false">レビュー</button></div>'+
+   '<p class="meta"><b>切り替え(設計意図・未確認):</b> '+it[4]+'</p>'+
+   '<p class="meta"><b>気になる点(自己申告):</b> '+it[5]+'</p>'+
+   '<div class="links"><a class="open" href="'+href+'" target="_blank" rel="noopener">ボードを開く</a>'+
+   '<a class="open sub" href="'+href+'#open=todo-app&file=review/%E5%AE%8C%E4%BA%86%E3%83%88%E3%82%B0%E3%83%AB%E3%81%AE%E8%BF%BD%E5%8A%A0.diff" target="_blank" rel="noopener">エディタ(レビュー)</a>'+
+   '<a class="open sub" href="'+href+'#open=life-plan&file=3year-plan.md&mode=split" target="_blank" rel="noopener">エディタ(マークダウン)</a></div></div>';
+  c.style.position='relative';
+  var img=c.querySelector('img');
+  c.querySelectorAll('.views button').forEach(function(b){
+    b.addEventListener('click',function(){
+      c.querySelectorAll('.views button').forEach(function(x){x.setAttribute('aria-pressed',String(x===b))});
+      img.src='thumbs/small/'+n+'-'+b.dataset.v+'.jpg';
+    });
+  });
+  var fav=c.querySelector('.fav');
+  fav.addEventListener('click',function(){
+    var i=picks.indexOf(n); if(i>=0)picks.splice(i,1); else picks.push(n);
+    picks.sort(); save(picks); render();
+  });
+  grid.appendChild(c);
+});
+function render(){
+  document.querySelectorAll('.card').forEach(function(c){
+    c.querySelector('.fav').setAttribute('aria-pressed',String(picks.indexOf(c.id.slice(1))>=0));
+  });
+  document.getElementById('picked').textContent=picks.length?picks.join(', '):'まだありません';
+}
+document.getElementById('clearBtn').addEventListener('click',function(){picks=[];save(picks);render()});
+document.getElementById('copyBtn').addEventListener('click',function(){
+  var t=picks.join(', ');
+  if(navigator.clipboard){navigator.clipboard.writeText(t).catch(function(){})}
+});
+render();
+</script>
+</body>
+</html>

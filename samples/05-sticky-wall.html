@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>付箋の壁 — Sticky Wall</title>
+<meta name="ml-title" content="05 付箋の壁(sticky-wall)">
+<meta name="ml-concept" content="白い壁に貼ったパステルの付箋がプロジェクト。付箋の色=言語で、クリックするとその付箋が手前に拡大し、そのままエディタの「紙」になる。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Yomogi&family=Zen+Maru+Gothic:wght@400;500;700&family=Zen+Kurenaido&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* 配色: 壁(温かいオフホワイト)・インク(紺寄りの黒)・赤(アクセント=レビュー件数)の3色を基調に、
+   付箋の5色(黄/桃/ミント/藤/橙)は「言語の色分け」という意味を持つ記号色として使う。
+   光源は左上固定 → 影はすべて右下方向に落とす。 */
+:root{
+  --wall:#ece8df; --wall-d:#ddd7ca; --ink:#2f2d3a; --ink-soft:#6a6776; --red:#e5484d; --paper:#fffef9;
+  --yellow:#ffe27a; --yellow-d:#f4c94a;
+  --pink:#ffb9c8;   --pink-d:#f594ab;
+  --mint:#a9e6cd;   --mint-d:#76cfae;
+  --lav:#d2c6f7;    --lav-d:#ad9bea;
+  --orange:#ffc592; --orange-d:#f6a45b;
+  --note:var(--yellow); --note-d:var(--yellow-d);
+  --hand:"Yomogi","Zen Kurenaido","Yu Gothic UI","Hiragino Maru Gothic ProN","Meiryo",sans-serif;
+  --round:"Zen Maru Gothic","Hiragino Maru Gothic ProN","Yu Gothic UI","Meiryo",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"Cascadia Mono",Consolas,"MS Gothic",monospace;
+  --shadow:drop-shadow(1px 2px 1px rgba(60,45,20,.28)) drop-shadow(9px 16px 12px rgba(60,45,20,.16));
+}
+body[data-project="todo-app"]{--note:var(--yellow);--note-d:var(--yellow-d)}
+body[data-project="sales-analysis"]{--note:var(--pink);--note-d:var(--pink-d)}
+body[data-project="dbt-snowflake"]{--note:var(--mint);--note-d:var(--mint-d)}
+body[data-project="life-plan"]{--note:var(--lav);--note-d:var(--lav-d)}
+body[data-project="memo-editor"]{--note:var(--orange);--note-d:var(--orange-d)}
+
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;overflow:hidden;background:var(--wall);color:var(--ink);font-family:var(--round)}
+.defs{position:absolute;width:0;height:0;overflow:hidden}
+
+/* ================= 壁 ================= */
+#board{position:absolute;inset:0;overflow:hidden;
+  background:
+    radial-gradient(1200px 700px at 30% 15%,rgba(255,255,255,.75),transparent 65%),
+    radial-gradient(900px 600px at 90% 100%,rgba(150,135,110,.22),transparent 70%),
+    linear-gradient(180deg,#efebe2,#e6e1d5);
+  transition:transform .85s cubic-bezier(.65,.02,.3,1),opacity .6s ease .15s;
+  transform-origin:var(--ox,50%) var(--oy,50%);
+}
+.wall-grain{position:absolute;inset:0;width:100%;height:100%;mix-blend-mode:multiply;opacity:.35;pointer-events:none}
+/* 壁の下の巾木と、小さな画鋲穴 */
+.baseboard{position:absolute;left:0;right:0;bottom:0;height:46px;background:linear-gradient(180deg,#f6f3ec,#d9d3c5);border-top:1px solid rgba(255,255,255,.8);box-shadow:0 -6px 14px rgba(70,55,30,.12)}
+#deco{z-index:20}
+#pen{z-index:30}
+
+.headline{position:absolute;left:72px;top:34px;font-family:"Zen Kurenaido",var(--hand);font-weight:700;color:var(--ink);z-index:3}
+.headline .big{font-size:54px;line-height:1.05;letter-spacing:.02em;display:block}
+.headline .sub{display:block;margin-top:20px;font:500 14px/1.6 var(--round);color:var(--ink-soft);letter-spacing:.04em}
+
+/* ================= 付箋 ================= */
+.note{position:absolute;width:var(--w,240px);transform:rotate(var(--rot,0deg));transform-origin:50% 8%;
+  filter:var(--shadow);transition:transform .25s cubic-bezier(.3,1.4,.5,1),filter .25s;z-index:2;color:var(--ink)}
+.note:hover{transform:rotate(var(--rot,0deg)) translate(-2px,-5px) scale(1.025);filter:drop-shadow(1px 2px 1px rgba(60,45,20,.28)) drop-shadow(14px 24px 16px rgba(60,45,20,.2))}
+.note[data-dragging]{transform:rotate(calc(var(--rot,0deg) + 1.5deg)) scale(1.04);filter:drop-shadow(2px 3px 1px rgba(60,45,20,.3)) drop-shadow(20px 32px 20px rgba(60,45,20,.22))}
+.note .paper{position:relative;padding:var(--pad,20px 20px 18px);min-height:var(--h,170px);
+  background:
+    linear-gradient(180deg,rgba(255,255,255,.55) 0,rgba(255,255,255,0) 22px),
+    linear-gradient(172deg,var(--c1) 0%,var(--c1) 40%,var(--c2) 100%);
+  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--curl,30px)),calc(100% - var(--curl,30px)) 100%,0 100%);
+}
+.note .paper::before{content:"";position:absolute;left:0;right:0;top:0;height:30px;background:linear-gradient(180deg,rgba(0,0,0,.07),rgba(0,0,0,.015) 70%,transparent);pointer-events:none} /* のり付き帯 */
+.note .grain{position:absolute;inset:0;width:100%;height:100%;mix-blend-mode:multiply;opacity:.28;pointer-events:none}
+/* めくれた角 = 折り返した裏面 */
+.note .curl{position:absolute;right:0;bottom:0;width:var(--curl,30px);height:var(--curl,30px);
+  background:linear-gradient(315deg,transparent 50%,rgba(255,255,255,.35) 50%),linear-gradient(135deg,var(--c3) 0,var(--c3) 45%,var(--c2) 100%);
+  clip-path:polygon(0 0,100% 0,0 100%);transform:translate(-0px,0);box-shadow:none;
+  filter:drop-shadow(-2px -2px 2px rgba(60,45,20,.25))}
+.note.curl-l .paper{clip-path:polygon(0 0,100% 0,100% 100%,var(--curl,30px) 100%,0 calc(100% - var(--curl,30px)))}
+.note.curl-l .curl{right:auto;left:0;clip-path:polygon(0 0,100% 100%,0 100%);background:linear-gradient(45deg,transparent 50%,rgba(255,255,255,.35) 50%),linear-gradient(225deg,var(--c3),var(--c2))}
+.n-yellow{--c1:#ffeb98;--c2:#ffdc5c;--c3:#f0bf3a}
+.n-pink{--c1:#ffd0dc;--c2:#ffb0c3;--c3:#ee8ba4}
+.n-mint{--c1:#c5f0de;--c2:#9fe0c4;--c3:#6cc7a5}
+.n-lav{--c1:#e2d9fb;--c2:#c9bcf3;--c3:#a493e2}
+.n-orange{--c1:#ffd9b6;--c2:#ffbd86;--c3:#f19b52}
+
+.note .lang{display:inline-block;font:700 11px/1 var(--round);letter-spacing:.08em;padding:5px 9px 5px;border:1.6px solid rgba(47,45,58,.55);border-radius:14px 12px 15px 11px;transform:rotate(-2deg);background:rgba(255,255,255,.35)}
+.note h2{margin:14px 0 6px;font:400 var(--t,28px)/1.15 var(--hand);letter-spacing:.01em}
+.note .blurb{margin:0;font:500 12.5px/1.65 var(--round);color:rgba(47,45,58,.78)}
+.note .foot{display:flex;align-items:center;gap:10px;margin-top:14px;font:500 11px/1 var(--mono);color:rgba(47,45,58,.7)}
+.note .foot svg{width:12px;height:12px;flex:none}
+.note .foot .upd{margin-left:auto;font-family:var(--round);font-size:11px;padding-right:var(--curl,30px)}
+.note .branch{display:flex;align-items:center;gap:4px;max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* レビュー件数 = 赤い丸シール */
+.rv{position:absolute;right:16px;top:14px;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;
+  font:700 14px/1 var(--round);color:#fff;transform:rotate(8deg);
+  background:radial-gradient(circle at 32% 28%,#ff8f93,var(--red) 55%,#c3282d);box-shadow:inset 0 -2px 3px rgba(120,0,10,.35),0 1px 1px rgba(0,0,0,.2)}
+.rv small{position:absolute;top:34px;left:50%;transform:translateX(-50%);white-space:nowrap;font:500 9.5px/1 var(--round);color:rgba(47,45,58,.7)}
+.rv.none{background:rgba(255,255,255,.5);color:rgba(47,45,58,.55);box-shadow:inset 0 0 0 1.5px rgba(47,45,58,.3)}
+
+/* マスキングテープ */
+.tape{position:absolute;left:50%;top:-12px;width:92px;height:26px;margin-left:-46px;transform:rotate(var(--tr,-3deg));z-index:3;
+  background:repeating-linear-gradient(135deg,rgba(255,255,255,.55) 0 6px,rgba(255,255,255,.22) 6px 12px),var(--tape,rgba(120,150,230,.55));
+  clip-path:polygon(0 0,3% 12%,0 28%,3% 45%,0 62%,3% 80%,0 100%,100% 100%,97% 80%,100% 62%,97% 45%,100% 28%,97% 12%,100% 0);
+  box-shadow:0 1px 1px rgba(0,0,0,.1)}
+.deco-svg{position:absolute;z-index:4;pointer-events:none}
+
+/* 補助の小さな付箋(プロジェクトではない) */
+.mini{position:absolute;filter:var(--shadow);transform:rotate(var(--rot,0deg));z-index:1;pointer-events:none}
+.mini .paper{padding:14px 16px 14px;background:linear-gradient(172deg,#fffefb,#f3efe4);clip-path:polygon(0 0,100% 0,100% 100%,0 100%)}
+.mini h3{margin:0 0 8px;font:700 12px/1 var(--round);letter-spacing:.12em;color:var(--ink-soft)}
+.mini ul{margin:0;padding:0;list-style:none;display:grid;gap:7px;font:500 13px/1 var(--hand)}
+.mini li{display:flex;align-items:center;gap:8px}
+.chip{width:18px;height:14px;border-radius:3px 4px 3px 5px;display:inline-block;box-shadow:inset 0 -2px 0 rgba(0,0,0,.1),0 1px 1px rgba(0,0,0,.15)}
+.mini p{margin:0;font:400 15px/1.6 var(--hand)}
+
+/* ペン置き場 */
+.tray{position:absolute;left:72px;bottom:62px;z-index:40;display:flex;align-items:flex-end;gap:2px;padding:8px 14px 8px 12px;
+  background:linear-gradient(180deg,#fffdf8,#ece6d8);border-radius:14px;box-shadow:inset 0 1px 0 #fff,0 1px 1px rgba(60,45,20,.3),6px 10px 18px rgba(60,45,20,.18)}
+.tray button{appearance:none;border:0;background:none;cursor:pointer;padding:0;font:700 12px/1 var(--round);color:var(--ink);position:relative;transition:transform .2s}
+.tray .tool{display:flex;flex-direction:column;align-items:center;gap:4px;padding:2px 8px}
+.tray .marker{height:52px;width:20px;transition:transform .2s cubic-bezier(.3,1.5,.5,1);transform:translateY(8px)}
+.tray button:hover .marker{transform:translateY(2px)}
+.tray button[aria-pressed="true"] .marker{transform:translateY(-6px)}
+.tray [data-action="pen"]{display:flex;align-items:center;gap:6px;padding:9px 13px;border-radius:10px;background:var(--ink);color:#fff;margin-right:8px;align-self:center;box-shadow:0 2px 0 #14131b}
+.tray [data-action="pen"][aria-pressed="true"]{background:var(--red);box-shadow:0 2px 0 #a8262b}
+.tray [data-action="pen"] svg{width:16px;height:16px}
+.tray .sep{width:1px;align-self:stretch;margin:6px 8px;background:rgba(0,0,0,.12)}
+.tray .small{align-self:center;padding:8px 9px;border-radius:8px;color:var(--ink-soft)}
+.tray .small:hover{background:rgba(0,0,0,.06);color:var(--ink)}
+body[data-pen="on"] .note{cursor:crosshair}
+
+/* ================= エディタ(拡大した付箋の紙) ================= */
+#editor{position:absolute;inset:0;padding:24px 26px 26px;overflow:hidden;
+  background:linear-gradient(172deg,color-mix(in srgb,var(--note) 70%,#fff) 0,var(--note) 55%,var(--note-d) 160%);
+  transform-origin:var(--ox,50%) var(--oy,50%);
+  transition:transform .85s cubic-bezier(.65,.02,.3,1),opacity .5s ease;
+  display:block}
+#editor>.grain{position:absolute;inset:0;width:100%;height:100%;mix-blend-mode:multiply;opacity:.3;pointer-events:none}
+.sheet{position:relative;height:100%;display:grid;grid-template-rows:auto 1fr;background:var(--paper);border-radius:4px;
+  box-shadow:inset 0 0 0 1px rgba(60,45,20,.06),1px 2px 1px rgba(60,45,20,.22),10px 18px 30px -8px rgba(60,45,20,.32);overflow:hidden}
+.sheet .grain{position:absolute;inset:0;width:100%;height:100%;mix-blend-mode:multiply;opacity:.14;pointer-events:none}
+.top{position:relative;display:flex;align-items:center;gap:16px;padding:12px 18px 12px 14px;border-bottom:1.5px dashed rgba(47,45,58,.22);
+  background:linear-gradient(180deg,color-mix(in srgb,var(--note) 38%,#fffef9),#fffef9)}
+.back{appearance:none;border:0;cursor:pointer;display:flex;align-items:center;gap:8px;padding:9px 14px 9px 11px;border-radius:12px;background:var(--ink);color:#fff;font:700 13px/1 var(--round);box-shadow:0 2px 0 #14131b;transition:transform .15s}
+.back:hover{transform:translateY(-1px) rotate(-1deg)}
+.back svg{width:18px;height:18px}
+.ttl{min-width:0}
+.ttl .name{font:400 28px/1.1 var(--hand);display:block}
+.ttl .path{display:block;margin-top:3px;font:400 11.5px/1.2 var(--mono);color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.blurb-top{flex:1;min-width:0;font:500 13px/1.5 var(--round);color:var(--ink-soft);padding-left:14px;border-left:2px solid color-mix(in srgb,var(--note-d) 70%,transparent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chips{display:flex;gap:8px;align-items:center;flex:none}
+.pill{display:inline-flex;align-items:center;gap:6px;font:700 12px/1 var(--round);padding:7px 11px;border-radius:99px;background:color-mix(in srgb,var(--note) 75%,#fff);border:1.5px solid color-mix(in srgb,var(--note-d) 80%,#000 10%)}
+.pill.br{font-family:var(--mono);font-weight:500;background:#fff;border-color:rgba(47,45,58,.25)}
+.pill.rv2{background:#fff;border-color:rgba(229,72,77,.5);color:#b6262b}
+.pill.rv2 b{display:grid;place-items:center;min-width:20px;height:20px;border-radius:50%;background:var(--red);color:#fff;font-size:11px}
+.pill svg{width:13px;height:13px}
+
+.body{display:grid;grid-template-columns:232px minmax(0,1fr) 340px;min-height:0;position:relative}
+[data-slot="tree"]{overflow:auto;padding:14px 10px 14px 14px;border-right:1.5px dashed rgba(47,45,58,.2);background:linear-gradient(180deg,rgba(255,255,255,.6),color-mix(in srgb,var(--note) 12%,#fffef9))}
+.mid{display:flex;flex-direction:column;min-height:0;min-width:0}
+[data-slot="tabs"]{display:flex;gap:4px;padding:10px 12px 0;border-bottom:1.5px solid rgba(47,45,58,.18);overflow:hidden;flex:none;background:rgba(0,0,0,.02)}
+[data-slot="doc"]{flex:1;min-height:0;min-width:0}
+[data-slot="chat"]{min-height:0;border-left:1.5px dashed rgba(47,45,58,.2);background:linear-gradient(180deg,color-mix(in srgb,var(--note) 10%,#fffef9),#fffef9);padding:14px 14px 54px}
+
+/* ツリー */
+.ml-tree{font:500 13px/1.3 var(--round)}
+.ml-tree-dirname,.ml-tree-file{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;color:var(--ink)}
+.ml-tree-dirname{font-weight:700;color:var(--ink-soft);font-size:12px;letter-spacing:.04em}
+.ml-tree-children{margin-left:10px;padding-left:6px;border-left:1.5px dotted rgba(47,45,58,.25)}
+.ml-tree-file:hover{background:rgba(0,0,0,.05)}
+.ml-tree-file[data-active]{background:color-mix(in srgb,var(--note) 80%,#fff);box-shadow:inset 3px 0 0 var(--note-d),1px 1px 0 rgba(0,0,0,.08);font-weight:700}
+.ml-ico{width:18px;height:16px;border-radius:3px;font:700 8px/16px var(--round);text-align:center;color:#fff;background:#aaa}
+.ml-ico::before{content:attr(data-kind);text-transform:uppercase;letter-spacing:0}
+.ml-ico[data-kind="dir"]{background:#d6b25e;border-radius:2px 5px 2px 2px;height:13px}.ml-ico[data-kind="dir"]::before{content:""}
+.ml-ico[data-kind="md"]{background:#7a6bd0}.ml-ico[data-kind="ts"]{background:#3f7ad8}.ml-ico[data-kind="py"]{background:#d49a1f}
+.ml-ico[data-kind="sql"]{background:#2da38a}.ml-ico[data-kind="yaml"]{background:#c4527a}.ml-ico[data-kind="rs"]{background:#d2673a}
+.ml-ico[data-kind="diff"]{background:#e5484d}.ml-ico[data-kind="file"]{background:#a9a6b3}
+.ml-ico[data-kind="diff"]::before{content:"±"}
+
+/* タブ */
+.ml-tab{display:flex;align-items:center;gap:7px;padding:8px 8px 8px 11px;border-radius:9px 9px 0 0;font:500 12.5px/1 var(--round);color:var(--ink-soft);background:rgba(0,0,0,.04);border:1.5px solid transparent;border-bottom:0;max-width:210px}
+.ml-tab-title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ml-tab[data-active]{background:var(--paper);color:var(--ink);font-weight:700;border-color:rgba(47,45,58,.18);box-shadow:inset 0 3px 0 var(--note-d);margin-bottom:-1.5px}
+.ml-tab-close{width:16px;height:16px;border-radius:50%;display:grid;place-items:center;font-size:13px;opacity:.5}
+.ml-tab-close:hover{background:rgba(0,0,0,.1);opacity:1}
+
+/* 本文 */
+.ml-doc{display:flex;flex-direction:column;height:100%;min-height:0;background:var(--paper)}
+.ml-doc-bar{flex:none;padding:8px 16px;border-bottom:1px solid rgba(47,45,58,.1);font:400 11.5px/1 var(--mono);color:var(--ink-soft)}
+.ml-mode{appearance:none;border:1.5px solid rgba(47,45,58,.25);background:#fff;color:var(--ink);font:700 11.5px/1 var(--round);padding:6px 11px;border-radius:99px;cursor:pointer}
+.ml-mode[data-active]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.ml-md{flex:1;min-height:0;display:grid}
+.ml-md-src{font-variant-ligatures:none;height:100%;padding:18px 20px;font:400 13px/1.85 var(--mono);color:#2a2833;border-right:1.5px dashed rgba(47,45,58,.2);overflow:auto;
+  background:repeating-linear-gradient(180deg,transparent 0 calc(1.85em - 1px),rgba(120,130,170,.16) calc(1.85em - 1px) 1.85em);background-attachment:local;background-position:0 18px}
+.ml-md-out{padding:18px 26px;overflow:auto;font:500 14.5px/1.85 var(--round);min-height:0}
+.ml-md-out h1{font:400 32px/1.25 var(--hand);margin:.1em 0 .4em;display:inline-block;background:linear-gradient(180deg,transparent 62%,color-mix(in srgb,var(--note) 85%,transparent) 62% 92%,transparent 92%);padding:0 .2em}
+.ml-md-out h2{font:400 23px/1.3 var(--hand);margin:1.2em 0 .4em;padding-left:.7em;position:relative}
+.ml-md-out h2::before{content:"";position:absolute;left:0;top:.2em;width:.38em;height:.95em;border-radius:3px;background:var(--note-d);transform:rotate(-6deg)}
+.ml-md-out h3{font:700 16px/1.4 var(--round)}
+.ml-md-out p{margin:.5em 0}.ml-md-out ul,.ml-md-out ol{padding-left:1.4em;margin:.5em 0}.ml-md-out li{margin:.2em 0}
+.ml-md-out blockquote{margin:1em 0;padding:.7em 1em;background:color-mix(in srgb,var(--note) 40%,#fff);border-radius:3px 12px 3px 12px;transform:rotate(-.4deg);box-shadow:1px 2px 0 rgba(0,0,0,.08)}
+.ml-md-out code{font:400 .88em var(--mono);background:rgba(47,45,58,.07);padding:.12em .4em;border-radius:4px}
+.ml-pre{background:#2b2a36;color:#f2efe6;padding:12px 16px;border-radius:8px;overflow:auto;font:400 12.5px/1.7 var(--mono)}
+.ml-pre code{background:none;padding:0;color:inherit}
+.ml-md-out hr{border:0;border-top:2px dotted rgba(47,45,58,.3);margin:1.4em 0}
+.ml-task{display:flex;align-items:center}
+.ml-check{width:1.15em;height:1.15em;border:2px solid var(--ink);border-radius:5px 6px 4px 6px;color:var(--ink);font-weight:700;background:#fff}
+.ml-task[data-done="true"] .ml-check{background:var(--note);}
+.ml-task[data-done="true"]{color:var(--ink-soft);text-decoration:line-through;text-decoration-color:rgba(47,45,58,.35)}
+
+/* コード・差分(本文は読みやすい白地 / 装飾は縁に) */
+.ml-code{font-variant-ligatures:none;flex:1;min-height:0;padding:8px 0 24px;font:400 13px/1.75 var(--mono);color:#26242f;background:#fffefb}
+.ml-line{min-width:max-content}
+.ml-ln{color:#a29fad;font-size:12px}.ml-ln:hover{color:var(--red);background:rgba(229,72,77,.08)}
+.ml-sign{color:#8a8795}
+.ml-line[data-k="add"]{background:#e2f5de;box-shadow:inset 3px 0 0 #53b46a}.ml-line[data-k="add"] .ml-sign{color:#2c8a45;font-weight:700}
+.ml-line[data-k="del"]{background:#fde3e3;box-shadow:inset 3px 0 0 #e5646a}.ml-line[data-k="del"] .ml-sign{color:#c23a40;font-weight:700}
+.ml-line[data-k="hunk"]{background:color-mix(in srgb,var(--note) 40%,#fff);color:#5a5666;font-style:italic;margin:6px 0}
+.tk-kw{color:#8f3fc4;font-weight:500}.tk-str{color:#2a8650}.tk-com{color:#8d8a98;font-style:italic}.tk-num{color:#c0670a}.tk-fn{color:#2c6fd0}.tk-meta{color:#d0457c}
+.ml-comment{margin:6px 16px 8px 5.4em;padding:10px 14px;border-radius:3px;font:500 12.5px/1.6 var(--round);color:var(--ink);align-items:flex-start;
+  background:linear-gradient(172deg,#fff0a8,#ffe36e);box-shadow:1px 2px 1px rgba(60,45,20,.25),5px 9px 10px rgba(60,45,20,.12);transform:rotate(-.35deg);max-width:620px;position:relative}
+.ml-comment[data-who="me"]{background:linear-gradient(172deg,#d9f4e6,#b4e8cf);transform:rotate(.3deg)}
+.ml-comment-who{flex:none;font:700 10.5px/1 var(--round);padding:4px 7px;border-radius:99px;background:var(--ink);color:#fff;letter-spacing:.06em}
+.ml-comment-text{font-family:var(--hand);font-size:14px;line-height:1.6}
+.ml-compose-input{font:400 13px var(--round)}
+
+/* チャット */
+.ml-chat-log{display:flex;flex-direction:column;gap:14px;padding:4px 2px 10px}
+.ml-msg{max-width:92%;position:relative}
+.ml-msg-body{padding:11px 14px;font:500 13px/1.7 var(--round);border-radius:3px;box-shadow:1px 2px 1px rgba(60,45,20,.22),5px 9px 10px rgba(60,45,20,.1)}
+.ml-msg[data-role="user"]{align-self:flex-end;transform:rotate(.5deg)}
+.ml-msg[data-role="user"] .ml-msg-body{background:linear-gradient(172deg,#ffeb98,#ffdc5c);font-family:var(--hand);font-size:14px}
+.ml-msg[data-role="ai"]{align-self:flex-start;transform:rotate(-.4deg)}
+.ml-msg[data-role="ai"] .ml-msg-body{background:#fff;border-left:5px solid var(--note-d)}
+.ml-msg[data-role="ai"]::before{content:"AI";position:absolute;top:-9px;left:10px;font:700 10px/1 var(--round);letter-spacing:.08em;padding:4px 8px;border-radius:99px;background:var(--ink);color:#fff;z-index:1}
+.ml-perm{background:#fff;border:2px dashed var(--red);border-radius:8px;padding:12px;font:500 12.5px/1.6 var(--round)}
+.ml-perm-title{font-weight:700;color:#b6262b}
+.ml-perm-cmd{display:block;margin:6px 0 10px;padding:8px 10px;background:#2b2a36;color:#f2efe6;border-radius:6px;font:400 12px var(--mono)}
+.ml-perm-row{display:flex;gap:8px}
+.ml-perm-ok,.ml-perm-ng{appearance:none;border:0;border-radius:8px;padding:8px 14px;font:700 12.5px var(--round);cursor:pointer}
+.ml-perm-ok{background:var(--ink);color:#fff}.ml-perm-ng{background:#eee9dd;color:var(--ink)}
+.ml-chat-form{margin-top:8px;padding-top:12px;border-top:1.5px dashed rgba(47,45,58,.2);align-items:flex-end}
+.ml-chat-form textarea{padding:10px 12px;border:1.5px solid rgba(47,45,58,.3);border-radius:10px;background:#fff;font:500 13px/1.5 var(--round);color:var(--ink);outline:0}
+.ml-chat-form textarea:focus{border-color:var(--ink);box-shadow:0 0 0 3px color-mix(in srgb,var(--note) 70%,transparent)}
+.ml-send{appearance:none;border:0;background:var(--ink);color:#fff;border-radius:10px;padding:11px 16px;font:700 13px var(--round);cursor:pointer;box-shadow:0 2px 0 #14131b}
+
+/* ================= 切り替え演出: 付箋が手前に拡大 → そのまま紙になる ================= */
+body[data-view="board"] #editor{opacity:0;transform:scale(.14);pointer-events:none}
+body[data-view="board"] #board{opacity:1;transform:none}
+body[data-view="editor"] #board{opacity:0;transform:scale(3.4);pointer-events:none}
+body[data-view="editor"] #editor{opacity:1;transform:none}
+body[data-phase="to-editor"] #editor{transition:transform .85s cubic-bezier(.2,.75,.25,1),opacity .35s ease}
+body[data-phase="to-board"] #board{transition:transform .85s cubic-bezier(.2,.75,.25,1),opacity .5s ease .2s}
+body[data-phase="to-board"] #editor{transition:transform .8s cubic-bezier(.65,.02,.3,1),opacity .4s ease .35s}
+.ml-about{z-index:9999}
+@media (prefers-reduced-motion:reduce){#board,#editor{transition:none!important}}
+</style>
+</head>
+<body data-view="board">
+
+<!-- 共有パーツ: 紙のざらつき / ペン先 -->
+<svg class="defs" aria-hidden="true">
+  <defs>
+    <filter id="paper" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9 0.8" numOctaves="3" seed="4" result="n"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 .55  0 0 0 0 .5  0 0 0 0 .42  0 0 0 .9 -.2"/>
+    </filter>
+    <filter id="wallnoise" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.035 0.05" numOctaves="4" seed="9"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 .6  0 0 0 0 .56  0 0 0 0 .48  0 0 0 .6 -.12"/>
+    </filter>
+  </defs>
+</svg>
+
+<div id="board">
+  <svg class="wall-grain" aria-hidden="true"><rect width="100%" height="100%" filter="url(#wallnoise)"/></svg>
+  <div class="baseboard"></div>
+  <svg id="deco"></svg>
+
+  <div class="headline">
+    <span class="big">かべに、ぜんぶ 貼る。</span>
+    <span class="sub">付箋の色 = ことば。ドラッグで動かして、クリックで広げる。</span>
+  </div>
+
+  <!-- 補助の付箋: 色の凡例 -->
+  <div class="mini" style="left:1120px;top:112px;width:210px;--rot:2.2deg">
+    <div class="paper">
+      <h3>いろ = ことば</h3>
+      <ul>
+        <li><i class="chip" style="background:var(--yellow)"></i>TypeScript</li>
+        <li><i class="chip" style="background:var(--pink)"></i>Python</li>
+        <li><i class="chip" style="background:var(--mint)"></i>SQL / dbt</li>
+        <li><i class="chip" style="background:var(--lav)"></i>Markdown</li>
+        <li><i class="chip" style="background:var(--orange)"></i>Rust + TS</li>
+      </ul>
+    </div>
+  </div>
+  <div class="mini" style="left:1100px;top:410px;width:215px;--rot:-2.6deg">
+    <div class="paper"><p>赤い丸 = レビュー待ち。<br>気になる付箋は、ペンで囲んでおこう。</p></div>
+  </div>
+  <div class="mini" style="left:1010px;top:600px;width:150px;--rot:3deg">
+    <div class="paper" style="background:linear-gradient(172deg,#fff,#f6f2e8)"><p style="font-size:13px">Esc で壁にもどる</p></div>
+  </div>
+
+  <div class="mini" style="left:1150px;top:610px;width:196px;--rot:-2deg">
+    <div class="paper" style="background:linear-gradient(172deg,#fff0a8,#ffe172)"><p>水曜までに<br>レビューを返す!</p></div>
+  </div>
+  <!-- ===== プロジェクト付箋 ===== -->
+  <div class="note n-yellow" data-project="todo-app" data-drag style="left:84px;top:178px;--w:256px;--rot:-3deg;--h:190px;--t:30px">
+    <div class="paper">
+      <svg class="grain" aria-hidden="true"><rect width="100%" height="100%" filter="url(#paper)"/></svg>
+      <span class="lang">TypeScript</span>
+      <span class="rv">2</span>
+      <h2>ToDoアプリ</h2>
+      <p class="blurb">React + TS の小さなタスク管理。完了トグルを作成中。</p>
+      <div class="foot"><span class="branch"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="3" cy="2.5" r="1.4"/><circle cx="3" cy="9.5" r="1.4"/><circle cx="9" cy="4" r="1.4"/><path d="M3 4v4M9 5.4c0 2.2-3.2 1.6-5.2 3.2"/></svg>feat/toggle-done</span><span class="upd">きのう</span></div>
+    </div>
+    <i class="curl"></i>
+    <i class="tape" style="--tr:-4deg;left:34%;--tape:rgba(110,140,235,.55)"></i>
+  </div>
+
+  <div class="note n-pink curl-l" data-project="sales-analysis" data-drag style="left:408px;top:118px;--w:214px;--rot:2.6deg;--h:164px;--t:23px;--curl:26px">
+    <div class="paper">
+      <svg class="grain" aria-hidden="true"><rect width="100%" height="100%" filter="url(#paper)"/></svg>
+      <span class="lang">Python</span>
+      <span class="rv">1</span>
+      <h2>売上データ分析</h2>
+      <p class="blurb">月別の推移と前年比。</p>
+      <div class="foot"><span class="branch"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="3" cy="2.5" r="1.4"/><circle cx="3" cy="9.5" r="1.4"/><circle cx="9" cy="4" r="1.4"/><path d="M3 4v4M9 5.4c0 2.2-3.2 1.6-5.2 3.2"/></svg>main</span><span class="upd" style="padding-right:0">3日前</span></div>
+    </div>
+    <i class="curl"></i>
+    <svg class="deco-svg" style="left:150px;top:-30px;width:46px;height:70px" viewBox="0 0 46 70" fill="none" stroke="#7a7886" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M14 58 V16 C14 6 30 6 30 16 V52 C30 60 20 60 20 52 V22" stroke-width="3.2"/><path d="M14 58 V16 C14 6 30 6 30 16" stroke="#d9d7e0" stroke-width="1.1" transform="translate(-1 -1)"/>
+    </svg>
+  </div>
+
+  <div class="note n-mint" data-project="dbt-snowflake" data-drag style="left:704px;top:206px;--w:292px;--rot:-1.4deg;--h:222px;--t:28px;--curl:36px">
+    <div class="paper">
+      <svg class="grain" aria-hidden="true"><rect width="100%" height="100%" filter="url(#paper)"/></svg>
+      <span class="lang">SQL / dbt</span>
+      <span class="rv">1</span>
+      <h2>dbt × Snowflake</h2>
+      <p class="blurb">staging から marts まで、モデルを整理する。列名をそろえて、テストを足したところ。</p>
+      <div class="foot"><span class="branch"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="3" cy="2.5" r="1.4"/><circle cx="3" cy="9.5" r="1.4"/><circle cx="9" cy="4" r="1.4"/><path d="M3 4v4M9 5.4c0 2.2-3.2 1.6-5.2 3.2"/></svg>main</span><span class="upd">2時間前</span></div>
+    </div>
+    <i class="curl"></i>
+    <i class="tape" style="--tr:2deg;left:76%;--tape:rgba(240,170,90,.6);width:80px"></i>
+  </div>
+
+  <div class="note n-lav" data-project="life-plan" data-drag style="left:176px;top:514px;--w:322px;--rot:1.8deg;--h:232px;--t:28px;--curl:34px">
+    <div class="paper">
+      <svg class="grain" aria-hidden="true"><rect width="100%" height="100%" filter="url(#paper)"/></svg>
+      <span class="lang">Markdown</span>
+      <span class="rv none">0</span>
+      <h2>人生設計 2027-2029</h2>
+      <p class="blurb">3年後にどうなっていたいかを、言葉にしていく。コードはなし、文章だけ。</p>
+      <div class="foot"><span class="branch"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="3" cy="2.5" r="1.4"/><circle cx="3" cy="9.5" r="1.4"/><circle cx="9" cy="4" r="1.4"/><path d="M3 4v4M9 5.4c0 2.2-3.2 1.6-5.2 3.2"/></svg>main</span><span class="upd">先週</span></div>
+    </div>
+    <i class="curl"></i>
+    <!-- 画鋲 -->
+    <svg class="deco-svg" style="left:50%;top:-14px;width:34px;height:40px;margin-left:-17px" viewBox="0 0 34 40" aria-hidden="true">
+      <ellipse cx="17" cy="33" rx="7" ry="2.4" fill="rgba(0,0,0,.22)"/>
+      <path d="M17 34 L15.6 24 H18.4Z" fill="#9a99a6"/>
+      <ellipse cx="17" cy="21" rx="12.5" ry="5.4" fill="#c9332f"/>
+      <path d="M6 20 C6 8 28 8 28 20 C28 25 6 25 6 20Z" fill="#e5484d"/>
+      <path d="M10 16 C12 11 17 10 21 11" stroke="#fff" stroke-opacity=".6" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+    </svg>
+  </div>
+
+  <div class="note n-orange" data-project="memo-editor" data-drag style="left:626px;top:520px;--w:248px;--rot:-2.4deg;--h:200px;--t:27px;--curl:28px">
+    <div class="paper">
+      <svg class="grain" aria-hidden="true"><rect width="100%" height="100%" filter="url(#paper)"/></svg>
+      <span class="lang">Rust + TypeScript</span>
+      <span class="rv">1</span>
+      <h2>このアプリ自身</h2>
+      <p class="blurb">メモ型AIエディタ(Tauri)。いま、まさに作っているもの。</p>
+      <div class="foot"><span class="branch"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="3" cy="2.5" r="1.4"/><circle cx="3" cy="9.5" r="1.4"/><circle cx="9" cy="4" r="1.4"/><path d="M3 4v4M9 5.4c0 2.2-3.2 1.6-5.2 3.2"/></svg>main</span><span class="upd">いま</span></div>
+    </div>
+    <i class="curl"></i>
+    <i class="tape" style="--tr:-2deg;left:30%;--tape:rgba(110,200,170,.6)"></i>
+  </div>
+
+  <svg id="pen"></svg>
+
+  <!-- ペン置き場 -->
+  <div class="tray" data-no-drag>
+    <button type="button" data-action="pen" aria-pressed="false">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 14l1-4L11.5 1.5l3 3L6 13z"/><path d="M9.5 3.5l3 3"/></svg>ペンで書く
+    </button>
+    <button type="button" class="tool" data-pen-color="#e5484d" aria-label="赤ペン" aria-pressed="true">
+      <svg class="marker" viewBox="0 0 20 52"><path d="M5 0h10l1 14H4z" fill="#e5484d"/><path d="M4 14h12v34a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" fill="#f4f1ea"/><path d="M4 14h12v8H4z" fill="#e5484d"/><path d="M6 24v22" stroke="#fff" stroke-opacity=".7" stroke-width="2" stroke-linecap="round"/><path d="M4 14h12" stroke="rgba(0,0,0,.15)"/></svg>
+    </button>
+    <button type="button" class="tool" data-pen-color="#2f5fd0" aria-label="青ペン" aria-pressed="false">
+      <svg class="marker" viewBox="0 0 20 52"><path d="M5 0h10l1 14H4z" fill="#2f5fd0"/><path d="M4 14h12v34a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" fill="#f4f1ea"/><path d="M4 14h12v8H4z" fill="#2f5fd0"/><path d="M6 24v22" stroke="#fff" stroke-opacity=".7" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+    <button type="button" class="tool" data-pen-color="#1f9a68" aria-label="緑ペン" aria-pressed="false">
+      <svg class="marker" viewBox="0 0 20 52"><path d="M5 0h10l1 14H4z" fill="#1f9a68"/><path d="M4 14h12v34a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" fill="#f4f1ea"/><path d="M4 14h12v8H4z" fill="#1f9a68"/><path d="M6 24v22" stroke="#fff" stroke-opacity=".7" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+    <button type="button" class="tool" data-pen-color="#2f2d3a" aria-label="黒ペン" aria-pressed="false">
+      <svg class="marker" viewBox="0 0 20 52"><path d="M5 0h10l1 14H4z" fill="#2f2d3a"/><path d="M4 14h12v34a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" fill="#f4f1ea"/><path d="M4 14h12v8H4z" fill="#2f2d3a"/><path d="M6 24v22" stroke="#fff" stroke-opacity=".7" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+    <i class="sep"></i>
+    <button type="button" class="small" data-action="pen-undo">ひとつ戻す</button>
+    <button type="button" class="small" data-action="pen-clear">ぜんぶ消す</button>
+  </div>
+</div>
+
+<!-- ================= エディタ ================= -->
+<div id="editor">
+  <div class="sheet">
+    <div class="top">
+      <button type="button" class="back" data-action="back"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 9H3.5M8 4.2L3.2 9 8 13.8"/></svg>壁にもどす</button>
+      <div class="ttl"><span class="name" data-slot="title"></span><span class="path" data-slot="path"></span></div>
+      <div class="blurb-top" data-slot="blurb"></div>
+      <div class="chips">
+        <span class="pill" data-slot="lang"></span>
+        <span class="pill br"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="3" cy="2.5" r="1.4"/><circle cx="3" cy="9.5" r="1.4"/><circle cx="9" cy="4" r="1.4"/><path d="M3 4v4M9 5.4c0 2.2-3.2 1.6-5.2 3.2"/></svg><span data-slot="branch"></span></span>
+        <span class="pill rv2">レビュー<b data-slot="count-review"></b></span>
+      </div>
+    </div>
+    <div class="body">
+      <div data-slot="tree"></div>
+      <div class="mid"><div data-slot="tabs"></div><div data-slot="doc"></div></div>
+      <div data-slot="chat"></div>
+    </div>
+  </div>
+</div>
+
+<script src="assets/common.js"></script>
+<script>
+MemoLab.ready(function () {
+  /* 紙のざらつきを各所へ(付箋は個別に済み。エディタの枠と紙に重ねる) */
+  var NS = 'http://www.w3.org/2000/svg';
+  function grain(host) {
+    var s = document.createElementNS(NS, 'svg'); s.setAttribute('class', 'grain'); s.setAttribute('aria-hidden', 'true');
+    var r = document.createElementNS(NS, 'rect'); r.setAttribute('width', '100%'); r.setAttribute('height', '100%'); r.setAttribute('filter', 'url(#paper)');
+    s.appendChild(r); host.insertBefore(s, host.firstChild);
+  }
+  grain(document.getElementById('editor')); grain(document.querySelector('.sheet'));
+
+  /* コネクタ: 太めのマーカーで付箋どうしを結ぶ */
+  MemoLab.link('[data-project="todo-app"]', '[data-project="sales-analysis"]', { color: '#4a68c9', width: 2.2, curve: .22 });
+  MemoLab.link('[data-project="sales-analysis"]', '[data-project="dbt-snowflake"]', { color: '#4a68c9', width: 2.2, dash: '2 7', curve: -.2 });
+  MemoLab.link('[data-project="todo-app"]', '[data-project="life-plan"]', { color: '#e5484d', width: 2, dash: '1 8', curve: .3 });
+  MemoLab.link('[data-project="dbt-snowflake"]', '[data-project="memo-editor"]', { color: '#4a68c9', width: 2.2, curve: .25 });
+  MemoLab.link('[data-project="life-plan"]', '[data-project="memo-editor"]', { color: '#1f9a68', width: 2.2, dash: '2 7', curve: -.2 });
+
+  /* 手書きの囲み・下線・蛍光ペン */
+  MemoLab.around('[data-project="todo-app"] .rv', { shape: 'circle', color: '#e5484d', width: 2.6, pad: 9, seed: 5 });
+  MemoLab.around('[data-project="dbt-snowflake"] h2', { shape: 'highlight', color: '#ffe14d', pad: 6 });
+  MemoLab.around('[data-project="life-plan"] h2', { shape: 'underline', color: '#7d63d6', width: 3, pad: 8, seed: 3 });
+  MemoLab.around('.headline .big', { shape: 'underline', color: '#e5484d', width: 3.4, pad: 10, seed: 11 });
+  MemoLab.around('[data-project="memo-editor"] .lang', { shape: 'box', color: '#2f2d3a', width: 2, pad: 5, seed: 2 });
+
+  /* 落書き */
+  MemoLab.scribble('arrow', 1030, 300, 70, -70, { color: '#e5484d', width: 2.6, bend: 20 });
+  MemoLab.scribble('star', 960, 450, 42, 42, { color: '#f0a020', width: 2.6, seed: 4 });
+  MemoLab.scribble('spiral', 560, 380, 54, 54, { color: '#2f5fd0', width: 2, seed: 2 });
+  MemoLab.scribble('check', 1290, 500, 40, 30, { color: '#1f9a68', width: 3.2 });
+  MemoLab.scribble('zigzag', 880, 760, 90, 12, { color: '#e5484d', width: 2.4 });
+});
+</script>
+</body>
+</html>

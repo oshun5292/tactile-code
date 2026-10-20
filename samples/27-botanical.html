@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>27 植物標本室</title>
+<meta name="ml-title" content="27 botanical ― 植物標本室">
+<meta name="ml-concept" content="標本台紙に押し花のように貼られたプロジェクトを、ラテン語風の学名ラベルと糸でつなぐ植物標本室。カードを開くと図鑑の図版ページになり、標本箱の引き出しのように手前へ引き出される。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;600;800&family=Klee+One:wght@400;600&family=Zen+Maru+Gothic:wght@400;500;700&family=Cormorant+Garamond:ital,wght@0,500;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* 配色: 標本室らしく「深い森緑(机・枠)/ 鼠色がかった葉の緑 / 古い台紙のクリーム / セピアの墨 / 朱泥(封蝋・赤字) / 黄土(押し花・付箋)」の6色。光は左上、影は右下で統一 */
+:root{
+  --forest:#2c4636;
+  --sage:#86a174;
+  --cream:#f4edd8;
+  --sepia:#3b2c20;
+  --terra:#b5523a;
+  --mustard:#d8a63e;
+  --f-head:"Shippori Mincho","Yu Mincho","Hiragino Mincho ProN",serif;
+  --f-body:"Zen Maru Gothic","Hiragino Maru Gothic ProN","Yu Gothic UI",Meiryo,sans-serif;
+  --f-hand:"Klee One","Yu Mincho","Hiragino Mincho ProN",cursive;
+  --f-lat:"Cormorant Garamond","Times New Roman",Georgia,serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Consolas,"Cascadia Mono",monospace;
+  --noise:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .35  0 0 0 0 .27  0 0 0 0 .15  0 0 0 .2 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  --felt:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .3 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  --sheet:var(--noise),linear-gradient(135deg,#f8f2df,#efe5c8 70%,#e7dab8);
+}
+*{box-sizing:border-box}
+html,body{font-variant-numeric:lining-nums;margin:0;height:100%;overflow:hidden;background:var(--forest);color:var(--sepia);font-family:var(--f-body)}
+svg.sym{position:absolute;width:0;height:0}
+
+/* ---------- ボード ---------- */
+#board{position:absolute;inset:0;overflow:hidden;
+  background:radial-gradient(ellipse at 28% 12%,rgba(255,255,230,.16),transparent 55%),radial-gradient(ellipse at 60% 130%,rgba(0,0,0,.55),transparent 60%),radial-gradient(ellipse at 100% 0,rgba(0,0,0,.3),transparent 50%),var(--felt),var(--forest)}
+#deco,#pen{position:absolute;inset:0;width:100%;height:100%}
+#deco{pointer-events:none;z-index:15}
+/* 標本台紙 */
+.sp{position:absolute;color:var(--sepia);background:var(--sheet);border-radius:2px;display:flex;flex-direction:column;
+  box-shadow:inset 0 0 36px rgba(150,105,40,.2),0 0 0 1px rgba(59,44,32,.28),1px 2px 0 rgba(0,0,0,.12),5px 9px 12px rgba(0,0,0,.3),16px 26px 38px rgba(0,0,0,.3);z-index:5}
+.sp[data-dragging]{z-index:30}
+.sp::before{content:"";position:absolute;inset:7px;border:1px solid rgba(59,44,32,.3);pointer-events:none}
+.plant{position:relative;flex:1;min-height:0;margin:14px 14px 0}
+.plant>svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.lab{position:relative;margin:0 12px 12px;padding:9px 12px 10px;background:linear-gradient(180deg,#fffdf4,#f9f4e2);border:1px solid rgba(59,44,32,.45);
+  box-shadow:1px 2px 0 rgba(0,0,0,.14),3px 5px 8px rgba(0,0,0,.18);transform:rotate(-.6deg)}
+.lab::after{content:"";position:absolute;inset:3px;border:1px solid rgba(59,44,32,.18);pointer-events:none}
+.lab .no{position:absolute;right:11px;bottom:7px;font:600 11px var(--f-lat);letter-spacing:.14em;color:rgba(59,44,32,.6)}
+.lab h3{display:table;margin:0;font:800 21px/1.25 var(--f-head);letter-spacing:.03em;white-space:nowrap}
+.lab .lat{display:table;margin:1px 0 0;font:italic 600 14.5px/1.2 var(--f-lat);color:var(--terra);letter-spacing:.02em}
+.meta{display:flex;flex-wrap:wrap;align-items:center;gap:4px 9px;margin:7px 0 0}
+.chip{display:inline-block;background:var(--forest);color:var(--cream);font:700 10.5px/1 var(--f-mono);padding:4px 9px 3px;border-radius:2px 8px 2px 8px;letter-spacing:.03em;white-space:nowrap}
+.br{display:inline-flex;align-items:center;gap:4px;font:500 11px var(--f-mono);color:#5a4733;white-space:nowrap}
+.br svg{width:12px;height:12px}
+.seal{position:absolute;width:72px;height:72px;right:-12px;top:-34px;z-index:3;mix-blend-mode:multiply;opacity:.92;transform:rotate(12deg)}
+.tp{position:absolute;width:82px;height:24px;z-index:6;background:linear-gradient(90deg,rgba(216,166,62,.72),rgba(236,196,98,.6));box-shadow:0 1px 2px rgba(0,0,0,.2);
+  clip-path:polygon(0 8%,4% 0,8% 10%,12% 0,100% 0,96% 12%,100% 25%,96% 38%,100% 50%,96% 62%,100% 75%,96% 88%,100% 100%,0 100%,4% 88%,0 75%,4% 62%,0 50%,4% 38%,0 25%)}
+.tp.g{background:linear-gradient(90deg,rgba(134,161,116,.78),rgba(160,185,140,.62))}
+.tp.w{width:54px;height:20px;background:linear-gradient(90deg,rgba(255,252,238,.8),rgba(250,244,224,.7))}
+.c1{left:58px;top:64px;width:322px;height:446px;transform:rotate(-1.8deg)}
+.c2{left:432px;top:40px;width:252px;height:468px;transform:rotate(1.4deg)}
+.c3{left:734px;top:66px;width:404px;height:318px;transform:rotate(-.9deg)}
+.c3 .lab{margin-top:0}
+.c3 .lab h3{font-size:20px}
+/* 種袋(life-plan) */
+.c4{left:1174px;top:58px;width:222px;height:350px;transform:rotate(2.6deg);background:var(--noise),linear-gradient(160deg,#e9e0bf,#d9cfa5);border-radius:2px 2px 6px 6px}
+.c4::before{display:none}
+.c4 .flap{position:absolute;left:0;right:0;top:0;height:58px;background:var(--noise),linear-gradient(180deg,var(--sage),#6f8c5e);
+  clip-path:polygon(0 0,100% 0,100% 62%,92% 100%,84% 62%,76% 100%,68% 62%,60% 100%,52% 62%,44% 100%,36% 62%,28% 100%,20% 62%,12% 100%,4% 62%,0 80%);filter:drop-shadow(0 3px 2px rgba(0,0,0,.3))}
+.c4 .flap b{position:absolute;left:16px;top:12px;font:italic 700 17px var(--f-lat);color:var(--cream);letter-spacing:.08em}
+.c4 .win{position:relative;margin:70px 14px 0;height:140px;background:#f9f3dd;border:2px solid var(--sepia);border-radius:3px;box-shadow:inset 2px 3px 0 rgba(59,44,32,.12);overflow:hidden}
+.c4 .win svg{position:absolute;inset:0;width:100%;height:100%}
+.c4 .lab{margin:12px 12px 0}
+.c4 .lab h3{font-size:16px}
+.c4 .band{position:absolute;left:0;right:0;bottom:0;height:12px;background:repeating-linear-gradient(90deg,var(--terra) 0 10px,transparent 10px 16px);opacity:.75}
+/* 標本箱(memo-editor) */
+.c5{left:520px;top:558px;width:490px;height:292px;transform:rotate(.7deg);padding:15px;border-radius:5px;
+  background:var(--noise),linear-gradient(135deg,#6b4a30,#4a3322 55%,#3a2819);
+  box-shadow:inset 0 1px 0 rgba(255,230,180,.3),inset 0 0 0 1px rgba(0,0,0,.4),1px 2px 0 rgba(0,0,0,.25),6px 10px 14px rgba(0,0,0,.35),18px 30px 44px rgba(0,0,0,.35)}
+.c5::before{display:none}
+.c5 .inner{position:relative;flex:1;border-radius:2px;overflow:hidden;background:var(--felt),radial-gradient(ellipse at 35% 30%,#3f6149,var(--forest) 75%);
+  box-shadow:inset 4px 6px 12px rgba(0,0,0,.55),inset 0 0 0 2px rgba(0,0,0,.4)}
+.c5 .inner>svg.bf{position:absolute;left:6px;top:4px;width:270px;height:250px}
+.c5 .glass{position:absolute;inset:0;pointer-events:none;background:linear-gradient(115deg,rgba(255,255,255,.17) 0,rgba(255,255,255,.04) 28%,transparent 30%,transparent 52%,rgba(255,255,255,.09) 54%,rgba(255,255,255,0) 66%)}
+.c5 .lab{position:absolute;right:16px;top:30px;width:190px;margin:0;transform:rotate(2deg);padding:9px 11px 9px}
+.c5 .lab h3{font-size:18px}
+.c5 .lab .lat{font-size:13.5px}
+.c5 .now{position:absolute;right:22px;bottom:20px;font:700 10.5px var(--f-mono);letter-spacing:.2em;color:var(--mustard);border:1.5px solid var(--mustard);padding:4px 9px 3px;transform:rotate(-2deg);border-radius:2px}
+.c5 .screw{position:absolute;width:9px;height:9px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#f0d99a,#a98a3c 60%,#6a521f);box-shadow:0 1px 1px rgba(0,0,0,.5)}
+.c5 .screw::after{content:"";position:absolute;left:1px;right:1px;top:4px;height:1px;background:rgba(0,0,0,.55);transform:rotate(30deg)}
+.c5 .brass{position:absolute;left:50%;bottom:-2px;width:64px;height:11px;margin-left:-32px;background:linear-gradient(180deg,#f0d99a,#a98a3c);border-radius:3px 3px 0 0;box-shadow:0 1px 2px rgba(0,0,0,.5)}
+.c5 .seal{right:auto;left:224px;top:196px;mix-blend-mode:normal;opacity:.95;z-index:4}
+/* 看板・凡例・定規 */
+.plaque{position:absolute;left:1080px;top:470px;width:318px;padding:16px 18px 14px;transform:rotate(1.6deg);z-index:4;text-align:center;
+  background:var(--noise),linear-gradient(135deg,#f0dfa4,#d9bc6e 60%,#c9a653);border:2px solid #8e6f2a;border-radius:4px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.6),inset 0 0 0 4px rgba(142,111,42,.25),2px 3px 0 rgba(0,0,0,.18),8px 14px 20px rgba(0,0,0,.32)}
+.plaque .l1{font:italic 700 27px/1 var(--f-lat);letter-spacing:.06em;color:var(--sepia)}
+.plaque .l2{display:inline-block;font:800 19px/1.4 var(--f-head);letter-spacing:.3em;margin:6px 0 2px;color:var(--forest)}
+.plaque .l3{margin-top:4px;font:500 11px var(--f-mono);letter-spacing:.16em;color:#6a5120}
+.plaque i{position:absolute;width:8px;height:8px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff3c4,#9a7c32 70%);box-shadow:0 1px 1px rgba(0,0,0,.45)}
+.ruler{position:absolute;left:716px;top:430px;width:360px;height:38px;transform:rotate(-2.6deg);z-index:3;border-radius:2px;
+  background:linear-gradient(90deg,transparent 0 0),repeating-linear-gradient(90deg,rgba(59,44,32,.8) 0 1px,transparent 1px 8px) 0 0/100% 9px no-repeat,repeating-linear-gradient(90deg,rgba(59,44,32,.85) 0 1px,transparent 1px 40px) 0 0/100% 17px no-repeat,var(--noise),linear-gradient(180deg,#e6c98a,#d2ae66);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.5),1px 2px 0 rgba(0,0,0,.2),5px 9px 12px rgba(0,0,0,.3)}
+.ruler span{position:absolute;top:19px;font:600 10px var(--f-lat);color:rgba(59,44,32,.8)}
+.hint{position:absolute;left:66px;top:562px;width:392px;height:196px;padding:14px 20px 10px 52px;z-index:4;transform:rotate(.8deg);
+  background:var(--noise),repeating-linear-gradient(transparent 0 27px,rgba(70,110,90,.32) 27px 28px),#f8f3df;border-radius:2px;
+  box-shadow:0 0 0 1px rgba(59,44,32,.25),1px 2px 0 rgba(0,0,0,.12),6px 10px 14px rgba(0,0,0,.3),16px 26px 36px rgba(0,0,0,.25)}
+.hint::before{content:"";position:absolute;left:38px;top:0;bottom:0;border-left:2px solid rgba(181,82,58,.5)}
+.hint h4{margin:0;font:800 17px/28px var(--f-head);letter-spacing:.14em;color:var(--forest)}
+.hint h4 em{font:italic 600 15px var(--f-lat);color:var(--terra);margin-left:8px;letter-spacing:.04em}
+.hint ol{margin:0;padding:0;list-style:none;font:400 14px/28px var(--f-hand);counter-reset:k}
+.hint li{counter-increment:k;position:relative}
+.hint li::before{content:counter(k);position:absolute;left:-26px;top:5px;width:18px;height:18px;border-radius:50%;background:var(--forest);color:var(--cream);font:700 11px/18px var(--f-mono);text-align:center}
+.hint b{font-weight:600}
+.hint .hole{position:absolute;left:12px;width:14px;height:14px;border-radius:50%;background:radial-gradient(circle at 40% 40%,#1d3126,#2c4636);box-shadow:inset 1px 2px 3px rgba(0,0,0,.6),0 1px 0 rgba(255,255,255,.2)}
+.loose{position:absolute;left:1136px;top:652px;width:190px;height:220px;z-index:3;transform:rotate(-5deg)}
+.loose svg{width:100%;height:100%;overflow:visible;filter:drop-shadow(3px 6px 4px rgba(0,0,0,.35))}
+/* ペン道具 */
+.tools{position:absolute;left:66px;top:796px;display:flex;align-items:center;gap:8px;z-index:30;padding:7px 10px 7px 16px;border-radius:999px;
+  background:var(--noise),linear-gradient(180deg,#f9f3df,#eadfbf);box-shadow:0 0 0 1.5px var(--sepia),2px 3px 0 rgba(0,0,0,.3),6px 10px 14px rgba(0,0,0,.3)}
+.tools .lab2{font:italic 700 17px var(--f-lat);letter-spacing:.04em;margin-right:2px;color:var(--forest)}
+.tools button{font:700 12px var(--f-body);border:1.5px solid var(--sepia);background:#fffdf3;color:var(--sepia);border-radius:999px;padding:4px 11px;cursor:pointer}
+.tools button:hover{background:#fff}
+.tools button[aria-pressed=true]{background:var(--forest);color:var(--cream)}
+.tools button[data-pen-color]{width:22px;height:22px;padding:0;border-radius:50%;box-shadow:inset 0 0 0 2px #fffdf3}
+.tools button[data-pen-color][aria-pressed=true]{outline:2px solid var(--sepia);outline-offset:2px}
+.tools .sp2{width:6px}
+.scrawl{position:absolute;z-index:6;font:600 16px/1.3 var(--f-hand);color:var(--cream);text-shadow:0 1px 0 rgba(0,0,0,.4);transform:rotate(-4deg)}
+
+/* ---------- エディタ(図鑑の図版ページ) ---------- */
+#editor{position:absolute;inset:0;padding:12px 18px 18px;display:grid;grid-template-columns:250px minmax(0,1fr) 350px;grid-template-rows:62px minmax(0,1fr);gap:0 14px;
+  background:radial-gradient(ellipse at 20% 0,rgba(255,255,230,.12),transparent 55%),radial-gradient(ellipse at 50% 130%,rgba(0,0,0,.5),transparent 60%),var(--felt),var(--forest)}
+.eh{grid-column:1/4;display:flex;align-items:center;gap:13px;color:var(--cream);padding:0 4px 6px}
+.back{flex:none;width:44px;height:44px;border-radius:50%;border:0;cursor:pointer;display:grid;place-items:center;background:var(--noise),linear-gradient(135deg,#f9f3df,#e6d9b6);box-shadow:0 0 0 1.5px var(--sepia),2px 3px 0 rgba(0,0,0,.35)}
+.back:hover{transform:translateX(-2px)}
+.back svg{width:23px;height:23px}
+.eh .plate{font:italic 700 13px var(--f-lat);letter-spacing:.16em;color:var(--mustard);border-right:1px solid rgba(244,237,216,.35);padding-right:13px;line-height:1.2}
+.eh h2{margin:0;font:800 25px var(--f-head);letter-spacing:.04em;text-shadow:1px 2px 0 rgba(0,0,0,.35)}
+.eh .chip{background:var(--cream);color:var(--forest);font-size:11px}
+.eh .br2{display:inline-flex;align-items:center;gap:6px;font:500 12px var(--f-mono);border:1px solid rgba(244,237,216,.55);border-radius:999px;padding:5px 12px}
+.eh .br2 svg{width:13px;height:13px}
+.eh .rv{font:700 12px var(--f-body);background:var(--terra);color:var(--cream);padding:5px 12px;border-radius:2px 10px 2px 10px;box-shadow:1px 2px 0 rgba(0,0,0,.35)}
+.eh .rv b{font:700 13px var(--f-mono);margin-left:4px}
+.eh .path{margin-left:auto;font:400 11.5px var(--f-mono);color:#b9cdb4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:34%}
+.pane{position:relative;min-height:0;display:flex;flex-direction:column;background:var(--sheet);border-radius:3px;overflow:hidden;
+  box-shadow:inset 0 0 30px rgba(150,105,40,.16),0 0 0 1px rgba(0,0,0,.4),2px 3px 0 rgba(0,0,0,.2),8px 12px 22px rgba(0,0,0,.35)}
+.pane-h{flex:none;display:flex;flex-wrap:wrap;align-items:baseline;gap:0 10px;padding:13px 16px 9px;margin:0 8px;border-bottom:1px solid rgba(59,44,32,.35);font:800 14px var(--f-head);letter-spacing:.18em;color:var(--forest)}
+.pane-h i{font:italic 600 14px var(--f-lat);letter-spacing:.04em;color:var(--terra)}
+.pane-h small{flex-basis:100%;font:500 11px/1.4 var(--f-body);color:#6a5640;letter-spacing:0;margin-top:2px}
+[data-slot=tree]{flex:1;min-height:0;overflow:auto;padding:8px 10px 16px}
+.ml-tree-dirname,.ml-tree-file{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:3px;font:500 13px var(--f-body);color:var(--sepia)}
+.ml-tree-file:hover,.ml-tree-dirname:hover{background:rgba(44,70,54,.09)}
+.ml-tree-file[data-active]{background:var(--forest);color:var(--cream);box-shadow:2px 2px 0 rgba(0,0,0,.22)}
+.ml-tree-children{margin-left:10px;padding-left:8px;border-left:1px dashed rgba(59,44,32,.5)}
+.ml-ico{flex:none;width:14px;height:14px;position:relative;font-size:0}
+.ml-ico::before{content:"";position:absolute;inset:0;background:var(--sage);border-radius:0 90% 0 90%;border:1.5px solid var(--forest);transform:rotate(0deg)}
+.ml-ico[data-kind=dir]::before{background:var(--mustard);border-radius:3px 7px 3px 3px;border-color:var(--sepia)}
+.ml-ico[data-kind=md]::before{background:#e8e1b8}
+.ml-ico[data-kind=diff]::before{background:var(--terra);border-color:#7d3322}
+.ml-tree-file[data-active] .ml-ico::before{border-color:var(--cream)}
+[data-slot=tabs]{flex:none;display:flex;gap:4px;padding:10px 12px 0;border-bottom:2px solid var(--sepia);overflow:hidden}
+.ml-tab{display:flex;align-items:center;gap:8px;padding:7px 12px 6px;font:500 12.5px var(--f-body);border:1.5px solid rgba(59,44,32,.7);border-bottom:0;border-radius:8px 8px 0 0;background:#e2d6b2;color:#6a5640;margin-bottom:-2px;white-space:nowrap}
+.ml-tab[data-active]{background:#fffdf4;color:var(--sepia);font-weight:700;box-shadow:inset 0 3px 0 var(--terra)}
+.ml-tab-close{opacity:.5;font-size:14px;line-height:1}
+.ml-tab-close:hover{opacity:1;color:var(--terra)}
+[data-slot=doc]{flex:1;min-height:0;display:flex;flex-direction:column;background:#fffdf5}
+.ml-doc{flex:1;min-height:0;display:flex;flex-direction:column}
+.ml-doc-bar{flex:none;padding:7px 14px;border-bottom:1px solid #e3d9bb;background:#f6efd9}
+.ml-doc-path{font:500 12px var(--f-mono);color:#6a5640}
+.ml-mode{font:700 11.5px var(--f-body);border:1.5px solid var(--sepia);background:#fffdf4;border-radius:999px;padding:3px 13px;cursor:pointer;color:var(--sepia)}
+.ml-mode[data-active]{background:var(--forest);color:var(--cream);border-color:var(--forest)}
+.ml-md{flex:1;min-height:0;overflow:hidden}
+.ml-md-src{height:100%;padding:18px 20px;font:400 13px/1.8 var(--f-mono);color:#2f2a20;background:#fbf7ea;border-right:1px dashed rgba(59,44,32,.4)!important;overflow:auto}
+.ml-md-out{height:100%;overflow:auto;padding:22px 30px 30px;font:400 14.5px/1.9 var(--f-body);color:#2d2418;background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='170' height='230' viewBox='0 0 170 230' fill='none' stroke='%232c4636' stroke-width='2' stroke-linecap='round' opacity='.2'><path d='M150 226C140 170 146 110 130 40'/><g fill='%2386a174'><path d='M146 190C120 188 104 170 100 150 126 152 142 168 146 190Z'/><path d='M144 160C168 156 176 140 172 122 150 124 140 140 144 160Z'/><path d='M140 124C116 120 100 104 98 84 122 86 138 102 140 124Z'/><path d='M136 90C158 84 166 68 160 52 142 56 134 72 136 90Z'/><path d='M132 56C112 50 104 36 104 20 122 24 132 38 132 56Z'/></g></svg>") no-repeat right 6px bottom 6px,#fffdf5}
+.ml-md-out h1{font:800 27px/1.3 var(--f-head);margin:0 0 14px;padding-bottom:8px;letter-spacing:.04em;color:var(--forest);border-bottom:4px double rgba(59,44,32,.55)}
+.ml-md-out h2{font:800 17px/1.3 var(--f-head);margin:24px 0 8px;letter-spacing:.14em;color:var(--sepia);display:flex;align-items:center;gap:9px}
+.ml-md-out h2::before{content:"";flex:none;width:17px;height:17px;background:var(--sage);border:1.5px solid var(--forest);border-radius:0 90% 0 90%;transform:rotate(-8deg)}
+.ml-md-out h3{font:700 15px var(--f-body);margin:16px 0 4px;color:var(--terra);letter-spacing:.06em}
+.ml-md-out p{margin:6px 0}
+.ml-md-out ul:not(.ml-tasks),.ml-md-out ol{margin:6px 0 8px;padding-left:4px;list-style:none;counter-reset:n}
+.ml-md-out ul:not(.ml-tasks) li,.ml-md-out ol li{position:relative;padding-left:26px;counter-increment:n}
+.ml-md-out ul:not(.ml-tasks) li::before{content:"";position:absolute;left:4px;top:.62em;width:11px;height:11px;background:var(--mustard);border:1.5px solid var(--sepia);border-radius:0 90% 0 90%;transform:rotate(-10deg)}
+.ml-md-out ol li::before{content:counter(n);position:absolute;left:0;top:.28em;width:21px;height:21px;border-radius:50%;background:var(--forest);color:var(--cream);font:700 11px/21px var(--f-lat);text-align:center}
+.ml-tasks li{padding:2px 0}
+.ml-check{width:18px!important;height:18px!important;border:2px solid var(--forest)!important;border-radius:0 80% 0 80%!important;background:#fffdf4;color:var(--cream);vertical-align:-3px!important;font-size:12px!important}
+.ml-task[data-done=true] .ml-check{background:var(--forest)}
+.ml-task[data-done=true]{color:#7a6a52}
+.ml-md-out blockquote{position:relative;margin:14px 0;padding:10px 16px 10px 20px;background:#f8efc9;border-left:5px solid var(--mustard);box-shadow:1px 2px 0 rgba(0,0,0,.1),3px 5px 8px rgba(0,0,0,.1);font:600 14px/1.8 var(--f-hand);transform:rotate(-.4deg)}
+.ml-md-out code{font:500 .88em var(--f-mono);background:#efe7c9;padding:1px 6px;border-radius:3px;color:#7d3322}
+.ml-md-out hr{border:0;border-top:1px dashed rgba(59,44,32,.6);margin:18px 0}
+.ml-md-out pre.ml-pre{background:#2a2218;color:#f1e8cf;border-radius:4px;padding:12px 16px;font:400 12.5px/1.7 var(--f-mono);overflow:auto;box-shadow:2px 3px 0 rgba(0,0,0,.15)}
+.ml-md-out pre code{background:none;padding:0;color:inherit}
+.ml-code,.ml-md-src,.ml-pre{font-variant-ligatures:none}
+.ml-code{flex:1;min-height:0;padding:10px 0 24px;font:400 13px/1.75 var(--f-mono);background:#fffdf6;color:#2a2217}
+.ml-line{min-height:1.75em}
+.ml-ln{color:#a29473;font-size:12px;border-right:1px solid #e6dcc0;margin-right:.6em;background:#f8f2de}
+.ml-ln:hover{color:var(--terra);font-weight:700}
+.ml-sign{color:#8a7b5c}
+.ml-src{flex:1}
+.ml-line[data-k=add]{background:#e1efd2}.ml-line[data-k=add] .ml-ln{background:#cfe3bb;color:#2f5a25}.ml-line[data-k=add] .ml-sign{color:#2d6a21;font-weight:700}
+.ml-line[data-k=del]{background:#f8dfd3}.ml-line[data-k=del] .ml-ln{background:#f0c9b8;color:#8f3a22}.ml-line[data-k=del] .ml-sign{color:#a8381d;font-weight:700}
+.ml-line[data-k=hunk]{background:#f0ead0;color:#6a5a3c;font-style:italic;border-block:1px dashed #d4c89f}
+.tk-kw{color:#2c6b3f;font-weight:700}.tk-str{color:#a6451f}.tk-com{color:#8a7d62;font-style:italic}.tk-num{color:#8a5a00}.tk-fn{color:#2a5aa0}.tk-meta{color:#8a3d7a}
+.ml-comment{position:relative;margin:6px 14px 8px 80px;padding:9px 14px;background:#f8efc9;border:1px solid rgba(59,44,32,.4);border-left:5px solid var(--mustard);border-radius:2px;font:500 12.5px/1.6 var(--f-body);color:var(--sepia);box-shadow:1px 2px 0 rgba(0,0,0,.1),3px 5px 8px rgba(0,0,0,.12)}
+.ml-comment[data-who=me]{background:#e8f0dc;border-left-color:var(--forest)}
+.ml-comment-who{flex:none;background:var(--terra);color:var(--cream);font:700 10px var(--f-mono);padding:2px 8px;border-radius:2px 7px 2px 7px;margin-right:6px}
+.ml-comment[data-who=me] .ml-comment-who{background:var(--forest)}
+.ml-chat{background:transparent}
+.ml-chat-log{padding:10px 14px 10px;display:flex;flex-direction:column;gap:12px}
+.ml-msg{max-width:92%;font:500 13px/1.7 var(--f-body)}
+.ml-msg-body{padding:10px 14px;border:1px solid rgba(59,44,32,.5);background:#fffdf4;border-radius:3px 14px 14px 14px;box-shadow:1px 2px 0 rgba(0,0,0,.1),3px 5px 8px rgba(0,0,0,.12);white-space:pre-wrap}
+.ml-msg[data-role=user]{align-self:flex-end}
+.ml-msg[data-role=user] .ml-msg-body{background:var(--forest);color:var(--cream);border-color:var(--forest);border-radius:14px 3px 14px 14px}
+.ml-perm{margin-top:10px;border:1.5px dashed var(--sepia);border-radius:4px;padding:10px 12px;background:#f8efc9;font-size:12.5px}
+.ml-perm-title{font:800 12px var(--f-head);letter-spacing:.1em;margin-bottom:6px;color:var(--terra)}
+.ml-perm-cmd{display:block;font:500 12px var(--f-mono);background:#2a2218;color:#f1e8cf;padding:6px 10px;border-radius:3px}
+.ml-perm-row{display:flex;gap:8px;margin-top:8px}
+.ml-perm-row button{font:700 12px var(--f-body);border:1.5px solid var(--sepia);border-radius:999px;padding:4px 14px;cursor:pointer;background:#fffdf4;color:var(--sepia)}
+.ml-perm-ok{background:var(--forest)!important;color:var(--cream)!important}
+.ml-chat-form{flex:none;padding:10px 12px 14px;border-top:1px solid rgba(59,44,32,.4);background:rgba(255,253,244,.6);align-items:flex-end}
+.ml-chat-form textarea{font:500 13px/1.5 var(--f-body);border:1.5px solid var(--sepia);border-radius:6px;padding:8px 10px;background:#fffdf6;outline:0;color:var(--sepia)}
+.ml-chat-form textarea:focus{box-shadow:0 0 0 3px rgba(216,166,62,.5)}
+.ml-send{font:800 13px var(--f-head);letter-spacing:.1em;background:var(--forest);color:var(--cream);border:1.5px solid var(--sepia);border-radius:6px;padding:10px 14px;cursor:pointer;box-shadow:2px 3px 0 rgba(0,0,0,.3)}
+.ml-empty{padding:30px;color:#7a6a52}
+.corner{position:absolute;width:20px;height:20px;opacity:.7;pointer-events:none}
+
+/* ---------- 切り替え: 標本箱の引き出しを手前へ引き出す ---------- */
+#board,#editor{transition:opacity .5s ease,transform .9s cubic-bezier(.6,.02,.2,1),filter .6s}
+body[data-view=board] #editor{opacity:0;transform:perspective(1800px) translateY(9%) rotateX(11deg) scale(.93);transform-origin:50% 100%;filter:brightness(.6)}
+body[data-view=editor] #board{opacity:0;transform:scale(1.12);transform-origin:var(--ox,50%) var(--oy,50%);filter:blur(3px) brightness(.8)}
+body[data-view=editor] #editor{opacity:1;transform:none}
+body[data-phase=to-editor] #editor{transition-delay:.12s}
+body[data-phase=to-board] #board{transition-delay:.25s}
+.ml-about{font-family:var(--f-body)}
+</style>
+</head>
+<body data-view="board">
+<svg class="sym" aria-hidden="true">
+  <defs>
+    <symbol id="i-branch" viewBox="0 0 16 16"><circle cx="4" cy="3.5" r="1.9" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="4.2" cy="12.6" r="1.9" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="5.2" r="1.9" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M4 5.5C4.3 8 3.9 9.5 4.2 10.6M12 7.1C11.9 9.2 8.3 8.6 4.6 10.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+    <filter id="rough" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="2" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.6"/></filter>
+    <filter id="inkhole" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency=".6" numOctaves="2" seed="4" result="n"/><feColorMatrix in="n" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -2.4 1.55" result="m"/><feComposite in="SourceGraphic" in2="m" operator="in"/></filter>
+  </defs>
+</svg>
+
+<div id="board">
+  <!-- ルーペ代わりの定規 -->
+  <div class="ruler"><span style="left:38px">1</span><span style="left:78px">2</span><span style="left:118px">3</span><span style="left:158px">4</span><span style="left:198px">5</span><span style="left:238px">6</span><span style="left:278px">7</span><span style="left:318px">8</span></div>
+
+  <!-- 看板 -->
+  <div class="plaque"><i style="left:8px;top:8px"></i><i style="right:8px;top:8px"></i><i style="left:8px;bottom:8px"></i><i style="right:8px;bottom:8px"></i>
+    <div class="l1">Herbarium Memorialis</div>
+    <div class="l2">植物標本室</div>
+    <div class="l3">N&deg; 5 SPECIMENS &middot; 2027.10.20</div>
+  </div>
+
+  <!-- 押し花(飾り) -->
+  <div class="loose">
+    <svg viewBox="0 0 190 220" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M96 214C92 170 100 130 104 96" stroke="#2c4636" stroke-width="3.2"/>
+      <path d="M97 176C70 170 52 150 46 124 72 128 92 146 97 176Z" fill="#86a174" stroke="#2c4636" stroke-width="2"/>
+      <path d="M99 150C124 142 146 124 152 98 128 104 106 122 99 150Z" fill="#86a174" stroke="#2c4636" stroke-width="2"/>
+      <path d="M97 176C80 166 62 150 50 128M99 150C118 138 134 122 148 102" stroke="#2c4636" stroke-width="1" opacity=".6"/>
+      <g transform="translate(104 70)">
+        <g fill="#d8a63e" stroke="#3b2c20" stroke-width="2">
+          <path d="M0 -8C-14 -26 -8 -50 0 -52 8 -50 14 -26 0 -8Z"/><path d="M0 -8C-14 -26 -8 -50 0 -52 8 -50 14 -26 0 -8Z" transform="rotate(72)"/><path d="M0 -8C-14 -26 -8 -50 0 -52 8 -50 14 -26 0 -8Z" transform="rotate(144)"/><path d="M0 -8C-14 -26 -8 -50 0 -52 8 -50 14 -26 0 -8Z" transform="rotate(216)"/><path d="M0 -8C-14 -26 -8 -50 0 -52 8 -50 14 -26 0 -8Z" transform="rotate(288)"/>
+        </g>
+        <g stroke="#b5523a" stroke-width="1.2" opacity=".75"><path d="M0 -14V-42"/><path d="M0 -14V-42" transform="rotate(72)"/><path d="M0 -14V-42" transform="rotate(144)"/><path d="M0 -14V-42" transform="rotate(216)"/><path d="M0 -14V-42" transform="rotate(288)"/></g>
+        <circle r="9" fill="#b5523a" stroke="#3b2c20" stroke-width="2"/><circle r="3" fill="#3b2c20" stroke="none"/>
+      </g>
+    </svg>
+    <i class="tp w" style="left:62px;top:150px;transform:rotate(-8deg)"></i>
+  </div>
+
+  
+
+  <svg id="deco"></svg>
+
+  <!-- 1. todo-app: シダ -->
+  <article class="sp c1" data-project="todo-app" data-drag>
+    <i class="tp" style="left:28px;top:12px;transform:rotate(-34deg)"></i><i class="tp" style="right:20px;top:240px;transform:rotate(26deg);width:62px"></i>
+    <div class="plant"><svg viewBox="0 0 294 300" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <g id="fern1"></g>
+      <g transform="translate(226 244)" stroke="#3b2c20"><circle r="14" fill="#f9f3dd" stroke-width="2"/><path d="M-6 0l4.5 5 8.5-10" stroke="#b5523a" stroke-width="3.2"/></g>
+      
+      
+    </svg></div>
+    <div class="lab">
+      <svg class="seal" viewBox="0 0 80 80" fill="none" stroke="#b5523a"><g filter="url(#rough)"><circle cx="40" cy="40" r="35" stroke-width="3"/><circle cx="40" cy="40" r="28" stroke-width="1.2"/><text x="40" y="49" text-anchor="middle" font-family="Cormorant Garamond,serif" font-weight="700" font-size="30" fill="#b5523a" stroke="none">2</text><text x="40" y="23" text-anchor="middle" font-family="JetBrains Mono,monospace" font-weight="700" font-size="7" fill="#b5523a" stroke="none" letter-spacing="1.4">REVIEW</text><text x="40" y="63" text-anchor="middle" font-family="Zen Maru Gothic,sans-serif" font-weight="700" font-size="7.5" fill="#b5523a" stroke="none">件 待ち</text></g></svg>
+      <span class="no">N&deg;01</span>
+      <h3>ToDoアプリ</h3>
+      <p class="lat">Taskus toggleus L.</p>
+      <p class="meta"><span class="chip">TypeScript</span><span class="br"><svg><use href="#i-branch"/></svg>feat/toggle-done</span></p>
+    </div>
+  </article>
+
+  <!-- 2. sales-analysis: ラベンダーの穂=棒グラフ -->
+  <article class="sp c2" data-project="sales-analysis" data-drag>
+    <i class="tp g" style="left:84px;top:-10px;transform:rotate(-2deg)"></i>
+    <div class="plant"><svg viewBox="0 0 224 320" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <g id="lav"></g>
+      <path d="M14 300H214" stroke="#3b2c20" stroke-width="1.6" stroke-dasharray="1 6"/>
+      <g font-family="Cormorant Garamond,serif" font-style="italic" font-size="12" fill="#3b2c20" stroke="none"><text x="22" y="316">2024</text><text x="76" y="316">2025</text><text x="130" y="316">2026</text><text x="182" y="316">2027</text></g>
+      <path id="yoy" d="M30 168C60 150 74 120 100 124 128 130 140 90 160 74 176 60 190 52 204 28" stroke="#b5523a" stroke-width="2.2" stroke-dasharray="2 6"/>
+      <path d="M194 24L205 26 202 38" stroke="#b5523a" stroke-width="2.4"/>
+      <text x="22" y="64" font-family="Klee One,serif" font-size="13" fill="#b5523a" stroke="none" transform="rotate(-5 22 64)">前年比 ↗</text>
+    </svg></div>
+    <div class="lab">
+      <svg class="seal" viewBox="0 0 80 80" fill="none" stroke="#b5523a"><g filter="url(#rough)"><circle cx="40" cy="40" r="35" stroke-width="3"/><circle cx="40" cy="40" r="28" stroke-width="1.2"/><text x="40" y="49" text-anchor="middle" font-family="Cormorant Garamond,serif" font-weight="700" font-size="30" fill="#b5523a" stroke="none">1</text><text x="40" y="23" text-anchor="middle" font-family="JetBrains Mono,monospace" font-weight="700" font-size="7" fill="#b5523a" stroke="none" letter-spacing="1.4">REVIEW</text><text x="40" y="63" text-anchor="middle" font-family="Zen Maru Gothic,sans-serif" font-weight="700" font-size="7.5" fill="#b5523a" stroke="none">件 待ち</text></g></svg>
+      <span class="no">N&deg;02</span>
+      <h3>売上データ分析</h3>
+      <p class="lat">Venditio mensilis</p>
+      <p class="meta"><span class="chip">Python</span><span class="br"><svg><use href="#i-branch"/></svg>main</span></p>
+    </div>
+  </article>
+
+  <!-- 3. dbt-snowflake: 根=staging、花=marts -->
+  <article class="sp c3" data-project="dbt-snowflake" data-drag>
+    <i class="tp" style="left:46px;top:-11px;transform:rotate(-4deg)"></i>
+    <div class="plant"><svg viewBox="0 0 376 168" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M0 62H376" stroke="#3b2c20" stroke-width="1.4" stroke-dasharray="1 6"/>
+      <text x="4" y="52" font-family="Cormorant Garamond,serif" font-style="italic" font-size="12" fill="#3b2c20" stroke="none">staging</text>
+      <text x="316" y="52" font-family="Cormorant Garamond,serif" font-style="italic" font-size="12" fill="#3b2c20" stroke="none">marts</text>
+      <g stroke="#3b2c20" stroke-width="1.8">
+        <path d="M44 96C96 98 118 112 150 124M44 128C92 128 118 128 150 126M44 158C96 150 118 138 150 128"/>
+        <path d="M150 125C190 124 230 120 262 100 280 88 288 78 292 64" stroke-width="3.4"/>
+        <path d="M186 124C196 138 210 146 226 148M226 112C238 126 252 132 268 130M96 99C102 88 112 84 124 86M96 127C106 138 118 142 130 140" stroke-width="1.2"/>
+      </g>
+      <g fill="#e7d9a6" stroke="#3b2c20" stroke-width="2"><path d="M24 96C24 82 38 78 44 90 56 90 60 104 52 112 44 118 24 114 24 96Z"/><path d="M24 128C24 114 38 110 44 122 56 122 60 136 52 144 44 150 24 146 24 128Z"/><path d="M26 158C26 146 38 142 44 152 54 152 58 164 50 168 40 172 26 170 26 158Z"/></g>
+      <g stroke="#2c4636" stroke-width="2.4"><path d="M36 80C34 70 36 64 40 56M30 90C24 80 20 74 14 70" /></g>
+      <path d="M292 64C296 44 300 28 298 10" stroke="#2c4636" stroke-width="3"/>
+      <path d="M296 40C318 36 334 22 336 8 316 10 300 22 296 40Z" fill="#86a174" stroke="#2c4636" stroke-width="2"/>
+      <path d="M296 46C278 44 262 34 258 20 276 20 292 30 296 46Z" fill="#86a174" stroke="#2c4636" stroke-width="2"/>
+      <g transform="translate(298 8)"><g fill="#d8a63e" stroke="#3b2c20" stroke-width="1.8"><path d="M0 0C-9 -12 -5 -26 0 -28 5 -26 9 -12 0 0Z" transform="rotate(-50)"/><path d="M0 0C-9 -12 -5 -26 0 -28 5 -26 9 -12 0 0Z"/><path d="M0 0C-9 -12 -5 -26 0 -28 5 -26 9 -12 0 0Z" transform="rotate(50)"/></g><circle r="5" fill="#b5523a" stroke="#3b2c20" stroke-width="1.6"/></g>
+      <g stroke="#b5523a" stroke-width="2"><path d="M158 154L248 154" stroke-dasharray="1 6"/><path d="M244 149L252 154 244 159"/></g>
+      <text x="172" y="166" font-family="Klee One,serif" font-size="12" fill="#b5523a" stroke="none">整えて、育てる</text>
+    </svg></div>
+    <div class="lab">
+      <svg class="seal" viewBox="0 0 80 80" fill="none" stroke="#b5523a"><g filter="url(#rough)"><circle cx="40" cy="40" r="35" stroke-width="3"/><circle cx="40" cy="40" r="28" stroke-width="1.2"/><text x="40" y="49" text-anchor="middle" font-family="Cormorant Garamond,serif" font-weight="700" font-size="30" fill="#b5523a" stroke="none">1</text><text x="40" y="23" text-anchor="middle" font-family="JetBrains Mono,monospace" font-weight="700" font-size="7" fill="#b5523a" stroke="none" letter-spacing="1.4">REVIEW</text><text x="40" y="63" text-anchor="middle" font-family="Zen Maru Gothic,sans-serif" font-weight="700" font-size="7.5" fill="#b5523a" stroke="none">件 待ち</text></g></svg>
+      <span class="no">N&deg;03</span>
+      <h3>dbt &times; Snowflake</h3>
+      <p class="lat">Radix stagingensis var. martis</p>
+      <p class="meta"><span class="chip">SQL / dbt</span><span class="br"><svg><use href="#i-branch"/></svg>main</span></p>
+    </div>
+  </article>
+
+  <!-- 4. life-plan: 種袋 -->
+  <article class="sp c4" data-project="life-plan" data-drag>
+    <i class="tp w" style="left:84px;top:-8px;transform:rotate(3deg)"></i>
+    <div class="flap"><b>Semina</b></div>
+    <div class="win"><svg viewBox="0 0 192 136" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <rect width="192" height="136" fill="#f6efd6" stroke="none"/><rect y="104" width="192" height="32" fill="#d9c79a" stroke="none"/><path d="M0 104H192" stroke="#3b2c20" stroke-width="1.8"/>
+      <g stroke="#3b2c20" stroke-width="2"><ellipse cx="30" cy="102" rx="9" ry="6" fill="#b5523a" transform="rotate(-18 30 102)"/>
+        <path d="M92 104C92 92 92 86 92 78" stroke="#2c4636" stroke-width="2.6"/><path d="M92 82C80 82 72 74 72 66 84 66 92 72 92 82Z" fill="#86a174"/><path d="M92 78C104 76 110 68 110 60 98 60 92 68 92 78Z" fill="#86a174"/>
+        <path d="M160 104V70" stroke="#3b2c20" stroke-width="4"/><path d="M160 84L148 74M160 78L172 66" stroke-width="2.4"/>
+        <path d="M160 24C136 22 126 40 134 52 126 62 144 74 160 68 176 76 196 60 186 50 196 38 182 20 160 24Z" fill="#86a174"/>
+        <path d="M148 40C152 46 156 44 160 40M166 52C170 56 174 54 176 50" stroke="#2c4636" stroke-width="1.4"/></g>
+      <g font-family="Klee One,serif" font-size="12" fill="#3b2c20" stroke="none"><text x="14" y="124">2027</text><text x="72" y="124">2028</text><text x="140" y="124">2029</text></g>
+    </svg></div>
+    <div class="lab">
+      <span class="no">N&deg;04</span>
+      <h3>人生設計 2027-2029</h3>
+      <p class="lat">Vita triennalis</p>
+      <p class="meta"><span class="chip">Markdown</span><span class="br"><svg><use href="#i-branch"/></svg>main</span></p>
+    </div>
+    <div class="band"></div>
+  </article>
+
+  <!-- 5. memo-editor: 標本箱(蝶) -->
+  <article class="sp c5" data-project="memo-editor" data-drag>
+    <i class="screw" style="left:5px;top:5px"></i><i class="screw" style="right:5px;top:5px"></i><i class="screw" style="left:5px;bottom:5px"></i><i class="screw" style="right:5px;bottom:5px"></i><span class="brass"></span>
+    <div class="inner">
+      <svg class="bf" viewBox="0 0 270 250" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <ellipse cx="146" cy="226" rx="82" ry="9" fill="rgba(0,0,0,.28)" stroke="none"/>
+        <g transform="translate(138 126)">
+          <g id="wingL" stroke="#3b2c20" stroke-width="2.2">
+            <path d="M-4 -8C-30 -62 -88 -86 -118 -62 -134 -34 -104 -2 -4 6Z" fill="#d8a63e"/>
+            <path d="M-4 8C-62 6 -108 28 -102 62 -92 90 -40 84 -6 22Z" fill="#c98a3a"/>
+            <path d="M-12 -4C-44 -40 -84 -58 -108 -56M-10 6C-52 6 -86 18 -98 44M-10 12C-36 36 -58 58 -74 76" stroke-width="1.2" opacity=".6" fill="none"/>
+            <circle cx="-84" cy="-34" r="11" fill="#f4edd8"/><circle cx="-84" cy="-34" r="5" fill="#b5523a"/><circle cx="-70" cy="48" r="9" fill="#f4edd8"/><circle cx="-70" cy="48" r="4" fill="#2c4636"/>
+            <path d="M-118 -62C-122 -50 -116 -40 -112 -34M-102 62C-96 70 -88 74 -80 74" stroke="#2c4636" stroke-width="3"/>
+          </g>
+          <g transform="scale(-1 1)" stroke="#3b2c20" stroke-width="2.2">
+            <path d="M-4 -8C-30 -62 -88 -86 -118 -62 -134 -34 -104 -2 -4 6Z" fill="#d8a63e"/>
+            <path d="M-4 8C-62 6 -108 28 -102 62 -92 90 -40 84 -6 22Z" fill="#c98a3a"/>
+            <path d="M-12 -4C-44 -40 -84 -58 -108 -56M-10 6C-52 6 -86 18 -98 44M-10 12C-36 36 -58 58 -74 76" stroke-width="1.2" opacity=".6" fill="none"/>
+            <circle cx="-84" cy="-34" r="11" fill="#f4edd8"/><circle cx="-84" cy="-34" r="5" fill="#b5523a"/><circle cx="-70" cy="48" r="9" fill="#f4edd8"/><circle cx="-70" cy="48" r="4" fill="#2c4636"/>
+            <path d="M-118 -62C-122 -50 -116 -40 -112 -34M-102 62C-96 70 -88 74 -80 74" stroke="#2c4636" stroke-width="3"/>
+          </g>
+          <path d="M0 -30C-5 -10 -5 40 0 70C5 40 5 -10 0 -30Z" fill="#3b2c20" stroke="#1d150e" stroke-width="1.5"/>
+          <ellipse cx="0" cy="-34" rx="6" ry="8" fill="#3b2c20" stroke="#1d150e" stroke-width="1.5"/>
+          <path d="M-2 -42C-12 -64 -26 -74 -40 -74M2 -42C12 -64 26 -74 40 -74" stroke="#f4edd8" stroke-width="2"/>
+          <circle cx="-41" cy="-74" r="3" fill="#f4edd8" stroke="none"/><circle cx="41" cy="-74" r="3" fill="#f4edd8" stroke="none"/>
+          <path d="M0 -44V-66" stroke="#d9d4c0" stroke-width="1.6"/><circle cx="0" cy="-68" r="3.6" fill="#e8d28a" stroke="#6a521f" stroke-width="1"/>
+        </g>
+        <g stroke="#e8d28a" stroke-width="1.4"><path d="M24 186L50 176M24 190L50 196" opacity=".5"/></g>
+      </svg>
+      <div class="lab">
+        <span class="no">N&deg;05</span>
+        <h3>このアプリ自身</h3>
+        <p class="lat">Papilio memoria</p>
+        <p class="meta"><span class="chip">Rust + TypeScript</span></p>
+        <p class="meta" style="margin-top:5px"><span class="br"><svg><use href="#i-branch"/></svg>main</span><span class="br">レビュー 1件</span></p>
+      </div>
+      <span class="now">NOW BUILDING</span>
+      <i class="glass"></i>
+    </div>
+  </article>
+
+  <div class="hint">
+    <i class="hole" style="top:30px"></i><i class="hole" style="top:100px"></i><i class="hole" style="top:170px"></i>
+    <h4>採集ノート<em>Legenda</em></h4>
+    <ol>
+      <li>台紙を<b>クリック</b>すると図版が開く</li>
+      <li>朱の封蝋は<b>レビュー待ち</b>の数</li>
+      <li>ペンで囲んだり、糸で結べる</li>
+    </ol>
+  </div>
+
+  <svg id="pen"></svg>
+  <div class="tools">
+    <span class="lab2">Pen</span>
+    <button data-action="pen" aria-pressed="false">書く</button>
+    <button data-pen-color="#b5523a" style="background:#b5523a" title="朱泥"></button>
+    <button data-pen-color="#3b2c20" style="background:#3b2c20" title="セピア"></button>
+    <button data-pen-color="#2c4636" style="background:#2c4636" title="森"></button>
+    <button data-pen-color="#d8a63e" style="background:#d8a63e" title="黄土"></button>
+    <span class="sp2"></span>
+    <button data-action="pen-undo">戻す</button>
+    <button data-action="pen-clear">消す</button>
+  </div>
+</div>
+
+<div id="editor">
+  <header class="eh">
+    <button class="back" data-action="back" aria-label="標本室に戻る"><svg viewBox="0 0 24 24" fill="none" stroke="#3b2c20" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12H5M11 5L4.5 12 11 19"/></svg></button>
+    <span class="plate">PLATE<br>図版</span>
+    <h2 data-slot="title"></h2>
+    <span class="chip" data-slot="lang"></span>
+    <span class="br2"><svg><use href="#i-branch"/></svg><span data-slot="branch"></span></span>
+    <span class="rv">レビュー<b data-slot="count-review"></b></span>
+    <span class="path" data-slot="path"></span>
+  </header>
+  <aside class="pane"><div class="pane-h">目録<i>Index</i></div><div data-slot="tree"></div></aside>
+  <section class="pane"><div data-slot="tabs"></div><div data-slot="doc"></div></section>
+  <aside class="pane"><div class="pane-h">相談<i>Consultatio</i><small data-slot="blurb"></small></div><div data-slot="chat" style="flex:1;min-height:0"></div></aside>
+</div>
+
+<script src="assets/common.js"></script>
+<script>
+/* シダ・ラベンダー等の葉を、手描き風に少しゆらして生成する(インラインSVG) */
+(function(){
+  function rnd(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+  function f(n){return Math.round(n*10)/10}
+  function leaf(len,w){return 'M0 0C'+f(len*.2)+' '+f(-w)+' '+f(len*.72)+' '+f(-w*1.1)+' '+f(len)+' 0C'+f(len*.72)+' '+f(w*.9)+' '+f(len*.2)+' '+f(w)+' 0 0Z'}
+  function lf(x,y,a,len,w,fill){
+    return '<g transform="translate('+f(x)+' '+f(y)+') rotate('+f(a)+')"><path d="'+leaf(len,w)+'" fill="'+fill+'" stroke="#2c4636" stroke-width="1.3"/><path d="M0 0L'+f(len*.88)+' 0" stroke="#2c4636" stroke-width=".9" opacity=".55"/></g>';
+  }
+  var COLS=['#86a174','#7a966a','#93ad80','#6f8c5e'];
+  function fern(el,o){
+    var r=rnd(o.seed||1),h='';
+    h+='<path d="M'+o.x0+' '+o.y0+'Q'+o.cx+' '+o.cy+' '+o.x1+' '+o.y1+'" stroke="#2c4636" stroke-width="'+(o.sw||3)+'" fill="none"/>';
+    for(var i=1;i<=o.n;i++){
+      var t=.08+.92*i/o.n,mt=1-t;
+      var x=mt*mt*o.x0+2*mt*t*o.cx+t*t*o.x1,y=mt*mt*o.y0+2*mt*t*o.cy+t*t*o.y1;
+      var dx=2*mt*(o.cx-o.x0)+2*t*(o.x1-o.cx),dy=2*mt*(o.cy-o.y0)+2*t*(o.y1-o.cy);
+      var ang=Math.atan2(dy,dx)*180/Math.PI,s=o.len*(1-.7*t)*(.88+.24*r());
+      for(var k=-1;k<=1;k+=2){
+        var col=r()<.12?'#d8a63e':COLS[Math.floor(r()*4)];
+        h+=lf(x,y,ang+k*(52+r()*16),s,s*.2,col);
+      }
+    }
+    h+=lf(o.x1,o.y1,Math.atan2(o.y1-o.cy,o.x1-o.cx)*180/Math.PI,o.len*.42,o.len*.1,COLS[0]);
+    el.innerHTML=h;
+  }
+  fern(document.getElementById('fern1'),{x0:150,y0:290,cx:122,cy:170,x1:176,y1:22,n:12,len:96,sw:3.4,seed:7});
+  /* ラベンダー風の4本の穂 = 月別の棒グラフ */
+  var g=document.getElementById('lav'),h='',hs=[120,176,150,236],xs=[34,88,142,194],r=rnd(5);
+  for(var i=0;i<4;i++){
+    var x=xs[i],top=296-hs[i];
+    h+='<path d="M'+x+' 298C'+(x+(i%2?5:-5))+' '+(298-hs[i]*.5)+' '+(x+2)+' '+(top+14)+' '+x+' '+top+'" stroke="#2c4636" stroke-width="2.6" fill="none"/>';
+    h+=lf(x,300-hs[i]*.2,-62,34,6,COLS[i%4])+lf(x,300-hs[i]*.34,-122,30,5.5,COLS[(i+1)%4]);
+    for(var j=0;j<9;j++){
+      var yy=top+j*7+4,sd=(j%2?1:-1),rr=5.6-j*.22;
+      h+='<ellipse cx="'+f(x+sd*4)+'" cy="'+f(yy)+'" rx="'+f(rr)+'" ry="'+f(rr*1.3)+'" fill="'+(i==3?'#d8a63e':'#a89ad0')+'" stroke="#3b2c20" stroke-width="1.2" transform="rotate('+(sd*28)+' '+f(x+sd*4)+' '+f(yy)+')" opacity=".95"/>';
+    }
+    h+='<ellipse cx="'+x+'" cy="'+(top-5)+'" rx="3.4" ry="5.5" fill="'+(i==3?'#d8a63e':'#a89ad0')+'" stroke="#3b2c20" stroke-width="1.2"/>';
+  }
+  g.innerHTML=h;
+})();
+
+MemoLab.ready(function(){
+  var T='#b5523a', S='#3b2c20', F='#2c4636', M='#d8a63e';
+  /* 学名の関連を、標本の糸でつなぐ */
+  MemoLab.link('.c1','.c2',{color:T,width:2.2,dots:true});
+  MemoLab.link('.c2','.c3',{color:'#f4edd8',width:2,dash:'2 7',curve:.25});
+  MemoLab.link('.c3','.c4',{color:T,width:2.2,dots:true,curve:-.2});
+  MemoLab.link('.c3','.c5',{color:'#f4edd8',width:2,dash:'1 7',curve:-.3});
+  /* 手書きの丸囲み・下線・蛍光ペン */
+  MemoLab.around('.c1 .lat',{shape:'underline',color:T,width:2.4,pad:4});
+  MemoLab.around('.c2 h3',{shape:'highlight',color:M,pad:2});
+  MemoLab.around('.c4 h3',{shape:'highlight',color:'#a9c28f',pad:1,seed:3});
+  MemoLab.around('.c5 .now',{shape:'circle',color:'#f4edd8',width:2,pad:10,seed:9});
+  MemoLab.around('.hint li:nth-child(2) b',{shape:'highlight',color:M,pad:2});
+  MemoLab.around('.plaque .l2',{shape:'underline',color:T,width:2.6,pad:6,seed:6});
+  MemoLab.scribble('arrow',1090,420,-70,-60,{color:'#f4edd8',width:2.4,bend:22});
+  MemoLab.scribble('star',1020,520,30,30,{color:M,width:2.4});
+  MemoLab.scribble('spiral',690,520,34,34,{color:'#f4edd8',width:2});
+});
+</script>
+</body>
+</html>

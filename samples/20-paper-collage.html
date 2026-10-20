@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>20 きりぬき帖</title>
+<meta name="ml-title" content="20 paper-collage ― 切り紙コラージュ">
+<meta name="ml-concept" content="マティスの切り紙のように、色紙をハサミで切り抜いて貼った机の上。プロジェクトは大小バラバラの切り抜きで、色=言語、赤いシールはレビュー件数。クリックすると、その色紙が波のように画面いっぱいに広がり、エディタの紙面になる。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Maru+Gothic:wght@400;500;700&family=Yomogi&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* 配色: マティスの切り紙らしく「コバルト青・朱赤・ひまわり黄・若葉緑」の4色紙に、墨(ほぼ黒)と生成りの台紙。6色に絞り、光は左上・影は右下で統一 */
+:root{
+  --blue:#2347c8;
+  --red:#f0482a;
+  --yellow:#ffc62d;
+  --green:#17935a;
+  --ink:#17182b;
+  --cream:#f6efdf;
+  --paper:#fffcf3;   /* 編集面の紙 */
+  --f-head:"Dela Gothic One","Zen Maru Gothic","Yu Gothic",sans-serif;
+  --f-body:"Zen Maru Gothic","Hiragino Maru Gothic ProN","Yu Gothic UI",Meiryo,sans-serif;
+  --f-hand:"Yomogi","Zen Maru Gothic","Yu Gothic",cursive;
+  --f-mono:"JetBrains Mono",ui-monospace,Consolas,"Cascadia Mono",monospace;
+  --noise:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .35  0 0 0 0 .25  0 0 0 0 .1  0 0 0 .2 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  --fibre:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400'><filter id='f'><feTurbulence type='fractalNoise' baseFrequency='.03 .09' numOctaves='3' seed='4'/><feColorMatrix values='0 0 0 0 .5  0 0 0 0 .35  0 0 0 0 .15  0 0 0 .07 0'/></filter><rect width='100%' height='100%' filter='url(%23f)'/></svg>");
+  --torn:polygon(0 2%,6% 0,14% 1.6%,25% 0,40% 1.2%,55% 0,70% 1.6%,85% 0,100% 1%,99% 30%,100% 55%,98.5% 80%,100% 100%,80% 98.4%,60% 100%,40% 98.6%,22% 100%,8% 98.8%,0 100%,1.2% 70%,0 45%,1% 20%);
+  --shadow:drop-shadow(1px 2px 0 rgba(60,30,0,.28)) drop-shadow(8px 13px 11px rgba(60,30,0,.24));
+  --shadow-s:drop-shadow(1px 1.5px 0 rgba(60,30,0,.26)) drop-shadow(4px 7px 6px rgba(60,30,0,.22));
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--cream);color:var(--ink);font-family:var(--f-body)}
+svg.sym{position:absolute;width:0;height:0}
+.hand{font-family:var(--f-hand)}
+
+/* ================= ボード ================= */
+#board{position:absolute;inset:0;overflow:hidden;
+  background:var(--noise),var(--fibre),radial-gradient(ellipse at 28% 18%,rgba(255,255,255,.7),transparent 62%),radial-gradient(ellipse at 90% 110%,rgba(150,100,40,.22),transparent 55%),var(--cream)}
+.bgdeco{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+/* 見出し(色紙を切って貼った文字) */
+.ttl{position:absolute;left:52px;top:30px;margin:0;z-index:4;font:400 31px/1 var(--f-head);display:flex;gap:2px;filter:var(--shadow-s)}
+.ttl span{display:block;padding:10px 16px 9px;clip-path:var(--torn);letter-spacing:.02em}
+.ttl .t1{background:var(--yellow);color:var(--ink);transform:rotate(-2.5deg)}
+.ttl .t2{background:var(--blue);color:#fff;transform:rotate(1.8deg) translateY(4px);margin-left:-3px}
+.ttl .t3{background:var(--red);color:#fff;transform:rotate(-1.2deg) translateY(-1px);margin-left:-3px}
+.ttl-sub{position:absolute;left:62px;top:96px;z-index:4;font:400 15px var(--f-hand);color:var(--ink);transform:rotate(-1deg)}
+.card{position:absolute;z-index:5;transform:rotate(var(--r,0deg));transition:transform .25s cubic-bezier(.3,1.6,.5,1)}
+.card:hover{transform:rotate(var(--r,0deg)) translateY(-4px) scale(1.012)}
+.card[data-dragging]{z-index:30;transition:none}
+.card .shape{position:absolute;inset:0;width:100%;height:100%;overflow:visible;filter:var(--shadow)}
+.card .tx{position:absolute;display:flex;flex-direction:column;align-items:flex-start;gap:7px}
+.card h3{margin:0;font:400 30px/1.12 var(--f-head);letter-spacing:.01em}
+.card p{margin:0}
+.card .blurb{font:700 12.5px/1.55 var(--f-body)}
+.strip{display:inline-block;filter:var(--shadow-s)}
+.strip b{display:block;font:700 11.5px/1 var(--f-mono);padding:6px 13px 5px;clip-path:var(--torn);letter-spacing:.04em;white-space:nowrap}
+.strip.cr b{background:var(--cream);color:var(--ink)}
+.strip.yl b{background:var(--yellow);color:var(--ink)}
+.strip.bl b{background:var(--blue);color:#fff}
+.strip.ik b{background:var(--ink);color:#fff}
+.strip.gr b{background:var(--green);color:#fff}
+.meta{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;font:500 11.5px var(--f-mono)}
+.meta .br{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.meta svg{width:12px;height:12px}
+.upd{font:400 14px var(--f-hand)}
+.rvs{position:absolute;width:74px;height:74px;display:grid;place-items:center;text-align:center;transform:rotate(var(--rr,10deg));z-index:3}
+.rvs svg{position:absolute;inset:0;width:100%;height:100%;filter:var(--shadow-s)}
+.rvs span{position:relative;font:700 10px/1.1 var(--f-body);letter-spacing:.02em}
+.rvs span b{display:block;font:400 26px/1 var(--f-head);letter-spacing:0}
+.scrap{position:absolute;pointer-events:none;overflow:visible;filter:var(--shadow-s)}
+
+/* 各カード(大きさ・向き・位置は全部ちがう) */
+.cA{width:410px;height:330px;--r:-3deg}
+.cA .tx{left:64px;top:74px;width:268px;color:#fff}
+.cB{width:340px;height:340px;--r:4deg}
+.cB .tx{left:72px;top:100px;width:200px;color:var(--ink);align-items:center;text-align:center;gap:8px}
+.cB h3{font-size:25px}
+.cC{width:460px;height:320px;--r:-1.5deg}
+.cC .tx{left:84px;top:104px;width:300px;color:#fff}
+.cD{width:350px;height:350px;--r:2.5deg}
+.cD .tx{left:84px;top:96px;width:200px;color:#fff}
+.cD h3{font-size:26px}
+.cE{width:430px;height:305px;--r:-2deg}
+.cE .tx{left:42px;top:50px;width:340px;color:#fff;gap:9px}
+.cE .row{display:flex;align-items:center;gap:14px}
+
+/* つかいかたメモ */
+.hint{position:absolute;left:1000px;top:456px;width:372px;z-index:4;transform:rotate(1.6deg);filter:var(--shadow)}
+.hin{background:var(--noise),var(--fibre),var(--paper);clip-path:var(--torn);padding:26px 26px 22px}
+.hint h4{margin:0 0 6px;font:400 17px var(--f-head);letter-spacing:.05em;color:var(--blue)}
+.hint ol{margin:0;padding-left:1.5em;font:500 13px/1.85 var(--f-body)}
+.hint ol li::marker{font-family:var(--f-head);color:var(--red)}
+.hint .tape{position:absolute;left:150px;top:-14px;width:96px;height:28px;background:rgba(255,198,45,.82);transform:rotate(-3deg);
+  clip-path:polygon(0 8%,3% 0,6% 10%,100% 0,97% 40%,100% 60%,97% 100%,0 100%,3% 60%,0 40%);box-shadow:0 1px 2px rgba(0,0,0,.2)}
+/* ペン */
+.tools{position:absolute;left:1000px;top:790px;z-index:40;transform:rotate(-1deg);filter:var(--shadow-s)}
+.tin{display:flex;align-items:center;gap:8px;padding:11px 20px 11px 20px;background:var(--noise),var(--paper);clip-path:var(--torn);min-width:372px}
+.tin .lab{font:400 14px var(--f-head);color:var(--ink);margin-right:2px;letter-spacing:.04em}
+.tin button{font:700 12px var(--f-body);border:2px solid var(--ink);background:#fff;color:var(--ink);border-radius:999px;padding:4px 11px;cursor:pointer}
+.tin button[aria-pressed=true]{background:var(--ink);color:#fff}
+.tin button[data-pen-color]{width:24px;height:24px;padding:0;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1.5px var(--ink)}
+.tin button[data-pen-color][aria-pressed=true]{box-shadow:0 0 0 2px var(--ink),0 0 0 5px var(--yellow)}
+.tin .sp{flex:1}
+
+/* ================= エディタ ================= */
+#editor{position:absolute;inset:0;padding:14px 22px 22px;display:grid;grid-template-columns:262px minmax(0,1fr) 352px;grid-template-rows:76px minmax(0,1fr);gap:0 16px;
+  background:var(--noise),var(--fibre),radial-gradient(ellipse at 30% 0,rgba(255,255,255,.8),transparent 60%),var(--cream)}
+#editor>*:not(.edeco){position:relative;z-index:1}
+.edeco{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
+.eh{grid-column:1/4;display:flex;align-items:center;gap:16px;padding:0 4px}
+.back{flex:none;width:50px;height:50px;border-radius:50%;border:0;background:var(--red);cursor:pointer;display:grid;place-items:center;
+  box-shadow:inset 0 2px 0 rgba(255,255,255,.35),1px 2px 0 rgba(60,30,0,.3),5px 8px 10px rgba(60,30,0,.25);transform:rotate(-6deg);transition:transform .2s}
+.back:hover{transform:rotate(4deg) scale(1.06)}
+.back svg{width:26px;height:26px}
+.tw{filter:var(--shadow-s);transform:rotate(-1deg)}
+.eh h2{margin:0;font:400 26px/1 var(--f-head);background:var(--blue);color:#fff;padding:13px 24px 12px;clip-path:var(--torn);letter-spacing:.03em}
+.eh .strip b{font-size:12.5px;padding:8px 15px 7px}
+.eh .chip{display:inline-flex;align-items:center;gap:6px;font:500 12px var(--f-mono);background:var(--green);color:#fff;border-radius:999px 999px 999px 4px;padding:6px 13px 6px 11px;box-shadow:1px 2px 0 rgba(60,30,0,.25),4px 6px 8px rgba(60,30,0,.2)}
+.eh .chip svg{width:13px;height:13px}
+.rvb{position:relative;display:inline-flex;align-items:center;gap:7px;font:700 12px var(--f-body)}
+.rvb i{position:relative;width:46px;height:46px;display:grid;place-items:center}
+.rvb i svg{position:absolute;inset:0;width:100%;height:100%;filter:var(--shadow-s)}
+.rvb i b{position:relative;font:400 19px var(--f-head);color:#fff}
+.eh .path{margin-left:auto;font:400 11.5px var(--f-mono);color:#6b5f4a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:34%}
+.pane{position:relative;min-height:0;display:flex;flex-direction:column;background:var(--noise),var(--fibre),var(--paper);overflow:hidden;
+  border-radius:7px 3px 9px 4px/4px 9px 3px 7px;
+  box-shadow:0 0 0 1px rgba(60,30,0,.14),1px 2px 0 rgba(60,30,0,.14),7px 12px 20px rgba(60,30,0,.2)}
+.pane::before{content:"";position:absolute;left:0;right:0;top:0;height:9px;z-index:3;background:var(--c,var(--blue));
+  clip-path:polygon(0 0,100% 0,100% 55%,95% 100%,84% 62%,72% 100%,58% 60%,45% 100%,30% 58%,16% 100%,6% 62%,0 90%)}
+.pane.p-tree{--c:var(--yellow)}.pane.mid{--c:var(--blue)}.pane.p-chat{--c:var(--red)}
+.pane-h{flex:none;display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px;padding:20px 16px 8px;font:400 15px var(--f-head);letter-spacing:.06em;color:var(--ink)}
+.pane-h small{font:500 11px/1.4 var(--f-body);color:#6b5f4a;letter-spacing:0}
+[data-slot=tree]{flex:1;min-height:0;overflow:auto;padding:4px 10px 16px}
+.ml-tree-dirname,.ml-tree-file{display:flex;align-items:center;gap:8px;padding:5px 9px;border-radius:7px 3px 7px 3px;font:500 13px var(--f-body)}
+.ml-tree-file:hover,.ml-tree-dirname:hover{background:rgba(255,198,45,.28)}
+.ml-tree-file[data-active]{background:var(--blue);color:#fff;box-shadow:2px 3px 0 rgba(60,30,0,.2)}
+.ml-tree-children{margin-left:14px;padding-left:8px;border-left:2px dashed rgba(23,24,43,.3)}
+.ml-ico{width:18px;height:18px;border-radius:50%;background:var(--cream);position:relative;font:700 8px/18px var(--f-mono);text-align:center;color:var(--ink)}
+.ml-ico[data-kind=dir]{border-radius:3px 8px 3px 3px;background:var(--yellow)}
+.ml-ico[data-kind=md]::before{content:"M"}.ml-ico[data-kind=ts]::before{content:"TS"}.ml-ico[data-kind=py]::before{content:"Py"}.ml-ico[data-kind=sql]::before{content:"SQ"}
+.ml-ico[data-kind=yaml]::before{content:"Y"}.ml-ico[data-kind=rs]::before{content:"Rs"}.ml-ico[data-kind=diff]::before{content:"±";color:#fff}.ml-ico[data-kind=file]::before{content:"・"}
+.ml-ico[data-kind=diff]{background:var(--red)}
+.ml-ico[data-kind=md]{background:#cfe9dc}.ml-ico[data-kind=ts],.ml-ico[data-kind=py],.ml-ico[data-kind=sql]{background:#cfd9f5}
+.ml-tree-file[data-active] .ml-ico{background:#fff;color:var(--ink)}.ml-tree-file[data-active] .ml-ico[data-kind=diff]{background:var(--red);box-shadow:0 0 0 2px #fff}
+[data-slot=tabs]{flex:none;display:flex;gap:3px;padding:20px 12px 0;background:var(--cream);border-bottom:2px solid var(--blue);overflow:hidden}
+.ml-tab{display:flex;align-items:center;gap:7px;padding:8px 13px 7px;font:500 12.5px var(--f-body);border-radius:8px 8px 0 0;background:#ecdfc3;color:#6b5f4a;margin-bottom:-2px;white-space:nowrap}
+.ml-tab[data-active]{background:var(--paper);color:var(--ink);font-weight:700;box-shadow:inset 0 3px 0 var(--yellow),0 -1px 0 rgba(60,30,0,.12)}
+.ml-tab-close{opacity:.45;font-size:14px;line-height:1}
+.ml-tab-close:hover{opacity:1;color:var(--red)}
+[data-slot=doc]{flex:1;min-height:0;display:flex;flex-direction:column;background:var(--paper)}
+.ml-doc{flex:1;min-height:0;display:flex;flex-direction:column}
+.ml-doc-bar{flex:none;padding:8px 14px;border-bottom:1px solid #e7dcc2;background:#faf3e1}
+.ml-doc-path{font:500 12px var(--f-mono);color:#6b5f4a}
+.ml-mode{font:700 11.5px var(--f-body);border:1.5px solid var(--ink);background:#fff;border-radius:999px;padding:3px 12px;cursor:pointer;color:var(--ink)}
+.ml-mode[data-active]{background:var(--ink);color:#fff}
+.ml-md{flex:1;min-height:0;overflow:hidden}
+.ml-md-src{height:100%;padding:18px 20px;font:400 13px/1.8 var(--f-mono);color:#2a2420;background:#fffdf7;border-right:2px dashed #e0d2b0!important;overflow:auto}
+.ml-md-out{height:100%;overflow:auto;padding:22px 30px 32px;font:400 14px/1.85 var(--f-body);background:var(--paper);color:var(--ink)}
+.ml-md-out h1{font:400 27px/1.25 var(--f-head);margin:0 0 10px;display:block;width:fit-content;background:linear-gradient(transparent 60%,rgba(255,198,45,.85) 60%);padding:0 6px;margin-left:-6px}
+.ml-md-out h2{font:400 15px/1 var(--f-head);display:block;width:fit-content;background:var(--blue);color:#fff;padding:9px 18px 8px;margin:24px 0 12px -4px;clip-path:var(--torn);transform:rotate(-.8deg)}
+.ml-md-out h3{font:700 15px var(--f-body);margin:18px 0 4px;border-left:6px solid var(--red);padding-left:9px}
+.ml-md-out p{margin:6px 0}
+.ml-md-out ul:not(.ml-tasks),.ml-md-out ol{margin:6px 0 8px;padding-left:0;list-style:none;counter-reset:n}
+.ml-md-out ul:not(.ml-tasks) li,.ml-md-out ol li{position:relative;padding-left:26px;counter-increment:n}
+.ml-md-out ul:not(.ml-tasks) li::before{content:"";position:absolute;left:4px;top:.62em;width:11px;height:11px;border-radius:50% 40% 55% 45%;background:var(--red)}
+.ml-md-out ul:not(.ml-tasks) li:nth-child(3n+2)::before{background:var(--blue);border-radius:45% 55% 40% 50%}
+.ml-md-out ul:not(.ml-tasks) li:nth-child(3n)::before{background:var(--green)}
+.ml-md-out ol li::before{content:counter(n);position:absolute;left:0;top:.2em;width:22px;height:22px;border-radius:50% 45% 55% 48%;background:var(--yellow);font:400 12px/22px var(--f-head);text-align:center}
+.ml-tasks li{padding:2px 0}
+.ml-check{width:18px!important;height:18px!important;border:2px solid var(--ink)!important;border-radius:5px 8px 5px 8px!important;background:#fff;color:#fff;vertical-align:-3px!important;font-size:12px!important}
+.ml-task[data-done=true] .ml-check{background:var(--green);border-color:var(--green)!important}
+.ml-task[data-done=true]{color:#6b5f4a}
+.ml-md-out blockquote{margin:14px 0;padding:11px 18px;background:#fff2c2;border-left:6px solid var(--yellow);border-radius:3px 12px 12px 3px;box-shadow:2px 3px 0 rgba(60,30,0,.1);font-weight:500}
+.ml-md-out code{font:500 .88em var(--f-mono);background:#f1e6c9;padding:1px 6px;border-radius:4px}
+.ml-md-out hr{border:0;height:8px;margin:20px 0;background:radial-gradient(circle 3.5px,var(--red) 98%,transparent) 0 50%/26px 8px repeat-x}
+.ml-md-out pre.ml-pre{background:#fbf5e4;border:1.5px solid #dccfa9;border-radius:8px;padding:12px 16px;font:400 12.5px/1.7 var(--f-mono);overflow:auto}
+.ml-md-out pre code{background:none;padding:0}
+.ml-code,.ml-md-src,.ml-pre{font-variant-ligatures:none}
+.ml-code{flex:1;min-height:0;padding:10px 0 24px;font:400 13px/1.75 var(--f-mono);background:#fffdf7;color:#221f2b}
+.ml-line{min-height:1.75em}
+.ml-ln{color:#a2967c;font-size:12px;border-right:1px solid #eadfc4;margin-right:.6em;background:#faf3e1}
+.ml-ln:hover{color:var(--red);font-weight:700}
+.ml-sign{color:#8a7e66}
+.ml-src{flex:1}
+.ml-line[data-k=add]{background:#dcf1e1}.ml-line[data-k=add] .ml-ln{background:#bfe5c9;color:#1d6b3e}.ml-line[data-k=add] .ml-sign{color:#12794a;font-weight:700}
+.ml-line[data-k=del]{background:#fde3dc}.ml-line[data-k=del] .ml-ln{background:#f8c9bd;color:#a3321b}.ml-line[data-k=del] .ml-sign{color:#c0391b;font-weight:700}
+.ml-line[data-k=hunk]{background:#e9eefb;color:#4a5d99;font-style:italic;border-block:1px dashed #c3cdee}
+.tk-kw{color:#2347c8;font-weight:700}.tk-str{color:#b5471d}.tk-com{color:#8a7e66;font-style:italic}.tk-num{color:#9b5d00}.tk-fn{color:#117a4a}.tk-meta{color:#a3358a}
+.ml-comment{position:relative;margin:6px 14px 8px 80px;padding:9px 14px;background:#ffe9a3;border-left:6px solid var(--yellow);border-radius:3px 12px 12px 3px;font:500 12.5px/1.6 var(--f-body);color:var(--ink);box-shadow:1px 2px 0 rgba(60,30,0,.15),4px 7px 9px rgba(60,30,0,.14)}
+.ml-comment[data-who=me]{background:#dfe7fb;border-left-color:var(--blue)}
+.ml-comment-who{flex:none;background:var(--ink);color:#fff;font:700 10px var(--f-mono);padding:2px 8px;border-radius:999px}
+.ml-comment[data-who=me] .ml-comment-who{background:var(--blue)}
+.ml-chat{background:transparent}
+.ml-chat-log{padding:6px 14px 10px;display:flex;flex-direction:column;gap:12px}
+.ml-msg{max-width:92%;font:500 13px/1.7 var(--f-body)}
+.ml-msg-body{padding:10px 14px;background:#fff;border-radius:3px 16px 16px 16px;box-shadow:1px 2px 0 rgba(60,30,0,.14),4px 6px 8px rgba(60,30,0,.12);white-space:pre-wrap;border-left:5px solid var(--red)}
+.ml-msg[data-role=user]{align-self:flex-end}
+.ml-msg[data-role=user] .ml-msg-body{background:var(--blue);color:#fff;border-radius:16px 3px 16px 16px;border-left:0}
+.ml-perm{margin-top:10px;border:2px dashed var(--ink);border-radius:12px;padding:10px 12px;background:#fff2c2;font-size:12.5px}
+.ml-perm-title{font:400 12px var(--f-head);letter-spacing:.06em;margin-bottom:6px;color:var(--red)}
+.ml-perm-cmd{display:block;font:500 12px var(--f-mono);background:var(--ink);color:#fdf6e3;padding:6px 10px;border-radius:6px}
+.ml-perm-row{display:flex;gap:8px;margin-top:8px}
+.ml-perm-row button{font:700 12px var(--f-body);border:2px solid var(--ink);border-radius:999px;padding:4px 14px;cursor:pointer;background:#fff}
+.ml-perm-ok{background:var(--green)!important;color:#fff;border-color:var(--green)!important}
+.ml-chat-form{flex:none;padding:10px 12px 50px;border-top:1px solid #e7dcc2;background:#faf3e1;align-items:flex-end}
+.ml-chat-form textarea{font:500 13px/1.5 var(--f-body);border:2px solid var(--ink);border-radius:12px;padding:8px 10px;background:#fff;outline:0;color:var(--ink)}
+.ml-chat-form textarea:focus{box-shadow:0 0 0 3px var(--yellow)}
+.ml-send{font:400 13px var(--f-head);background:var(--red);color:#fff;border:0;border-radius:12px 5px 12px 5px;padding:10px 15px;cursor:pointer;box-shadow:1px 2px 0 rgba(60,30,0,.3),3px 5px 6px rgba(60,30,0,.2)}
+.ml-empty{padding:30px;color:#6b5f4a}
+
+/* ================= 切り替え: 切り抜きの色紙が、波のように広がる =================
+   クリックしたカードの位置(--ox,--oy)から、青→黄→朱の3枚の切り抜きが順に画面を覆い、
+   その上でエディタの紙面がめくれて現れる。戻るときは逆に縮む。 */
+.wipe{position:fixed;inset:0;pointer-events:none;z-index:200;overflow:hidden}
+.wipe svg{position:absolute;left:var(--ox,50%);top:var(--oy,50%);width:40px;height:40px;margin:-20px 0 0 -20px;opacity:0;transform:scale(0) rotate(0);overflow:visible}
+body[data-view=editor] .wipe svg{transform:scale(110) rotate(40deg)}
+body[data-phase=to-editor] .wipe svg{animation:cover .72s cubic-bezier(.6,.05,.25,1) both}
+body[data-phase=to-board] .wipe svg{animation:uncover .72s cubic-bezier(.6,.05,.25,1) both}
+.wipe svg:nth-child(2){animation-delay:.09s!important}.wipe svg:nth-child(3){animation-delay:.18s!important}
+@keyframes cover{0%{opacity:1;transform:scale(0) rotate(0)}78%{opacity:1;transform:scale(110) rotate(40deg)}100%{opacity:0;transform:scale(110) rotate(40deg)}}
+@keyframes uncover{0%{opacity:1;transform:scale(110) rotate(40deg)}100%{opacity:1;transform:scale(0) rotate(0)}}
+#board,#editor{transition:opacity .01s linear .62s}
+#editor{transition:opacity .4s ease .5s,transform .6s cubic-bezier(.3,1.3,.5,1) .45s}
+body[data-view=board] #editor{opacity:0;transform:translateY(26px) rotate(-1.2deg) scale(.97)}
+body[data-view=editor] #editor{opacity:1;transform:none}
+body[data-view=editor] #board{opacity:0}
+body[data-phase=to-board] #board{transition-delay:.2s}
+body[data-phase=to-board] #editor{transition:opacity .2s ease 0s,transform .3s ease 0s}
+.ml-about{font-family:var(--f-body)}
+</style>
+</head>
+<body data-view="board">
+<svg class="sym" aria-hidden="true">
+  <defs>
+    <!-- 紙の切り口: ゆるい波打ち + 紙の粒子。cut=ハサミで切った縁 / rip=ちぎった縁 -->
+    <filter id="cut" x="-8%" y="-8%" width="116%" height="116%">
+      <feTurbulence type="fractalNoise" baseFrequency=".03" numOctaves="2" seed="3" result="w"/>
+      <feDisplacementMap in="SourceGraphic" in2="w" scale="5" xChannelSelector="R" yChannelSelector="G" result="d"/>
+      <feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="3" seed="8" result="g"/>
+      <feColorMatrix in="g" type="matrix" values="0 0 0 0 .25  0 0 0 0 .12  0 0 0 0 .05  0 0 0 .6 -.2" result="gr"/>
+      <feComposite in="gr" in2="d" operator="in" result="gc"/>
+      <feTurbulence type="fractalNoise" baseFrequency=".16" numOctaves="3" seed="2" result="fb"/>
+      <feColorMatrix in="fb" type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .22 -.07" result="fh"/>
+      <feComposite in="fh" in2="d" operator="in" result="fhc"/>
+      <feMerge><feMergeNode in="d"/><feMergeNode in="fhc"/><feMergeNode in="gc"/></feMerge>
+    </filter>
+    <filter id="rip" x="-8%" y="-8%" width="116%" height="116%">
+      <feTurbulence type="fractalNoise" baseFrequency=".07" numOctaves="3" seed="11" result="w"/>
+      <feDisplacementMap in="SourceGraphic" in2="w" scale="13" xChannelSelector="R" yChannelSelector="G" result="d"/>
+      <feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="3" seed="5" result="g"/>
+      <feColorMatrix in="g" type="matrix" values="0 0 0 0 .6  0 0 0 0 .6  0 0 0 0 .7  0 0 0 .4 -.1" result="gr"/>
+      <feComposite in="gr" in2="d" operator="in" result="gc"/>
+      <feMerge><feMergeNode in="d"/><feMergeNode in="gc"/></feMerge>
+    </filter>
+    <filter id="soft" x="-10%" y="-10%" width="120%" height="120%">
+      <feTurbulence type="fractalNoise" baseFrequency=".04" numOctaves="2" seed="6" result="w"/>
+      <feDisplacementMap in="SourceGraphic" in2="w" scale="3" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+    <symbol id="i-branch" viewBox="0 0 16 16"><circle cx="4" cy="3.5" r="1.9" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="4.2" cy="12.6" r="1.9" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="5.2" r="1.9" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M4 5.5C4.3 8 3.9 9.5 4.2 10.6M12 7.1C11.9 9.2 8.3 8.6 4.6 10.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+    <!-- シール(ギザギザ丸) -->
+    <symbol id="i-sticker" viewBox="0 0 74 74"><path data-burst="37 37 31 38 14 scallop 0.2" filter="url(#soft)"/></symbol>
+    <symbol id="i-sticker-s" viewBox="0 0 46 46"><path data-burst="23 23 19 23.5 12 scallop 0.1"/></symbol>
+  </defs>
+</svg>
+
+<div id="board">
+  <!-- 背景に置いた薄い切り抜き(マティスの海藻・葉) -->
+  <svg class="bgdeco" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <g filter="url(#cut)" opacity=".5">
+      <path fill="#c6d3f4" d="M1290 40C1330 70 1310 120 1350 150 1390 180 1440 160 1440 160L1440 330C1400 320 1370 290 1352 250 1334 210 1280 220 1262 172 1246 130 1262 66 1290 40Z"/>
+      <path fill="#ffdc8a" d="M30 640C70 610 120 650 150 700 180 750 150 800 190 850 220 880 160 900 100 900L20 900C0 860 -10 800 0 740 8 690 8 660 30 640Z"/>
+      <path fill="#bfe3cf" d="M900 770C960 730 1030 770 1060 820 1090 870 1060 900 1020 900L930 900C890 880 860 830 900 770Z"/>
+      <path fill="#ffc9bc" d="M452 840C482 800 530 810 560 840 590 870 560 900 520 900L470 900C440 890 436 862 452 840Z"/>
+    </g>
+  </svg>
+
+  <h1 class="ttl"><span class="t1">きって、</span><span class="t2">はって、</span><span class="t3">つくる。</span></h1>
+  <div class="ttl-sub">― 5まいの色紙を、机にならべました</div>
+
+  <div class="hint">
+    <i class="tape"></i>
+    <div class="hin">
+      <h4>つかいかた</h4>
+      <ol>
+        <li>色紙(カード)を<b>クリック</b>で、その中身が開く</li>
+        <li>右下の<b>ペン</b>で、囲んだり線でつなげたりできる</li>
+        <li>エディタでは <b>Esc</b> で、この机に戻る</li>
+      </ol>
+    </div>
+  </div>
+
+  <svg id="deco"></svg>
+
+  <!-- A: todo-app 青い雲形 -->
+  <article class="card cA" data-project="todo-app" data-drag style="left:56px;top:132px">
+    <svg class="shape" viewBox="0 0 410 330"><path filter="url(#cut)" fill="#2347c8" d="M44 128C20 66 92 16 164 30 236 44 258 8 322 34 388 62 400 134 376 198 358 248 386 290 322 312 258 334 200 298 140 314 70 330 18 278 34 214 40 180 54 158 44 128Z"/>
+      <path filter="url(#cut)" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width="2" stroke-dasharray="2 9" stroke-linecap="round" d="M60 100C100 62 180 52 250 62"/></svg>
+    <div class="tx">
+      <span class="strip cr"><b>TypeScript</b></span>
+      <h3>ToDoアプリ</h3>
+      <p class="blurb">React + TypeScript の<br>小さなタスク管理</p>
+      <p class="meta"><span class="br"><svg><use href="#i-branch"/></svg>feat/toggle-done</span><span class="upd">更新 きょう</span></p>
+    </div>
+    <span class="rvs" style="right:14px;top:62px;--rr:12deg;color:#fff"><svg viewBox="0 0 74 74"><use href="#i-sticker" fill="#f0482a"/></svg><span>レビュー<b>2</b></span></span>
+    <!-- 黄色の紙きれ(星) -->
+    <svg class="scrap" style="left:318px;top:-18px;width:78px;height:78px;transform:rotate(14deg)" viewBox="0 0 78 78"><path filter="url(#cut)" fill="#ffc62d" data-burst="39 39 12 36 5 star -1.57"/></svg>
+  </article>
+
+  <!-- B: sales-analysis 黄色のひまわり -->
+  <article class="card cB" data-project="sales-analysis" data-drag style="left:520px;top:34px">
+    <svg class="shape" viewBox="0 0 340 340"><path filter="url(#cut)" fill="#ffc62d" data-burst="170 170 128 160 13 scallop 0.1"/>
+      <circle filter="url(#soft)" cx="170" cy="170" r="104" fill="none" stroke="#f0482a" stroke-opacity=".45" stroke-width="2" stroke-dasharray="1 8" stroke-linecap="round"/></svg>
+    <div class="tx">
+      <span class="strip bl"><b>Python</b></span>
+      <h3>売上データ分析</h3>
+      <p class="blurb">月別の推移と前年比</p>
+      <p class="meta"><span class="br"><svg><use href="#i-branch"/></svg>main</span><span class="upd">更新 3日前</span></p>
+    </div>
+    <span class="rvs" style="right:6px;top:218px;--rr:-8deg;width:70px;height:70px;color:#fff"><svg viewBox="0 0 74 74"><use href="#i-sticker" fill="#2347c8"/></svg><span>レビュー<b>1</b></span></span>
+    <svg class="scrap" style="left:6px;top:206px;width:64px;height:64px" viewBox="0 0 64 64"><circle filter="url(#cut)" cx="32" cy="32" r="26" fill="#f0482a"/></svg>
+  </article>
+
+  <!-- C: dbt-snowflake 緑の大きな葉 -->
+  <article class="card cC" data-project="dbt-snowflake" data-drag style="left:918px;top:74px">
+    <svg class="shape" viewBox="0 0 460 320"><path filter="url(#cut)" fill="#17935a" d="M16 190C54 92 168 30 308 40 394 46 440 74 446 96 428 156 380 250 262 292 154 328 56 280 16 190Z"/>
+      <path filter="url(#soft)" fill="none" stroke="#f6efdf" stroke-opacity=".7" stroke-width="3" stroke-linecap="round" d="M40 206C120 170 240 120 420 96M130 176C140 150 142 130 138 108M206 150C216 128 222 106 220 82M286 126C296 108 302 94 304 76M150 212C170 232 186 244 206 252M250 186C268 206 282 222 300 232"/></svg>
+    <div class="tx">
+      <span class="strip yl"><b>SQL / dbt</b></span>
+      <h3>dbt × Snowflake</h3>
+      <p class="blurb">staging → marts の<br>モデルをととのえる</p>
+      <p class="meta"><span class="br"><svg><use href="#i-branch"/></svg>main</span><span class="upd">更新 先週</span></p>
+    </div>
+    <span class="rvs" style="right:44px;top:12px;--rr:-10deg;color:#fff"><svg viewBox="0 0 74 74"><use href="#i-sticker" fill="#f0482a"/></svg><span>レビュー<b>1</b></span></span>
+  </article>
+
+  <!-- D: life-plan 朱色の珊瑚(海藻) -->
+  <article class="card cD" data-project="life-plan" data-drag style="left:92px;top:500px">
+    <svg class="shape" viewBox="0 0 350 350"><path filter="url(#cut)" fill="#f0482a" d="M68 340C44 270 80 248 66 208 52 168 18 156 40 104 62 52 114 74 126 34 138 2 188 14 198 46 208 78 258 48 288 80 318 112 286 142 306 182 326 222 352 244 334 294 322 330 300 340 262 340Z"/>
+      <path filter="url(#soft)" fill="none" stroke="#fff" stroke-opacity=".3" stroke-width="2" stroke-dasharray="1 8" stroke-linecap="round" d="M96 316C84 250 108 230 96 190"/></svg>
+    <div class="tx">
+      <span class="strip cr"><b>Markdown</b></span>
+      <h3>人生設計<br>2027-2029</h3>
+      <p class="hand" style="font-size:16px;line-height:1.4">3年後のわたしを、<br>ことばにしていく。</p>
+      <p class="meta"><span class="br"><svg><use href="#i-branch"/></svg>main</span><span class="upd">更新 きのう</span></p>
+    </div>
+    <span class="rvs" style="right:6px;top:206px;--rr:9deg;width:66px;height:66px;color:var(--ink)"><svg viewBox="0 0 74 74"><use href="#i-sticker" fill="#f6efdf"/></svg><span>レビュー<b>0</b></span></span>
+    <svg class="scrap" style="left:262px;top:-6px;width:70px;height:70px;transform:rotate(-12deg)" viewBox="0 0 70 70"><path filter="url(#cut)" fill="#2347c8" d="M8 34C8 12 30 4 46 10 62 16 64 40 52 54 40 66 18 62 10 50 8 44 8 38 8 34Z"/></svg>
+  </article>
+
+  <!-- E: memo-editor 墨色のちぎり紙 -->
+  <article class="card cE" data-project="memo-editor" data-drag style="left:526px;top:452px">
+    <svg class="shape" viewBox="0 0 430 305"><path filter="url(#rip)" fill="#17182b" d="M16 26L412 14 418 284 24 292Z"/></svg>
+    <div class="tx">
+      <div class="row"><span class="strip yl" style="transform:rotate(-2deg)"><b>NOW BUILDING</b></span><span class="upd" style="color:#ffc62d">更新 たった今</span></div>
+      <h3 style="font-size:32px">このアプリ自身</h3>
+      <p class="blurb" style="color:#f6efdf">いま作っている、メモ型AIエディタ。<br>この見た目の先にあるもの。</p>
+      <p class="meta"><span class="strip bl"><b>Rust + TypeScript</b></span><span class="br"><svg><use href="#i-branch"/></svg>main</span></p>
+    </div>
+    <span class="rvs" style="right:16px;top:54px;--rr:8deg;color:#fff"><svg viewBox="0 0 74 74"><use href="#i-sticker" fill="#f0482a"/></svg><span>レビュー<b>1</b></span></span>
+    <svg class="scrap" style="left:316px;top:206px;width:100px;height:100px;transform:rotate(-8deg)" viewBox="0 0 100 100"><path filter="url(#cut)" fill="#17935a" d="M14 70C20 30 54 10 90 14 86 50 66 88 30 92 22 92 14 82 14 70Z"/><path d="M24 80C44 56 62 38 80 24" stroke="#f6efdf" stroke-opacity=".7" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+  </article>
+
+  <svg id="pen"></svg>
+  <div class="tools">
+    <div class="tin">
+      <span class="lab">ペン</span>
+      <button data-action="pen" aria-pressed="false">書く</button>
+      <button data-pen-color="#f0482a" style="background:#f0482a" title="朱"></button>
+      <button data-pen-color="#2347c8" style="background:#2347c8" title="青"></button>
+      <button data-pen-color="#17182b" style="background:#17182b" title="墨"></button>
+      <button data-pen-color="#ffc62d" style="background:#ffc62d" title="黄"></button>
+      <span class="sp"></span>
+      <button data-action="pen-undo">戻す</button>
+      <button data-action="pen-clear">消す</button>
+    </div>
+  </div>
+</div>
+
+<div id="editor">
+  <svg class="edeco" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <g filter="url(#cut)" opacity=".55">
+      <path fill="#c6d3f4" d="M-10 700C40 680 90 720 120 780 150 840 140 900 140 920L-10 920Z"/>
+      <path fill="#ffdc8a" d="M1330 -10C1360 30 1400 20 1450 60L1450 -10Z"/>
+      <path fill="#ffc9bc" d="M1300 910C1320 860 1370 850 1450 870L1450 910Z"/>
+    </g>
+  </svg>
+  <header class="eh">
+    <button class="back" data-action="back" aria-label="机に戻る"><svg viewBox="0 0 24 24" fill="none" stroke="#fffcf3" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12H5M11 5L4.5 12 11 19"/></svg></button>
+    <span class="tw"><h2 data-slot="title"></h2></span>
+    <span class="strip yl"><b data-slot="lang"></b></span>
+    <span class="chip"><svg><use href="#i-branch"/></svg><span data-slot="branch"></span></span>
+    <span class="rvb"><i><svg viewBox="0 0 46 46"><use href="#i-sticker-s" fill="#f0482a"/></svg><b data-slot="count-review"></b></i>レビュー</span>
+    <span class="path" data-slot="path"></span>
+  </header>
+  <aside class="pane p-tree"><div class="pane-h">ファイル</div><div data-slot="tree"></div></aside>
+  <section class="pane mid"><div data-slot="tabs"></div><div data-slot="doc"></div></section>
+  <aside class="pane p-chat"><div class="pane-h">AIと相談<small data-slot="blurb"></small></div><div data-slot="chat" style="flex:1;min-height:0"></div></aside>
+</div>
+
+<!-- 切り替え用の色紙(青・黄・朱の順に広がる) -->
+<div class="wipe" aria-hidden="true">
+  <svg viewBox="0 0 40 40"><path filter="url(#soft)" fill="#2347c8" d="M20 1C30 0 40 8 39 20 38 32 30 40 19 39 8 38 0 30 1 19 2 9 11 2 20 1Z"/></svg>
+  <svg viewBox="0 0 40 40"><path filter="url(#soft)" fill="#ffc62d" d="M21 2C31 3 39 11 38 21 37 31 29 39 19 38 9 37 2 29 2 19 3 10 12 1 21 2Z"/></svg>
+  <svg viewBox="0 0 40 40"><path filter="url(#soft)" fill="#f0482a" d="M20 3C30 2 38 10 37 20 36 30 28 38 19 37 9 36 3 28 3 19 4 10 11 4 20 3Z"/></svg>
+</div>
+
+<script>
+/* ギザギザ丸・星・花形の輪郭を計算して path に入れる(見た目の部品のみ) */
+(function(){
+  function f(n){return Math.round(n*10)/10}
+  function burst(cx,cy,r1,r2,n,mode,rot){
+    var d='',step=Math.PI*2/n;
+    for(var i=0;i<=n;i++){
+      var a=rot+i*step,x=cx+r1*Math.cos(a),y=cy+r1*Math.sin(a);
+      if(i===0){d+='M'+f(x)+' '+f(y);continue}
+      var am=a-step/2,px=cx+r2*Math.cos(am),py=cy+r2*Math.sin(am);
+      d+=(mode==='star')?('L'+f(px)+' '+f(py)+'L'+f(x)+' '+f(y)):('Q'+f(px)+' '+f(py)+' '+f(x)+' '+f(y));
+    }
+    return d+'Z';
+  }
+  var ps=document.querySelectorAll('path[data-burst]');
+  for(var i=0;i<ps.length;i++){
+    var a=ps[i].getAttribute('data-burst').split(' ');
+    ps[i].setAttribute('d',burst(+a[0],+a[1],+a[2],+a[3],+a[4],a[5],+a[6]||0));
+  }
+})();
+</script>
+<script src="assets/common.js"></script>
+<script>
+MemoLab.ready(function(){
+  var B='#2347c8', R='#f0482a', K='#17182b', Y='#ffc62d', G='#17935a';
+  MemoLab.link('.cA','.cB',{color:K,width:2.2,dots:true});
+  MemoLab.link('.cB','.cC',{color:R,width:2.2,dash:'1 8',dotR:4,curve:-.2});
+  MemoLab.link('.cA','.cD',{color:K,width:2,dash:'2 7',curve:.25});
+  MemoLab.link('.cD','.cE',{color:B,width:2.2,dots:true});
+  MemoLab.around('.cA .rvs',{shape:'circle',color:K,width:2.2,pad:4,seed:4});
+  MemoLab.around('.cB h3',{shape:'underline',color:R,width:3,pad:5});
+  MemoLab.around('.cE h3',{shape:'highlight',color:Y,pad:1});
+  MemoLab.around('.hint li:nth-child(2) b',{shape:'highlight',color:Y,pad:2});
+  MemoLab.scribble('arrow',1180,780,-70,-60,{color:K,width:2.6,bend:22});
+  MemoLab.scribble('star',872,404,38,38,{color:R,width:2.4});
+  MemoLab.scribble('spiral',470,812,40,40,{color:B,width:2.2});
+});
+</script>
+</body>
+</html>

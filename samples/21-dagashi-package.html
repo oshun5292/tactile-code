@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>21 だがしや メモ堂</title>
+<meta name="ml-title" content="21 dagashi-package ― 駄菓子屋・昭和パッケージ">
+<meta name="ml-concept" content="駄菓子屋の店先。プロジェクトは形のちがう駄菓子のパッケージで、言語は「味」、ブランチは「賞味」、レビュー件数は星型の「要確認」バースト。カードを押すと駄菓子の箱のフタが開き、中がエディタになる。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Maru+Gothic:wght@500;700;900&family=Yusei+Magic&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* 配色: 昭和の駄菓子パッケージ=「赤・黄・青の原色+クリーム地+焦げ茶の輪郭インク」、差し色に桃色の6色。輪郭は全部焦げ茶で統一して一枚の印刷物らしく */
+:root{
+  --red:#e4311f;      /* 看板・箱・バースト */
+  --yellow:#ffc61f;   /* ふくろ・値札・蛍光 */
+  --blue:#1c58b6;     /* ガム箱・吹き出し */
+  --pink:#ff8fae;     /* 缶・淡い差し色 */
+  --cream:#fff4d6;    /* 店の壁・紙 */
+  --ink:#2a160d;      /* 輪郭・文字(真っ黒にせず焦げ茶) */
+  --f-head:"Dela Gothic One","Zen Maru Gothic","Hiragino Maru Gothic ProN","Yu Gothic",sans-serif;
+  --f-body:"Zen Maru Gothic","Hiragino Maru Gothic ProN","Yu Gothic UI",Meiryo,sans-serif;
+  --f-hand:"Yusei Magic","Zen Maru Gothic","Yu Gothic",cursive;
+  --f-mono:"JetBrains Mono",ui-monospace,Consolas,"Cascadia Mono",monospace;
+  /* 紙ノイズ。光は左上、影は右下(ハードな版ずれ影+遠いやわらか影)で全体統一 */
+  --noise:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .25  0 0 0 0 .12  0 0 0 0 .05  0 0 0 .16 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  --dots:radial-gradient(circle,rgba(228,49,31,.20) 1.7px,transparent 2.2px) 0 0/15px 15px;
+  --sh:drop-shadow(5px 6px 0 var(--ink)) drop-shadow(14px 20px 14px rgba(60,25,10,.28));
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--cream);color:var(--ink);font-family:var(--f-body)}
+svg.sym{position:absolute;width:0;height:0}
+/* ふち取り文字(白抜き+焦げ茶ふち+赤い影)。昭和パッケージの顔 */
+.pop{font-family:var(--f-head);font-weight:400;color:#fff;-webkit-text-stroke:6px var(--ink);paint-order:stroke fill;text-shadow:3px 3px 0 var(--red);letter-spacing:.02em;line-height:1.12}
+
+/* ---------- ボード(店先) ---------- */
+#board{position:absolute;inset:0;overflow:hidden;
+  background:radial-gradient(ellipse at 28% 18%,rgba(255,255,255,.55),transparent 55%),radial-gradient(ellipse at 60% 130%,rgba(120,60,20,.22),transparent 60%),var(--noise),var(--cream)}
+.wall{position:absolute;inset:0;background:var(--dots);-webkit-mask-image:linear-gradient(180deg,#000,transparent 70%);mask-image:linear-gradient(180deg,#000,transparent 70%);pointer-events:none}
+.floor{position:absolute;left:0;right:0;bottom:0;height:120px;background:repeating-linear-gradient(90deg,rgba(42,22,13,.0) 0 118px,rgba(42,22,13,.16) 118px 120px),linear-gradient(180deg,#d9a35a,#c4863d 60%,#b8772f);
+  border-top:4px solid var(--ink);box-shadow:inset 0 10px 14px rgba(60,25,10,.25)}
+.floor::after{content:"";position:absolute;inset:0;background:var(--noise);opacity:.8}
+/* ひさし(赤白ストライプ+スカラップ) */
+.awning{position:absolute;left:0;top:0;width:100%;height:92px;z-index:2;filter:drop-shadow(0 4px 0 var(--ink)) drop-shadow(6px 12px 10px rgba(60,25,10,.3))}
+.awning i{position:absolute;inset:0;background:var(--noise),linear-gradient(180deg,rgba(255,255,255,.25),transparent 30%,rgba(0,0,0,.12)),repeating-linear-gradient(90deg,var(--red) 0 60px,var(--cream) 60px 120px);
+  -webkit-mask:radial-gradient(circle 30px at 30px 62px,#000 29px,transparent 30.5px) 0 0/60px 100% repeat-x,linear-gradient(#000,#000) 0 0/100% 62px no-repeat;
+  mask:radial-gradient(circle 30px at 30px 62px,#000 29px,transparent 30.5px) 0 0/60px 100% repeat-x,linear-gradient(#000,#000) 0 0/100% 62px no-repeat}
+/* 看板 */
+.sign{position:absolute;left:66px;top:100px;width:300px;z-index:4;transform:rotate(-2deg);transform-origin:50% -20px;filter:var(--sh)}
+.sign .plank{position:relative;background:var(--noise),linear-gradient(135deg,rgba(255,255,255,.22),transparent 40%),var(--blue);border:4px solid var(--ink);border-radius:14px;padding:16px 16px 14px;text-align:center;
+  box-shadow:inset 0 0 0 4px var(--cream),inset 0 0 0 7px var(--ink)}
+.sign small{display:block;font:700 12px var(--f-body);letter-spacing:.5em;color:var(--yellow);margin-bottom:4px;padding-left:.5em}
+.sign h1{margin:0;font-size:42px;-webkit-text-stroke:7px var(--ink)}
+.sign .sub{margin-top:10px;font:700 12.5px var(--f-body);color:var(--cream);letter-spacing:.08em}
+.sign .string{position:absolute;top:-30px;width:3px;height:30px;background:var(--ink)}
+.sign .string.l{left:40px}.sign .string.r{right:40px}
+/* ツール(ペン) */
+.tools{position:absolute;left:60px;bottom:28px;z-index:30;display:flex;align-items:center;gap:8px;background:var(--cream);border:3px solid var(--ink);border-radius:999px;padding:7px 10px 7px 16px;box-shadow:4px 5px 0 var(--ink)}
+.tools .lab{font:400 14px var(--f-head);color:var(--red);margin-right:2px;letter-spacing:.04em}
+.tools button{font:900 12px var(--f-body);border:2.5px solid var(--ink);background:#fff;color:var(--ink);border-radius:999px;padding:4px 11px;cursor:pointer}
+.tools button:hover{background:var(--yellow)}
+.tools button[aria-pressed=true]{background:var(--ink);color:var(--yellow)}
+.tools button[data-pen-color]{width:24px;height:24px;padding:0;border-radius:50%}
+.tools button[data-pen-color][aria-pressed=true]{outline:3px solid var(--ink);outline-offset:2px}
+.tools .sp{width:6px}
+
+/* ---------- カード共通 ---------- */
+.card{position:absolute;z-index:6;color:var(--ink);filter:var(--sh);transition:filter .2s}
+.card:hover{filter:drop-shadow(6px 8px 0 var(--ink)) drop-shadow(18px 28px 16px rgba(60,25,10,.3))}
+.card[data-dragging]{z-index:25}
+.card h3{margin:0}
+.chip{display:inline-flex;align-items:center;gap:4px;font:700 11px/1 var(--f-mono);border:2px solid var(--ink);border-radius:999px;padding:4px 9px;background:#fff;white-space:nowrap;letter-spacing:.01em}
+.chip svg{width:12px;height:12px}
+.upd{font:700 10.5px var(--f-mono);letter-spacing:.04em;white-space:nowrap}
+/* 星型バースト(レビュー件数) */
+.burst{position:absolute;z-index:3;width:88px;height:88px;display:grid;place-items:center;text-align:center;color:#fff;transform:rotate(10deg)}
+.burst svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;filter:none}
+.burst b{position:relative;display:block;font:400 30px/.9 var(--f-head);-webkit-text-stroke:4px var(--ink);paint-order:stroke fill}
+.burst span{position:relative;display:block;font:900 11px/1.1 var(--f-body);color:#fff;-webkit-text-stroke:3px var(--ink);paint-order:stroke fill;letter-spacing:.04em;margin-bottom:2px}
+.burst b small{font-size:14px}
+
+/* 1. todo-app: ポテトスナックの袋(上下に熱圧着の縁) */
+.c1{width:280px;height:356px;transform:rotate(-3deg)}
+.bag{position:absolute;inset:0;background:var(--noise),linear-gradient(105deg,rgba(255,255,255,.5) 0 8%,transparent 22%,transparent 62%,rgba(255,255,255,.28) 70%,transparent 78%),linear-gradient(180deg,#ffd447,var(--yellow) 40%,#f2ac0f);
+  border:4px solid var(--ink);border-radius:10px / 22px;padding:36px 18px 34px;display:flex;flex-direction:column;align-items:center;overflow:visible}
+.bag::before,.bag::after{content:"";position:absolute;left:-4px;right:-4px;height:28px;background:repeating-linear-gradient(90deg,rgba(42,22,13,.22) 0 2px,transparent 2px 7px),linear-gradient(rgba(255,255,255,.18),rgba(0,0,0,.1));border:4px solid var(--ink)}
+.bag::before{top:-4px;border-radius:8px 8px 0 0;border-bottom-width:2px;-webkit-mask:conic-gradient(from 135deg at top,#0000,#000 1deg 89deg,#0000 90deg) 50% 0/14px 100%;mask:conic-gradient(from 135deg at top,#0000,#000 1deg 89deg,#0000 90deg) 50% 0/14px 100%;border-top:0}
+.bag::after{bottom:-4px;border-radius:0 0 8px 8px;border-top-width:2px;-webkit-mask:conic-gradient(from -45deg at bottom,#0000,#000 1deg 89deg,#0000 90deg) 50% 100%/14px 100%;mask:conic-gradient(from -45deg at bottom,#0000,#000 1deg 89deg,#0000 90deg) 50% 100%/14px 100%;border-bottom:0}
+.c1 .flavor{display:flex;justify-content:space-between;align-items:center;width:100%;margin-bottom:6px}
+.c1 .chip{background:var(--blue);color:#fff;border-color:var(--ink)}
+.c1 .plate{position:relative;width:170px;height:128px;margin:2px 0 4px}
+.c1 .plate svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.c1 h3{font-size:34px;margin-top:2px;text-align:center}
+.c1 .shelf{margin-top:auto;display:flex;align-items:center;gap:7px;font:700 10.5px var(--f-mono);background:var(--cream);border:2px solid var(--ink);border-radius:6px;padding:5px 8px;transform:rotate(1deg)}
+.c1 .shelf b{background:var(--red);color:#fff;border-radius:3px;padding:2px 5px;font-size:10px;letter-spacing:.06em}
+.c1 .burst{right:-40px;top:96px}
+
+/* 2. sales-analysis: ガムの箱 */
+.c2{width:340px;height:204px;transform:rotate(2.2deg)}
+.gum{position:absolute;inset:0;border:4px solid var(--ink);border-radius:8px;background:var(--noise),linear-gradient(120deg,rgba(255,255,255,.28),transparent 35%),repeating-linear-gradient(-45deg,rgba(255,255,255,.07) 0 10px,transparent 10px 20px),var(--blue);padding:46px 18px 14px;overflow:hidden}
+.gum::before{content:"";position:absolute;left:0;right:0;top:0;height:30px;background:linear-gradient(180deg,#3d7ee0,#2a66c8);border-bottom:4px solid var(--ink)}
+.gum::after{content:"";position:absolute;right:-26px;bottom:-26px;width:60px;height:60px;background:linear-gradient(135deg,rgba(0,0,0,.16) 50%,var(--cream) 50%);border:3px solid var(--ink);transform:rotate(0deg);border-radius:0 0 0 0}
+.c2 .lid{position:absolute;left:16px;top:5px;z-index:2;font:900 11px/20px var(--f-body);color:var(--cream);letter-spacing:.5em}
+.c2 .lid b{color:var(--yellow);font-family:var(--f-mono);letter-spacing:.1em;margin-left:10px}
+.c2 h3{font-size:27px;max-width:200px}
+.c2 .info{position:absolute;left:18px;bottom:12px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;max-width:210px}
+.c2 .chip.y{background:var(--yellow)}
+.c2 .upd{color:var(--cream)}
+.c2 .sticks{position:absolute;right:16px;top:42px;width:96px;height:130px}
+.c2 .tagp{position:absolute;right:-6px;top:-22px;z-index:4;width:78px;transform:rotate(14deg)}
+.c2 .burst{left:-56px;bottom:-22px;width:84px;height:84px;z-index:5;transform:rotate(-12deg)}
+
+/* 3. dbt-snowflake: まるい缶(メダルチョコ缶) */
+.c3{width:262px;height:262px;border-radius:50%;transform:rotate(5deg)}
+.tin{position:absolute;inset:0;border-radius:50%;border:4px solid var(--ink);padding:14px;
+  background:conic-gradient(from 20deg,#fff,#cfc7b8 14%,#fff 28%,#b9b0a0 44%,#fff 60%,#d8d0c0 78%,#fff)}
+.tin .face{position:relative;width:100%;height:100%;border-radius:50%;border:3px solid var(--ink);background:var(--noise),radial-gradient(circle at 32% 26%,rgba(255,255,255,.55),transparent 45%),var(--dots),var(--pink);overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding-top:4px}
+.tin .face::before{content:"";position:absolute;inset:8px;border-radius:50%;border:2px dashed var(--ink);opacity:.55}
+.c3 .rib{position:relative;margin:0 -30px;width:calc(100% + 60px);text-align:center;background:var(--yellow);border-block:3px solid var(--ink);padding:5px 0 6px;transform:rotate(-4deg);box-shadow:0 3px 0 rgba(42,22,13,.25)}
+.c3 h3{font-size:21px;line-height:1.1}
+.c3 .flow{width:150px;height:38px}
+.c3 .row{display:flex;gap:5px;align-items:center}
+.c3 .chip{padding:3px 7px;font-size:10px}
+.c3 .upd{position:absolute;bottom:20px;left:0;right:0;text-align:center}
+.c3 .burst{right:-20px;top:-14px;width:78px;height:78px;transform:rotate(-8deg)}
+
+/* 4. life-plan: あたりくじ(ミシン目つき短冊) */
+.c4{width:212px;height:410px;transform:rotate(-2.6deg)}
+.kuji{position:absolute;inset:0;background:var(--noise),linear-gradient(100deg,rgba(255,255,255,.3),transparent 40%),var(--red);padding:16px 16px 16px;display:flex;flex-direction:column;align-items:center;
+  -webkit-mask:radial-gradient(circle 7px at 0 50%,#0000 6px,#000 6.5px) 0 0/100% 28px repeat-y,radial-gradient(circle 7px at 100% 50%,#0000 6px,#000 6.5px) 0 0/100% 28px repeat-y;-webkit-mask-composite:source-in;
+  mask:radial-gradient(circle 7px at 0 50%,#0000 6px,#000 6.5px) 0 0/100% 28px repeat-y,radial-gradient(circle 7px at 100% 50%,#0000 6px,#000 6.5px) 0 0/100% 28px repeat-y;mask-composite:intersect}
+.kuji::before{content:"";position:absolute;inset:7px 9px;border:3px solid var(--cream);border-radius:6px;opacity:.9}
+.c4 .head{position:relative;font:900 12px var(--f-body);letter-spacing:.35em;color:var(--yellow);padding-left:.35em;margin-top:6px}
+.c4 .stars{position:relative;display:flex;gap:4px;margin:6px 0 10px}
+.c4 .stars svg{width:18px;height:18px}
+.c4 h3{position:relative;writing-mode:vertical-rl;font-size:50px;letter-spacing:.06em;color:var(--cream);-webkit-text-stroke:7px var(--ink);paint-order:stroke fill;text-shadow:4px 4px 0 rgba(42,22,13,.45);font-family:var(--f-head);line-height:1.05;margin-right:46px}
+.c4 .hand{position:absolute;right:30px;top:98px;writing-mode:vertical-rl;font:400 15px/1.3 var(--f-hand);color:var(--cream);letter-spacing:.1em}
+.c4 .years{position:absolute;left:12px;right:12px;bottom:70px;background:var(--yellow);border:3px solid var(--ink);border-radius:6px;text-align:center;font:400 17px/1 var(--f-head);padding:7px 0 6px;transform:rotate(-2deg);letter-spacing:.02em;box-shadow:3px 3px 0 var(--ink)}
+.c4 .foot{position:absolute;left:0;right:0;bottom:22px;display:flex;justify-content:center;gap:6px;align-items:center}
+.c4 .chip{padding:3px 8px;font-size:10px}
+.c4 .atari{position:absolute;right:-18px;top:-16px;z-index:3;width:76px;height:76px;transform:rotate(14deg);display:grid;place-items:center;color:var(--ink)}
+.c4 .atari svg{position:absolute;inset:0;width:100%;height:100%}
+.c4 .atari span{position:relative;font:400 15px/1 var(--f-head);text-align:center;color:var(--ink)}
+
+/* 5. memo-editor: おおきな駄菓子の箱(フタつき) */
+.c5{width:564px;height:252px;transform:rotate(-1.4deg)}
+.box{position:absolute;inset:0;border:4px solid var(--ink);border-radius:6px;background:var(--noise),linear-gradient(110deg,rgba(255,255,255,.2),transparent 40%),var(--red);overflow:hidden;padding:56px 24px 16px 188px}
+.box::before{content:"";position:absolute;left:0;right:0;top:0;height:42px;background:var(--noise),repeating-linear-gradient(90deg,var(--yellow) 0 22px,#ffdb66 22px 44px);border-bottom:4px solid var(--ink)}
+.box::after{content:"";position:absolute;left:0;right:0;top:42px;height:14px;background:linear-gradient(180deg,rgba(42,22,13,.35),transparent)}
+.c5 .lidtxt{position:absolute;left:0;right:0;top:0;height:42px;z-index:2;display:flex;align-items:center;justify-content:space-between;padding:0 18px;font:900 12px var(--f-body);letter-spacing:.3em}
+.c5 .lidtxt b{font:700 11px var(--f-mono);letter-spacing:.08em;background:var(--ink);color:var(--yellow);padding:4px 10px;border-radius:999px}
+.c5 .mascot{position:absolute;left:22px;top:62px;width:150px;height:170px;z-index:2}
+.c5 h3{font-size:38px;margin-bottom:12px}
+.c5 .p{font:700 13px/1.55 var(--f-body);color:var(--cream);margin:0 0 12px}
+.c5 .row{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.c5 .chip.y{background:var(--yellow)}
+.c5 .upd{color:var(--cream)}
+.c5 .burst{right:22px;bottom:-30px;width:100px;height:100px;transform:rotate(-8deg)}
+
+/* おしながき */
+.menu{position:absolute;left:1042px;top:462px;width:340px;z-index:5;transform:rotate(1.6deg);filter:var(--sh)}
+.menu .in{background:var(--noise),var(--cream);border:4px solid var(--ink);border-radius:6px;padding:30px 20px 14px;box-shadow:inset 0 0 0 4px var(--cream),inset 0 0 0 6px var(--red)}
+.menu h4{position:absolute;left:50%;top:-18px;transform:translateX(-50%);margin:0;white-space:nowrap;background:var(--red);color:var(--cream);font:400 20px/1 var(--f-head);letter-spacing:.3em;padding:9px 14px 9px 20px;border:3px solid var(--ink);border-radius:4px;box-shadow:3px 3px 0 var(--ink)}
+.menu ul{list-style:none;margin:0;padding:0}
+.menu li{display:flex;align-items:baseline;gap:6px;font:700 13.5px/2.05 var(--f-body)}
+.menu li::after{content:"";order:1;flex:1;border-bottom:2.5px dotted var(--ink);transform:translateY(-4px);min-width:10px}
+.menu li em{order:2;font:400 13px var(--f-head);font-style:normal;color:var(--red);white-space:nowrap}
+.menu li span{order:0}
+.menu .note{margin:6px 0 0;font:400 13px var(--f-hand);color:var(--blue);text-align:right}
+.say{position:absolute;left:786px;top:392px;z-index:5;width:166px;height:112px;display:grid;place-items:center;text-align:center;transform:rotate(-6deg);pointer-events:none}
+.say svg{position:absolute;inset:0;width:100%;height:100%;filter:drop-shadow(3px 4px 0 var(--ink))}
+.say span{position:relative;font:400 17px/1.25 var(--f-head);color:var(--ink)}
+.sticker{position:absolute;pointer-events:none;z-index:3}
+
+/* ---------- エディタ(駄菓子の箱の中) ---------- */
+#editor{position:absolute;inset:0;padding:12px 22px 20px;display:grid;grid-template-columns:268px minmax(0,1fr) 356px;grid-template-rows:74px minmax(0,1fr);gap:0 16px;perspective:1600px;
+  background:var(--noise),var(--dots),radial-gradient(ellipse at 20% 0,#f2503a,transparent 60%),var(--red)}
+.eh{grid-column:1/4;display:flex;align-items:center;gap:14px;padding:0 18px;margin:0 -22px 14px;background:var(--noise),repeating-linear-gradient(90deg,var(--yellow) 0 26px,#ffd94f 26px 52px);border-bottom:4px solid var(--ink);box-shadow:0 5px 0 rgba(42,22,13,.35);transform-origin:50% 0;position:relative;z-index:3}
+.back{flex:none;width:46px;height:46px;border-radius:50%;border:3px solid var(--ink);background:var(--cream);cursor:pointer;display:grid;place-items:center;box-shadow:3px 3px 0 var(--ink);padding:0}
+.back:hover{background:#fff}
+.back svg{width:24px;height:24px}
+.eh h2{margin:0;font-size:28px;-webkit-text-stroke:6px var(--ink)}
+.eh .lang{font:700 12px var(--f-mono);background:var(--blue);color:#fff;border:2.5px solid var(--ink);border-radius:999px;padding:6px 12px;white-space:nowrap}
+.eh .br{display:inline-flex;align-items:center;gap:6px;font:700 12px var(--f-mono);background:var(--cream);border:2.5px solid var(--ink);border-radius:999px;padding:5px 12px;white-space:nowrap}
+.eh .br svg{width:13px;height:13px}
+.eh .rv{position:relative;font:900 12.5px var(--f-body);background:var(--red);color:#fff;border:2.5px solid var(--ink);border-radius:6px 14px 14px 6px;padding:6px 14px 6px 18px;box-shadow:2px 2px 0 var(--ink);white-space:nowrap}
+.eh .rv::before{content:"";position:absolute;left:5px;top:50%;width:6px;height:6px;margin-top:-3px;border-radius:50%;background:var(--cream);border:1.5px solid var(--ink)}
+.eh .rv b{font:400 15px var(--f-head);margin-left:4px}
+.eh .path{margin-left:auto;font:500 11.5px var(--f-mono);color:var(--ink);opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:30%}
+.pane{position:relative;min-height:0;display:flex;flex-direction:column;background:var(--noise),var(--cream);border:4px solid var(--ink);border-radius:12px;overflow:hidden;box-shadow:5px 6px 0 var(--ink),12px 18px 24px rgba(60,10,5,.35)}
+.pane-h{flex:none;display:flex;align-items:center;flex-wrap:wrap;gap:2px 10px;padding:10px 14px;font:400 16px var(--f-head);letter-spacing:.1em;color:var(--cream);background:var(--blue);border-bottom:3px solid var(--ink)}
+.pane-h small{font:500 11px/1.4 var(--f-body);letter-spacing:0;color:#cfe0ff}
+[data-slot=tree]{flex:1;min-height:0;overflow:auto;padding:8px 10px 16px}
+.ml-tree-dirname,.ml-tree-file{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:7px;font:700 13px var(--f-body);border:2px solid transparent}
+.ml-tree-file:hover,.ml-tree-dirname:hover{background:rgba(255,198,31,.35)}
+.ml-tree-file[data-active]{background:var(--yellow);border-color:var(--ink);box-shadow:2px 2px 0 var(--ink)}
+.ml-tree-children{margin-left:14px;padding-left:8px;border-left:3px dotted var(--red)}
+.ml-ico{width:20px;height:20px;border-radius:5px;border:2px solid var(--ink);background:#fff;font:700 8px/16px var(--f-mono);text-align:center;color:var(--ink)}
+.ml-ico[data-kind=dir]{background:var(--yellow);border-radius:3px 8px 3px 3px}
+.ml-ico[data-kind=md]::before{content:"M";}.ml-ico[data-kind=md]{background:#d6e5ff}
+.ml-ico[data-kind=ts]::before{content:"TS"}.ml-ico[data-kind=ts]{background:#cfe0ff}
+.ml-ico[data-kind=py]::before{content:"Py"}.ml-ico[data-kind=py]{background:#ffe9a8}
+.ml-ico[data-kind=sql]::before{content:"SQ"}.ml-ico[data-kind=sql]{background:#ffd0dc}
+.ml-ico[data-kind=yaml]::before{content:"Y"}.ml-ico[data-kind=rs]::before{content:"Rs"}.ml-ico[data-kind=rs]{background:#ffd9c2}
+.ml-ico[data-kind=diff]::before{content:"±";color:#fff}.ml-ico[data-kind=diff]{background:var(--red)}
+.ml-ico[data-kind=file]::before{content:"・"}
+.mid{background:var(--cream)}
+[data-slot=tabs]{flex:none;display:flex;gap:5px;padding:9px 12px 0;background:var(--noise),#f3dfa8;border-bottom:3px solid var(--ink);overflow:hidden}
+.ml-tab{display:flex;align-items:center;gap:7px;padding:7px 12px 6px;font:700 12.5px var(--f-body);border:3px solid var(--ink);border-bottom:0;border-radius:10px 10px 0 0;background:#f6e7bd;color:#6a4a30;margin-bottom:-3px;white-space:nowrap}
+.ml-tab[data-active]{background:#fffdf4;color:var(--ink);box-shadow:inset 0 5px 0 var(--red)}
+.ml-tab-close{opacity:.5;font-size:15px;line-height:1}.ml-tab-close:hover{opacity:1;color:var(--red)}
+[data-slot=doc]{flex:1;min-height:0;display:flex;flex-direction:column;background:#fffdf4}
+.ml-doc{flex:1;min-height:0;display:flex;flex-direction:column}
+.ml-doc-bar{flex:none;padding:8px 14px;border-bottom:2px solid var(--ink);background:#fff7de}
+.ml-doc-path{font:500 12px var(--f-mono);color:#6a4a30}
+.ml-mode{font:900 11.5px var(--f-body);border:2.5px solid var(--ink);background:#fff;border-radius:999px;padding:3px 13px;cursor:pointer;color:var(--ink)}
+.ml-mode[data-active]{background:var(--red);color:#fff;box-shadow:2px 2px 0 var(--ink)}
+.ml-md{flex:1;min-height:0;overflow:hidden}
+.ml-md-src{height:100%;padding:18px 20px;font:400 13px/1.8 var(--f-mono);color:#2a160d;background:#fffdf4;border-right:3px dashed #e6c98a!important;overflow:auto}
+.ml-md-out{height:100%;overflow:auto;padding:20px 28px 30px;font:500 14px/1.9 var(--f-body);background:var(--noise),#fff8e4}
+.ml-md-out h1{font:400 27px/1.3 var(--f-head);margin:0 0 12px;display:block;width:fit-content;background:linear-gradient(transparent 58%,var(--yellow) 58%);padding:0 6px 0 2px}
+.ml-md-out h2{font:400 15px/1 var(--f-head);display:block;width:fit-content;background:var(--red);color:#fff;padding:9px 26px 9px 18px;margin:24px 0 12px;border:3px solid var(--ink);border-radius:4px;clip-path:none;box-shadow:3px 3px 0 var(--ink);letter-spacing:.08em;position:relative}
+.ml-md-out h2::after{content:"";position:absolute;right:9px;top:50%;width:7px;height:7px;margin-top:-3.5px;border-radius:50%;background:var(--cream);border:1.5px solid var(--ink)}
+.ml-md-out h3{font:900 15px var(--f-body);margin:18px 0 4px;border-left:6px solid var(--blue);padding-left:8px}
+.ml-md-out p{margin:6px 0}
+.ml-md-out ul:not(.ml-tasks),.ml-md-out ol{margin:6px 0 8px;padding-left:0;list-style:none;counter-reset:n}
+.ml-md-out ul:not(.ml-tasks) li,.ml-md-out ol li{position:relative;padding-left:30px;counter-increment:n}
+.ml-md-out ul:not(.ml-tasks) li::before{content:"";position:absolute;left:5px;top:.5em;width:17px;height:17px;background:var(--yellow);clip-path:polygon(50% 0,62% 36%,98% 38%,69% 60%,80% 96%,50% 74%,20% 96%,31% 60%,2% 38%,38% 36%);filter:drop-shadow(0 0 0 var(--ink))}
+.ml-md-out ol li::before{content:counter(n);position:absolute;left:2px;top:.3em;width:24px;height:24px;border-radius:50%;background:var(--blue);color:#fff;border:2.5px solid var(--ink);font:400 12px/19px var(--f-head);text-align:center}
+.ml-tasks li{padding:2px 0}
+.ml-check{width:19px!important;height:19px!important;border:2.5px solid var(--ink)!important;border-radius:5px!important;background:#fff;color:#fff;vertical-align:-3px!important;font-size:13px!important;font-weight:900}
+.ml-task[data-done=true] .ml-check{background:var(--red)}
+.ml-task[data-done=true]{color:#8a6a50}
+.ml-md-out blockquote{margin:14px 0;padding:11px 16px;background:var(--yellow);border:3px solid var(--ink);border-radius:16px 16px 16px 3px;box-shadow:3px 3px 0 var(--ink);font-weight:700}
+.ml-md-out code{font:500 .88em var(--f-mono);background:#ffe9b0;padding:1px 6px;border-radius:4px;border:1px solid #e1c27a}
+.ml-md-out hr{border:0;border-top:4px dotted var(--red);margin:20px 0}
+.ml-md-out pre.ml-pre{background:#fffdf4;border:3px solid var(--ink);border-radius:8px;padding:12px 16px;font:400 12.5px/1.7 var(--f-mono);overflow:auto;box-shadow:3px 3px 0 var(--ink)}
+.ml-md-out pre code{background:none;border:0;padding:0}
+.ml-code,.ml-md-src,.ml-pre{font-variant-ligatures:none;font-feature-settings:"calt" 0,"liga" 0}
+.ml-code{flex:1;min-height:0;padding:10px 0 24px;font:400 13px/1.75 var(--f-mono);background:#fffdf4;color:#2a160d}
+.ml-line{min-height:1.75em}
+.ml-ln{color:#a8896a;font-size:12px;border-right:2px solid #ecd9ae;margin-right:.6em;background:#fbf0d0}
+.ml-ln:hover{color:var(--red);font-weight:700}
+.ml-sign{color:#8a6a50}
+.ml-src{flex:1}
+.ml-line[data-k=add]{background:#dcf3cf}.ml-line[data-k=add] .ml-ln{background:#bfe6ad;color:#2c6a1a}.ml-line[data-k=add] .ml-sign{color:#2c6a1a;font-weight:700}
+.ml-line[data-k=del]{background:#ffdcd3}.ml-line[data-k=del] .ml-ln{background:#ffc3b5;color:#a3260f}.ml-line[data-k=del] .ml-sign{color:#c4311b;font-weight:700}
+.ml-line[data-k=hunk]{background:#fff0bf;color:#6a4a30;font-style:italic;border-block:2px dashed #e6c98a}
+.tk-kw{color:#c0281a;font-weight:700}.tk-str{color:#1c58b6}.tk-com{color:#8d7a64;font-style:italic}.tk-num{color:#a35a00}.tk-fn{color:#2d6a2b}.tk-meta{color:#8a2f87}
+.ml-comment{position:relative;margin:8px 16px 10px 80px;padding:9px 14px;background:var(--yellow);border:3px solid var(--ink);border-radius:14px 14px 14px 3px;font:700 12.5px/1.6 var(--f-body);color:var(--ink);box-shadow:3px 3px 0 var(--ink)}
+.ml-comment[data-who=me]{background:#fff;border-radius:14px 14px 3px 14px}
+.ml-comment-who{flex:none;background:var(--ink);color:var(--yellow);font:700 10px var(--f-mono);padding:2px 8px;border-radius:999px}
+.ml-comment[data-who=me] .ml-comment-who{background:var(--blue);color:#fff}
+.ml-chat{background:transparent}
+.ml-chat-log{padding:12px 14px 10px;display:flex;flex-direction:column;gap:14px}
+.ml-msg{max-width:92%;font:700 13px/1.7 var(--f-body)}
+.ml-msg-body{padding:10px 14px;border:3px solid var(--ink);background:#fff;border-radius:16px 16px 16px 3px;box-shadow:3px 3px 0 var(--ink);white-space:pre-wrap}
+.ml-msg[data-role=user]{align-self:flex-end}
+.ml-msg[data-role=user] .ml-msg-body{background:var(--blue);color:#fff;border-radius:16px 16px 3px 16px}
+.ml-perm{margin-top:10px;border:3px dashed var(--ink);border-radius:12px;padding:10px 12px;background:#fff0bf;font-size:12.5px}
+.ml-perm-title{font:400 13px var(--f-head);letter-spacing:.06em;margin-bottom:6px;color:var(--red)}
+.ml-perm-cmd{display:block;font:500 12px var(--f-mono);background:var(--ink);color:#ffe9b0;padding:6px 10px;border-radius:6px}
+.ml-perm-row{display:flex;gap:8px;margin-top:8px}
+.ml-perm-row button{font:900 12px var(--f-body);border:2.5px solid var(--ink);border-radius:999px;padding:4px 14px;cursor:pointer;background:#fff}
+.ml-perm-ok{background:var(--red)!important;color:#fff}
+.ml-chat-form{flex:none;padding:10px 12px 54px;border-top:3px solid var(--ink);background:#f3dfa8;align-items:flex-end}
+.ml-chat-form textarea{font:700 13px/1.5 var(--f-body);border:3px solid var(--ink);border-radius:12px;padding:8px 10px;background:#fff;outline:0;color:var(--ink)}
+.ml-chat-form textarea:focus{box-shadow:0 0 0 3px var(--yellow)}
+.ml-send{font:400 13px var(--f-head);background:var(--red);color:#fff;border:3px solid var(--ink);border-radius:12px;padding:10px 14px;cursor:pointer;box-shadow:3px 3px 0 var(--ink)}
+.ml-send:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
+.ml-empty{padding:30px;color:#8a6a50}
+
+/* ---------- 切り替え: 駄菓子の箱のフタが開いて、中身(エディタ)が起き上がる ---------- */
+#board,#editor{transition:opacity .5s ease,transform .8s cubic-bezier(.6,.02,.2,1),filter .5s}
+body[data-view=board] #editor{opacity:0;transform:translateY(5%) scale(.93);filter:brightness(.8)}
+body[data-view=editor] #board{opacity:0;transform:scale(1.22);transform-origin:var(--ox,50%) var(--oy,50%);filter:blur(3px)}
+body[data-view=editor] #editor{opacity:1;transform:none}
+.eh{transition:transform .75s cubic-bezier(.3,1.3,.5,1) .1s}
+.pane{transition:transform .6s cubic-bezier(.3,1.25,.5,1),opacity .4s}
+body[data-view=board] .eh{transform:rotateX(78deg)}
+body[data-view=board] .pane{transform:translateY(70px) scale(.9);opacity:0}
+body[data-phase=to-editor] .pL{transition-delay:.25s}
+body[data-phase=to-editor] .pM{transition-delay:.35s}
+body[data-phase=to-editor] .pR{transition-delay:.45s}
+body[data-phase=to-board] #board{transition-delay:.2s}
+.ml-about{font-family:var(--f-body)}
+</style>
+</head>
+<body data-view="board">
+<svg class="sym" aria-hidden="true">
+  <defs>
+    <symbol id="i-branch" viewBox="0 0 16 16"><circle cx="4" cy="3.5" r="1.9" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="4.2" cy="12.6" r="1.9" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="5.2" r="1.9" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M4 5.5C4.3 8 3.9 9.5 4.2 10.6M12 7.1C11.9 9.2 8.3 8.6 4.6 10.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+    <symbol id="burst-a" viewBox="0 0 100 100"><polygon points="50.0,2.7 58.0,14.9 70.4,7.7 73.4,20.6 87.4,20.2 85.0,33.1 95.3,39.7 89.0,50.0 97.2,60.8 81.8,65.3 89.2,81.2 72.7,78.5 70.0,91.5 57.8,84.2 50.0,97.9 42.1,84.6 28.3,95.1 28.0,77.5 11.4,80.8 17.7,65.6 3.3,60.7 14.9,50.0 1.8,39.0 15.6,33.4 13.5,20.9 26.3,20.2 29.7,7.8 41.5,12.7" stroke="#2a160d" stroke-width="3.5" stroke-linejoin="round"/></symbol>
+    <symbol id="burst-b" viewBox="0 0 100 100"><polygon points="50.0,2.0 64.0,11.5 80.9,13.2 85.5,29.5 97.3,41.7 90.4,57.1 91.6,74.0 76.4,81.4 66.4,95.1 50.0,91.0 33.6,95.1 23.6,81.4 8.4,74.0 9.6,57.1 2.7,41.7 14.5,29.5 19.1,13.2 36.0,11.5" stroke="#2a160d" stroke-width="3.5" stroke-linejoin="round"/></symbol>
+    <symbol id="star5" viewBox="0 0 24 24"><path d="M12 1.8l3 6.7 7.2.8-5.4 4.8 1.6 7.2L12 17.6 5.6 21.3l1.6-7.2L1.8 9.3l7.2-.8z" fill="#ffc61f" stroke="#2a160d" stroke-width="2" stroke-linejoin="round"/></symbol>
+  </defs>
+</svg>
+
+<div id="board">
+  <div class="wall"></div>
+  <div class="floor"></div>
+  <div class="awning"><i></i></div>
+
+  <div class="sign">
+    <span class="string l"></span><span class="string r"></span>
+    <div class="plank">
+      <small>駄菓子・文具・おもちゃ</small>
+      <h1 class="pop">だがしや<br>メモ堂</h1>
+      <div class="sub">★ 気になる箱を ひらいてみてね ★</div>
+    </div>
+  </div>
+
+  <div class="say">
+    <svg viewBox="0 0 166 112"><path d="M12 56 C6 34 28 14 56 18 C70 2 108 4 118 20 C148 16 164 42 150 60 C162 82 138 104 112 98 C98 112 62 112 50 98 C24 104 4 82 12 56Z" fill="#fff"/><path d="M12 56 C6 34 28 14 56 18 C70 2 108 4 118 20 C148 16 164 42 150 60 C162 82 138 104 112 98 C98 112 62 112 50 98 C24 104 4 82 12 56Z" fill="none" stroke="#2a160d" stroke-width="4" stroke-linejoin="round"/></svg>
+    <span>どれでも<br>ひらいてみて!</span>
+  </div>
+
+  <svg id="deco"></svg>
+
+  <!-- 1. ToDoアプリ : スナックの袋 -->
+  <article class="card c1" data-project="todo-app" data-drag style="left:412px;top:146px">
+    <div class="bag">
+      <div class="flavor"><span class="chip">味:TypeScript</span><span class="upd">10/18 製造</span></div>
+      <div class="plate"><svg viewBox="0 0 170 128" fill="none">
+        <circle cx="86" cy="66" r="60" fill="#e4311f" stroke="#2a160d" stroke-width="4"/>
+        <g stroke="#ffc61f" stroke-width="3" stroke-linecap="round" opacity=".75"><path d="M86 8V22M86 110V124M28 66H42M130 66H144M45 25L55 35M117 97L127 107M45 107L55 97M117 35L127 25"/></g>
+        <path d="M44 24 L126 20 L130 110 L40 112Z" fill="#fff8e4" stroke="#2a160d" stroke-width="3.5" stroke-linejoin="round"/>
+        <g stroke="#2a160d" stroke-width="3" stroke-linecap="round"><rect x="54" y="38" width="15" height="15" rx="3" fill="#fff"/><path d="M80 45L112 44"/><rect x="54" y="62" width="15" height="15" rx="3" fill="#fff"/><path d="M80 69L104 68"/><rect x="54" y="86" width="15" height="15" rx="3" fill="#fff"/><path d="M80 93L110 92" stroke-dasharray="1 7"/></g>
+        <path d="M56 47l5 6 11-14M56 71l5 6 11-14" stroke="#e4311f" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M56 47l5 6 11-14M56 71l5 6 11-14" stroke="#2a160d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity=".0"/>
+      </svg></div>
+      <h3 class="pop">ToDoアプリ</h3>
+      <div class="shelf"><b>賞味</b>feat/toggle-done</div>
+    </div>
+    <div class="burst"><svg style="color:#e4311f"><use href="#burst-a" fill="#e4311f"/></svg><span>要確認</span><b>2<small>件</small></b></div>
+  </article>
+
+  <!-- 2. 売上データ分析 : ガムの箱 -->
+  <article class="card c2" data-project="sales-analysis" data-drag style="left:780px;top:152px">
+    <div class="gum">
+      <div class="lid"><span>うれ行きガム</span><b>No.2</b></div>
+      <h3 class="pop">売上データ<br>分析</h3>
+      <div class="info"><span class="chip y">味:Python</span><span class="chip"><svg><use href="#i-branch"/></svg>main</span><span class="upd">10/12 更新</span></div>
+      <svg class="sticks" viewBox="0 0 96 130" fill="none" stroke="#2a160d" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
+        <g><rect x="4" y="74" width="20" height="52" rx="3" fill="#fff4d6"/><rect x="28" y="52" width="20" height="74" rx="3" fill="#ffc61f"/><rect x="52" y="64" width="20" height="62" rx="3" fill="#fff4d6"/><rect x="76" y="26" width="18" height="100" rx="3" fill="#ff8fae"/></g>
+        <path d="M6 70L36 46 62 56 88 14" stroke="#fff4d6" stroke-width="6"/><path d="M6 70L36 46 62 56 88 14" stroke="#e4311f" stroke-width="3.2"/>
+        <g stroke-width="2" opacity=".6"><path d="M8 84H20M8 92H20M32 62H44M32 70H44M56 74H68M80 40H90M80 48H90"/></g>
+      </svg>
+    </div>
+    <svg class="tagp" viewBox="0 0 78 96" fill="none"><path d="M39 2V20" stroke="#2a160d" stroke-width="3" stroke-linecap="round"/><path d="M16 22 L62 20 L70 34 L66 88 L12 90 L8 36Z" fill="#ffc61f" stroke="#2a160d" stroke-width="3.5" stroke-linejoin="round"/><circle cx="39" cy="32" r="5" fill="#fff4d6" stroke="#2a160d" stroke-width="2.5"/><text x="39" y="62" text-anchor="middle" font-family="Dela Gothic One,sans-serif" font-size="19" fill="#2a160d">10円</text><text x="39" y="78" text-anchor="middle" font-family="Zen Maru Gothic,sans-serif" font-weight="900" font-size="9" fill="#e4311f">前年比つき</text></svg>
+    <div class="burst"><svg><use href="#burst-b" fill="#e4311f"/></svg><span>要確認</span><b>1<small>件</small></b></div>
+  </article>
+
+  <!-- 3. dbt × Snowflake : まるい缶 -->
+  <article class="card c3" data-project="dbt-snowflake" data-drag style="left:1128px;top:136px">
+    <div class="tin"><div class="face">
+      <svg class="flow" viewBox="0 0 150 38" fill="none" stroke="#2a160d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="12" r="9" fill="#fff4d6"/><circle cx="18" cy="29" r="7" fill="#fff4d6"/><path d="M28 12C44 12 44 20 60 20M25 29C42 29 44 22 60 20"/><rect x="60" y="9" width="28" height="22" rx="5" fill="#ffc61f"/><path d="M90 20H118M111 13L119 20 111 27"/><circle cx="132" cy="20" r="13" fill="#1c58b6"/><path d="M132 12V28M125 16L139 24M139 16L125 24" stroke="#fff4d6" stroke-width="2"/></svg>
+      <div class="rib"><h3 class="pop" style="-webkit-text-stroke:5px #2a160d;text-shadow:2px 2px 0 var(--red)">dbt ×<br>Snowflake</h3></div>
+      <div class="row"><span class="chip">味:SQL / dbt</span><span class="chip"><svg><use href="#i-branch"/></svg>main</span></div>
+      <span class="upd">10/15 缶づめ</span>
+    </div></div>
+    <div class="burst"><svg><use href="#burst-a" fill="#e4311f"/></svg><span>要確認</span><b>1<small>件</small></b></div>
+  </article>
+
+  <!-- 4. 人生設計 : あたりくじ -->
+  <article class="card c4" data-project="life-plan" data-drag style="left:78px;top:328px">
+    <div class="kuji">
+      <span class="head">あたりくじ</span>
+      <div class="stars"><svg><use href="#star5"/></svg><svg><use href="#star5"/></svg><svg><use href="#star5"/></svg></div>
+      <h3>人生設計</h3>
+      <span class="hand">3年後のわたしを<br>ことばにする</span>
+      <div class="years">2027–2029</div>
+      <div class="foot"><span class="chip">味:Markdown</span><span class="chip"><svg><use href="#i-branch"/></svg>main</span></div>
+    </div>
+    <div class="atari"><svg><use href="#burst-b" fill="#ffc61f"/></svg><span>指摘<br>なし</span></div>
+  </article>
+
+  <!-- 5. このアプリ自身 : おおきな箱 -->
+  <article class="card c5" data-project="memo-editor" data-drag style="left:430px;top:536px">
+    <div class="box">
+      <div class="lidtxt"><span>だがし なかみ いろいろ</span><b>NOW BUILDING</b></div>
+      <svg class="mascot" viewBox="0 0 150 170" fill="none" stroke="#2a160d" stroke-width="4" stroke-linejoin="round" stroke-linecap="round">
+        <path d="M30 78 L6 62 L8 98Z" fill="#fff4d6"/><path d="M120 78 L146 60 L144 98Z" fill="#fff4d6"/>
+        <ellipse cx="75" cy="82" rx="52" ry="58" fill="#ffc61f"/>
+        <path d="M30 56C46 44 60 40 78 40" stroke="#fff" stroke-width="7" opacity=".6"/>
+        <path d="M44 128C60 140 92 140 108 126" stroke="#e08a00" stroke-width="3" opacity=".5"/>
+        <path d="M62 24C58 12 70 6 78 12C84 4 98 10 90 22" fill="#e4311f"/>
+        <ellipse cx="55" cy="76" rx="7" ry="9" fill="#2a160d"/><ellipse cx="97" cy="76" rx="7" ry="9" fill="#2a160d"/>
+        <circle cx="57" cy="72" r="2.4" fill="#fff" stroke="none"/><circle cx="99" cy="72" r="2.4" fill="#fff" stroke="none"/>
+        <ellipse cx="42" cy="96" rx="9" ry="6" fill="#ff8fae" stroke="none"/><ellipse cx="110" cy="96" rx="9" ry="6" fill="#ff8fae" stroke="none"/>
+        <path d="M64 96C70 108 84 108 90 96Z" fill="#e4311f"/>
+        <path d="M44 150L38 166M106 150L112 166" />
+      </svg>
+      <h3 class="pop">このアプリ自身</h3>
+      <p class="p">メモ型AIエディタ(Tauri)。いま作っているもの。</p>
+      <div class="row"><span class="chip y">味:Rust + TypeScript</span><span class="chip"><svg><use href="#i-branch"/></svg>main</span><span class="upd">10/20 仕込み中</span></div>
+    </div>
+    <div class="burst"><svg><use href="#burst-a" fill="#1c58b6"/></svg><span>要確認</span><b>1<small>件</small></b></div>
+  </article>
+
+  <!-- おしながき -->
+  <div class="menu">
+    <h4>おしながき</h4>
+    <div class="in">
+      <ul>
+        <li><span>箱を ひらく</span><em>クリック</em></li>
+        <li><span>ひっぱって うごかす</span><em>ドラッグ</em></li>
+        <li class="pn"><span>ペンで かこむ・むすぶ</span><em>ひだり下</em></li>
+        <li><span>お店にもどる</span><em>Esc</em></li>
+      </ul>
+      <p class="note">※ ぜんぶ 一個10円</p>
+    </div>
+  </div>
+
+  <svg class="sticker" style="left:1246px;top:736px;width:120px;height:120px;transform:rotate(-12deg);filter:drop-shadow(3px 4px 0 #2a160d)" viewBox="0 0 120 120">
+    <circle cx="60" cy="60" r="54" fill="#fff4d6" stroke="#2a160d" stroke-width="4"/><circle cx="60" cy="60" r="44" fill="none" stroke="#e4311f" stroke-width="3" stroke-dasharray="3 5"/>
+    <text x="60" y="56" text-anchor="middle" font-family="Dela Gothic One,sans-serif" font-size="26" fill="#e4311f" stroke="#2a160d" stroke-width="1.2">あたり</text>
+    <text x="60" y="78" text-anchor="middle" font-family="Zen Maru Gothic,sans-serif" font-weight="900" font-size="12" fill="#2a160d">もう1コ!</text>
+  </svg>
+
+  <svg id="pen"></svg>
+  <div class="tools">
+    <span class="lab">ペン</span>
+    <button data-action="pen" aria-pressed="false">書く</button>
+    <button data-pen-color="#e4311f" style="background:#e4311f" title="赤"></button>
+    <button data-pen-color="#1c58b6" style="background:#1c58b6" title="青"></button>
+    <button data-pen-color="#2a160d" style="background:#2a160d" title="墨"></button>
+    <button data-pen-color="#ff8fae" style="background:#ff8fae" title="桃"></button>
+    <span class="sp"></span>
+    <button data-action="pen-undo">戻す</button>
+    <button data-action="pen-clear">消す</button>
+  </div>
+</div>
+
+<div id="editor">
+  <header class="eh">
+    <button class="back" data-action="back" aria-label="お店にもどる"><svg viewBox="0 0 24 24" fill="none" stroke="#2a160d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12H5M11 5L4.5 12 11 19"/></svg></button>
+    <h2 class="pop" data-slot="title"></h2>
+    <span class="lang" data-slot="lang"></span>
+    <span class="br"><svg><use href="#i-branch"/></svg><span data-slot="branch"></span></span>
+    <span class="rv">レビュー<b data-slot="count-review"></b></span>
+    <span class="path" data-slot="path"></span>
+  </header>
+  <aside class="pane pL"><div class="pane-h">なかみ一覧</div><div data-slot="tree"></div></aside>
+  <section class="pane mid pM"><div data-slot="tabs"></div><div data-slot="doc"></div></section>
+  <aside class="pane pR"><div class="pane-h">AIとおしゃべり<small data-slot="blurb"></small></div><div data-slot="chat" style="flex:1;min-height:0"></div></aside>
+</div>
+
+<script src="assets/common.js"></script>
+<script>
+MemoLab.ready(function(){
+  var R='#e4311f', B='#1c58b6', K='#2a160d';
+  MemoLab.link('.c1','.c2',{color:K,width:2.6,dots:true});
+  MemoLab.link('.c2','.c3',{color:R,width:2.6,dash:'2 8',curve:-.2});
+  MemoLab.link('.c1','.c5',{color:B,width:2.6,dash:'1 8',dotR:4.5,curve:.25});
+  MemoLab.link('.c4','.c5',{color:K,width:2.6,curve:.2});
+  MemoLab.around('.c1 .burst',{shape:'circle',color:B,width:3,pad:2,seed:4});
+  MemoLab.around('.sign .sub',{shape:'underline',color:'#ffc61f',width:3,pad:6});
+  MemoLab.around('.menu .pn span',{shape:'highlight',color:'#ffc61f',pad:2});
+  MemoLab.around('.c5 .lidtxt b',{shape:'circle',color:K,width:2.6,pad:5,seed:9});
+  MemoLab.scribble('arrow',1010,672,34,-46,{color:R,width:3,bend:-20});
+  MemoLab.scribble('star',1290,420,36,36,{color:R,width:2.8});
+  MemoLab.scribble('zigzag',704,500,60,12,{color:B,width:3});
+  MemoLab.scribble('spiral',1330,560,40,40,{color:K,width:2.4});
+});
+</script>
+</body>
+</html>

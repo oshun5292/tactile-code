@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>31 swiss-vermilion</title>
+<meta name="ml-title" content="31 swiss-vermilion — モダン・スイススタイル">
+<meta name="ml-concept" content="オフホワイトの紙に黒インクと朱1色だけ。12カラムグリッドと巨大な数字01〜05、細い罫線と等幅ラベルで見せるスイス・タイポグラフィ。手書きは朱の丸囲み・下線・コネクタ線だけ。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+/* 配色: 紙=オフホワイト / インク=黒 / 朱=唯一の差し色(強調・手書き) / 灰2段=補助文字と罫線。色を増やさないことで朱が効く */
+:root{
+  --paper:#f7f5f0; --white:#fff; --ink:#14130f; --ink2:#5b584f; --ink3:#8d897d; --rule:#d8d4c8; --rule2:#e9e6dc;
+  --vm:#e8401c; --vm-soft:#fbe6df;
+  --sans:"Zen Kaku Gothic New","Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",Arial,sans-serif;
+  --mono:"IBM Plex Mono","JetBrains Mono",ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{position:relative;overflow:hidden;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased;font-feature-settings:"palt" 0}
+#board,#editor{position:absolute;inset:0;overflow:hidden}
+/* 切替アニメなし: 非アクティブ側を消すだけ */
+body[data-view="board"] #editor{opacity:0}
+body[data-view="editor"] #board{opacity:0}
+
+/* ===== BOARD ===== */
+#board{background:var(--paper)}
+/* 12カラムのガイド(ごく薄く) */
+#board::before{content:"";position:absolute;left:56px;right:56px;top:0;bottom:0;pointer-events:none;
+  background:repeating-linear-gradient(90deg,rgba(20,19,15,.035) 0 1px,transparent 1px calc((100% + 0px) / 12));}
+.mast{position:absolute;left:56px;right:56px;top:26px;display:flex;align-items:baseline;gap:18px;font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink2);padding-bottom:12px;border-bottom:2px solid var(--ink)}
+.mast b{font-weight:600;color:var(--ink);letter-spacing:.14em}
+.mast .jp{font-family:var(--sans);letter-spacing:.04em;text-transform:none;font-size:12.5px;font-weight:500;color:var(--ink)}
+.mast .sp{flex:1}
+.mast .dot{display:inline-block;width:7px;height:7px;background:var(--vm);border-radius:50%;margin-right:6px;transform:translateY(-1px)}
+.foot{position:absolute;right:56px;top:872px;font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--ink3);text-transform:uppercase}
+
+.card{position:absolute;background:var(--paper);border-top:3px solid var(--ink);padding:12px 0 0;transition:box-shadow .18s,transform .18s}
+.card:hover{transform:translateY(-3px)}
+.card .num{font-family:var(--sans);font-weight:900;font-feature-settings:"tnum";letter-spacing:-.06em;line-height:.8;color:var(--ink);display:block}
+.card .lab{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink2);display:block}
+.card .nm{font-weight:900;letter-spacing:-.01em;line-height:1.2;margin:0}
+.card .bl{color:var(--ink2);font-size:12.5px;line-height:1.7;margin:0}
+.chips{display:flex;gap:6px;flex-wrap:wrap;font-family:var(--mono);font-size:10.5px}
+.chip{border:1px solid var(--ink);padding:1px 8px;line-height:1.6;letter-spacing:.03em;background:transparent;white-space:nowrap}
+.chip.br{background:var(--ink);color:var(--paper)}
+.chip.rv{border-color:var(--vm);color:var(--vm);font-weight:600}
+.chip.rv0{border-color:var(--rule);color:var(--ink3)}
+.upd{font-family:var(--mono);font-size:10.5px;color:var(--ink2);letter-spacing:.04em}
+.upd i{font-style:normal;color:var(--ink3);margin-right:6px;letter-spacing:.12em;font-size:9.5px}
+
+/* 01: 標準の大きなブロック。数字を左、情報を右 */
+.c1{left:56px;top:84px;width:452px;height:216px;display:grid;grid-template-columns:150px 1fr;column-gap:14px}
+.c1 .num{font-size:146px;margin:8px 0 0 -6px}
+.c1 .meta{padding-top:6px;display:flex;flex-direction:column;gap:8px}
+.c1 .nm{font-size:32px;margin-top:4px}
+.c1 .chips{margin:6px 0 4px}
+.c1 .foot-row{grid-column:1/-1;border-top:1px solid var(--rule);margin-top:auto;padding:8px 0 0;display:flex;justify-content:space-between;align-self:end}
+/* 02: 小さく細い。数字は輪郭だけ */
+.c2{left:488px;top:390px;width:292px;height:300px;border-top-width:1px;display:flex;flex-direction:column;gap:8px;padding-right:6px}
+.c2 .num{display:inline-block;align-self:flex-start;font-size:128px;color:transparent;-webkit-text-stroke:1.5px var(--ink);margin:10px 0 18px 4px}
+.c2 .nm{font-size:25px}
+/* 03: 黒い横長ストリップ(反転) */
+.c3{left:564px;top:84px;width:820px;height:216px;background:var(--ink);color:var(--paper);border-top-color:var(--ink);padding:16px 26px 0;display:grid;grid-template-columns:160px 1fr 220px;column-gap:26px}
+.c3 .num{font-size:120px;color:var(--paper);margin-top:12px}
+.c3 .lab{color:#a7a396}
+.c3 .nm{font-size:36px;margin:6px 0 10px;color:#fff}
+.c3 .bl{color:#bdb9ab}
+.c3 .chip{border-color:#8d897d;color:var(--paper)}
+.c3 .chip.br{background:var(--paper);color:var(--ink);border-color:var(--paper)}
+.c3 .chip.rv{border-color:var(--vm);color:#ff8a6b}
+.c3 .upd{color:#bdb9ab}.c3 .upd i{color:#8d897d}
+.c3 .side{border-left:1px solid #4a473f;padding-left:20px;display:flex;flex-direction:column;gap:12px;justify-content:center}
+.c3 .stack{display:flex;flex-direction:column;gap:6px;justify-content:center}
+/* 04: 縦長。数字を下に、名前は上から */
+.c4{left:56px;top:384px;width:340px;height:420px;display:flex;flex-direction:column;border-top-width:6px;padding-top:14px}
+.c4 .nm{font-size:42px;line-height:1.08;margin:12px 0 12px;letter-spacing:-.03em}
+.c4 .bl{max-width:250px}
+.c4 .chips{margin:16px 0 8px}
+.c4 .num{font-size:150px;margin:auto 0 -6px -8px;color:var(--vm)}
+/* 05: 朱のべた塗り */
+.c5{left:840px;top:352px;width:544px;height:336px;background:var(--vm);color:#fff;border-top-color:var(--ink);padding:16px 26px 20px;display:flex;flex-direction:column}
+.c5 .num{font-size:236px;color:var(--ink);position:absolute;right:20px;bottom:6px;letter-spacing:-.07em}
+.c5 .lab{color:#fff;opacity:.9}
+.c5 .nm{font-size:40px;margin:22px 0 10px;color:#fff;max-width:300px;letter-spacing:-.02em}
+.c5 .bl{color:#fff;max-width:290px;opacity:.95}
+.c5 .chips{margin-top:16px;max-width:260px}
+.c5 .chip{border-color:#fff;color:#fff}
+.c5 .chip.br{background:var(--ink);border-color:var(--ink);color:#fff}
+.c5 .upd{color:#fff;margin-top:auto}.c5 .upd i{color:#ffd9cf}
+
+/* 道具 */
+.tools{position:absolute;left:56px;top:836px;display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;z-index:60}
+.tools .tl{letter-spacing:.14em;color:var(--ink2);margin-right:6px;text-transform:uppercase;font-size:10px}
+.tools button{appearance:none;font:inherit;background:var(--paper);color:var(--ink);border:1px solid var(--ink);height:28px;padding:0 12px;cursor:pointer;letter-spacing:.06em;transition:background .12s,color .12s}
+.tools button:hover{background:var(--ink);color:var(--paper)}
+.tools [data-action="pen"][aria-pressed="true"]{background:var(--vm);border-color:var(--vm);color:#fff}
+.tools .sw{width:28px;padding:0;position:relative}
+.tools .sw::after{content:"";position:absolute;inset:7px;border-radius:50%;background:var(--c)}
+.tools .sw:hover{background:var(--paper)}
+.tools .sw:hover::after{inset:5px}
+.hint{color:var(--ink3);font-size:10px;letter-spacing:.06em;margin-left:8px}
+#pen{z-index:50}
+#deco{z-index:40}
+body:not([data-pen="on"]) #pen{pointer-events:none}
+body[data-pen="on"] #board{cursor:crosshair}
+
+/* ===== EDITOR ===== */
+#editor{background:var(--white);display:grid;grid-template-columns:256px minmax(0,1fr) 344px;grid-template-rows:96px minmax(0,1fr)}
+.eh{grid-column:1/-1;display:grid;grid-template-columns:256px minmax(0,1fr) auto;align-items:end;border-bottom:2px solid var(--ink);background:var(--paper)}
+.back{appearance:none;border:0;border-right:1px solid var(--rule);background:transparent;height:100%;text-align:left;padding:0 22px 16px;cursor:pointer;display:flex;flex-direction:column;justify-content:flex-end;gap:8px;font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--ink2);text-transform:uppercase;transition:background .12s}
+.back:hover{background:var(--vm-soft)}
+.back svg{display:block}
+.back:hover .arrow{stroke:var(--vm)}
+.eh .tt{padding:0 28px 14px;min-width:0}
+.eh .kick{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink2);display:flex;gap:10px;align-items:center;margin-bottom:2px}
+.eh .kick .tag{background:var(--vm);color:#fff;padding:0 8px;letter-spacing:.08em;line-height:1.7}
+.eh h1{margin:0;font-size:34px;font-weight:900;letter-spacing:-.02em;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.eh .facts{display:flex;align-self:stretch;border-left:1px solid var(--rule)}
+.fact{display:flex;flex-direction:column;justify-content:flex-end;padding:0 22px 14px;border-right:1px solid var(--rule);gap:3px;min-width:96px}
+.fact:last-child{border-right:0}
+.fact i{font-style:normal;font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3)}
+.fact b{font-family:var(--mono);font-weight:500;font-size:13px;color:var(--ink);white-space:nowrap}
+.fact.path b{font-size:11px;color:var(--ink2);max-width:190px;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:left}
+.fact .rv{color:var(--vm);font-weight:600;font-size:20px;line-height:1}
+
+.side-l{border-right:1px solid var(--rule);background:var(--paper);padding:18px 12px 60px;overflow:auto;min-height:0}
+.side-r{border-left:1px solid var(--rule);background:var(--paper);padding:18px 18px 18px;min-height:0;display:flex;flex-direction:column}
+.sh{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink2);display:flex;align-items:center;gap:8px;margin:0 6px 12px;font-weight:500}
+.sh::before{content:"";width:8px;height:8px;background:var(--ink)}
+.sh span{margin-left:auto;color:var(--ink3);font-family:var(--sans);letter-spacing:.04em;text-transform:none;font-size:11px}
+.side-r .sh{margin-left:0}
+.main{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--white)}
+
+[data-slot="tree"]{font-size:13px}
+.ml-tree-dirname,.ml-tree-file{display:flex;align-items:center;gap:8px;padding:5px 8px;margin:1px 0;transition:background .12s}
+.ml-tree-dirname{font-weight:700}
+.ml-tree-children{margin-left:10px;padding-left:8px;border-left:1px solid var(--rule)}
+.ml-tree-file:hover,.ml-tree-dirname:hover{background:var(--rule2)}
+.ml-tree-file[data-active]{background:var(--ink);color:#fff;font-weight:500;box-shadow:inset 3px 0 0 var(--vm)}
+.ml-ico{width:20px;height:14px;font-family:var(--mono);font-size:8px;font-weight:600;line-height:13px;text-align:center;border:1px solid currentColor;letter-spacing:0;color:var(--ink2);background:transparent}
+.ml-ico::before{content:"·"}
+.ml-ico[data-kind="md"]::before{content:"MD"}.ml-ico[data-kind="ts"]::before{content:"TS"}.ml-ico[data-kind="py"]::before{content:"PY"}
+.ml-ico[data-kind="sql"]::before{content:"SQ"}.ml-ico[data-kind="yaml"]::before{content:"YM"}.ml-ico[data-kind="rs"]::before{content:"RS"}
+.ml-ico[data-kind="diff"]{color:var(--vm);border-color:var(--vm)}.ml-ico[data-kind="diff"]::before{content:"±"}
+.ml-ico[data-kind="dir"]{border:0;color:var(--ink)}
+.ml-ico[data-kind="dir"]::before{content:"";display:block;margin:2px 0 0 6px;border:4px solid transparent;border-left:7px solid currentColor;border-right:0;transition:transform .12s}
+.ml-tree-dir[data-open="true"]>.ml-tree-dirname .ml-ico::before{transform:rotate(90deg) translate(1px,-1px)}
+.ml-tree-file[data-active] .ml-ico{color:#fff}
+.ml-tree-file[data-active] .ml-ico[data-kind="diff"]{color:#ff8a6b;border-color:#ff8a6b}
+
+[data-slot="tabs"]{display:flex;border-bottom:1px solid var(--rule);flex:none;overflow:hidden;background:var(--paper)}
+.ml-tab{display:flex;align-items:center;gap:8px;padding:11px 18px 10px;font-size:12.5px;border-right:1px solid var(--rule);border-top:3px solid transparent;margin-bottom:-1px;color:var(--ink2);white-space:nowrap;transition:background .12s}
+.ml-tab:hover{background:var(--rule2)}
+.ml-tab[data-active]{background:var(--white);color:var(--ink);font-weight:700;border-top-color:var(--vm);border-bottom:1px solid var(--white)}
+.ml-tab-close{opacity:.35;font-size:14px;line-height:1}.ml-tab-close:hover{opacity:1;color:var(--vm)}
+[data-slot="doc"]{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.ml-doc{flex:1;display:flex;flex-direction:column;min-height:0}
+.ml-doc-bar{padding:8px 20px;border-bottom:1px solid var(--rule2);font-family:var(--mono);font-size:11px;color:var(--ink3);flex:none;gap:0;letter-spacing:.03em}
+.ml-mode{appearance:none;border:1px solid var(--rule);border-right-width:0;background:var(--white);color:var(--ink2);padding:2px 14px;font-size:11px;cursor:pointer;font-family:var(--mono);transition:background .12s}
+.ml-mode:last-child{border-right-width:1px}
+.ml-mode:hover{background:var(--rule2)}
+.ml-mode[data-active]{background:var(--ink);border-color:var(--ink);color:#fff}
+.ml-md{flex:1;min-height:0}
+.ml-md-src{padding:24px 24px 24px 28px;font-family:var(--mono);font-size:12.5px;line-height:1.9;color:#2b2922;overflow:auto;min-height:0;background:var(--paper);border-right:1px solid var(--rule);width:100%;height:100%}
+.ml-md-out{padding:30px 44px 36px;overflow:auto;min-height:0;font-size:15px;line-height:1.95;background:var(--white)}
+.ml-md-out h1{font-size:46px;font-weight:900;line-height:1.1;margin:0 0 22px;letter-spacing:-.03em;padding-bottom:14px;border-bottom:3px solid var(--ink)}
+.ml-md-out h2{font-size:22px;font-weight:900;margin:30px 0 8px;letter-spacing:-.01em;display:flex;align-items:baseline;gap:12px}
+.ml-md-out h2::before{content:"";width:22px;height:4px;background:var(--vm);flex:none;transform:translateY(-5px)}
+.ml-md-out h3{font-size:17px;font-weight:700}
+.ml-md-out p{margin:8px 0}
+.ml-md-out ul,.ml-md-out ol{padding-left:1.5em;margin:6px 0}
+.ml-md-out ul:not(.ml-tasks) li::marker{content:"— ";color:var(--vm)}
+.ml-md-out ol li::marker{font-family:var(--mono);font-weight:600;color:var(--vm)}
+.ml-md-out li{margin:2px 0}
+.ml-md-out blockquote{margin:18px 0;padding:6px 0 6px 18px;border-left:3px solid var(--vm);color:var(--ink);font-weight:500}
+.ml-md-out code{font-family:var(--mono);font-size:.86em;background:var(--rule2);padding:1px 6px}
+.ml-md-out pre.ml-pre{background:var(--ink);color:#f1efe6;padding:14px 18px;font-family:var(--mono);font-size:12.5px;line-height:1.7;overflow:auto}
+.ml-md-out pre.ml-pre code{background:none;padding:0}
+.ml-md-out hr{border:0;border-top:1px solid var(--ink);margin:24px 0}
+.ml-md-out strong{font-weight:900;box-shadow:inset 0 -.38em 0 var(--vm-soft)}
+.ml-tasks{padding-left:0 !important}
+.ml-task{display:flex;align-items:center;gap:0;padding:3px 0;border-bottom:1px solid var(--rule2);margin:0 !important}
+.ml-check{width:17px;height:17px;border:1.5px solid var(--ink);border-radius:0;flex:none;display:inline-grid;place-items:center;font-size:12px;font-weight:900;margin-right:12px;color:#fff;line-height:1}
+.ml-task[data-done="true"] .ml-check{background:var(--vm);border-color:var(--vm)}
+.ml-task[data-done="true"]{color:var(--ink3)}
+
+.ml-code{flex:1;min-height:0;padding:10px 0 40px;font-family:var(--mono);font-size:13px;line-height:1.8;background:var(--white);color:#1d1c18}
+.ml-line{padding-right:24px}
+.ml-ln{color:#b3afa2;font-size:11.5px;border-right:1px solid var(--rule2);margin-right:6px;transition:color .1s,background .1s}
+.ml-ln:hover{color:#fff;background:var(--vm)}
+.ml-line[data-k="add"]{background:#edf3e4;box-shadow:inset 3px 0 0 #5f8a2e}
+.ml-line[data-k="add"] .ml-sign{color:#3f6a0f;font-weight:700}
+.ml-line[data-k="del"]{background:#fbe9e4;box-shadow:inset 3px 0 0 var(--vm)}
+.ml-line[data-k="del"] .ml-sign{color:var(--vm);font-weight:700}
+.ml-line[data-k="del"] .ml-src{color:#6d3a2d}
+.ml-line[data-k="hunk"]{background:var(--ink);color:#e9e6dc;margin:8px 0;font-size:11.5px}
+.ml-line[data-k="hunk"] .ml-ln{border-color:#4a473f}
+.tk-kw{color:var(--vm);font-weight:500}.tk-str{color:#2f6b4f}.tk-com{color:#9a968a;font-style:italic}.tk-num{color:#a35b00}.tk-fn{color:#1f4fb8}.tk-meta{color:#7a4aa8}
+.ml-comment{position:relative;margin:8px 28px 12px 60px;padding:9px 16px 9px 16px;border:1px solid var(--ink);border-left:4px solid var(--ink);background:var(--paper);font-family:var(--sans);font-size:12.5px;line-height:1.7;color:var(--ink);align-items:flex-start;box-shadow:3px 3px 0 rgba(20,19,15,.08)}
+.ml-comment-who{flex:none;font-family:var(--mono);font-weight:600;font-size:9.5px;letter-spacing:.14em;padding:0 7px;line-height:1.9;background:var(--ink);color:#fff}
+.ml-comment[data-who="me"]{border-color:var(--vm);background:var(--vm-soft)}
+.ml-comment[data-who="me"] .ml-comment-who{background:var(--vm)}
+
+[data-slot="chat"]{flex:1;min-height:0}
+.ml-chat-log{display:flex;flex-direction:column;gap:16px;padding:2px 0 14px;font-size:13px}
+.ml-msg{display:flex;max-width:100%}
+.ml-msg[data-role="user"]{justify-content:flex-end;padding-left:28px}
+.ml-msg[data-role="ai"]{flex-direction:column;align-items:flex-start;padding-right:28px}
+.ml-msg[data-role="ai"]::before{content:"AI";font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.16em;color:var(--vm);margin-bottom:4px}
+.ml-msg-body{padding:10px 14px;line-height:1.75;background:var(--white);border:1px solid var(--rule)}
+.ml-msg[data-role="user"] .ml-msg-body{background:var(--ink);color:#fff;border-color:var(--ink)}
+.ml-perm{border:1px solid var(--ink);background:var(--white);padding:10px 12px;font-size:12px}
+.ml-perm-title{font-family:var(--mono);font-weight:600;font-size:10px;letter-spacing:.14em;margin-bottom:4px;color:var(--vm)}
+.ml-perm-cmd{display:block;font-family:var(--mono);background:var(--ink);color:#f1efe6;padding:6px 10px;margin:4px 0 8px;font-size:11.5px}
+.ml-perm-row{display:flex;gap:8px}
+.ml-perm-ok,.ml-perm-ng{appearance:none;border:1px solid var(--ink);padding:3px 16px;font-weight:700;cursor:pointer;font-size:12px;font-family:var(--sans)}
+.ml-perm-ok{background:var(--vm);border-color:var(--vm);color:#fff}.ml-perm-ng{background:transparent}
+.ml-chat-form{padding-top:14px;border-top:1px solid var(--ink);align-items:stretch;margin-bottom:34px}
+.ml-chat-form textarea{border:1px solid var(--ink);padding:9px 11px;font:13px/1.6 var(--sans);background:var(--white);outline:none;min-height:56px}
+.ml-chat-form textarea:focus{box-shadow:0 0 0 2px var(--vm-soft);border-color:var(--vm)}
+.ml-send{appearance:none;border:0;background:var(--vm);color:#fff;font-weight:700;padding:0 16px;cursor:pointer;letter-spacing:.14em;font-family:var(--sans);transition:background .12s}
+.ml-send:hover{background:var(--ink)}
+</style>
+</head>
+<body data-view="board">
+
+<div id="board">
+  <svg id="deco"></svg>
+
+  <div class="mast">
+    <b>MemoLab</b><span>Project Index</span><span class="jp">プロジェクト一覧</span><span class="sp"></span>
+    <span><i class="dot"></i>5 projects</span><span>2026 / W43</span>
+  </div>
+
+  <!-- 01 -->
+  <div class="card c1" data-project="todo-app" data-drag>
+    <span class="num">01</span>
+    <div class="meta">
+      <span class="lab">TypeScript</span>
+      <h2 class="nm" id="nm1">ToDoアプリ</h2>
+      <p class="bl">React + TypeScript の小さなタスク管理。完了トグルを実装中。</p>
+      <div class="chips"><span class="chip br">feat/toggle-done</span><span class="chip rv" id="rv1">2 review</span></div>
+    </div>
+    <div class="foot-row"><span class="upd"><i>UPDATED</i>10/18</span><span class="upd">→ open</span></div>
+  </div>
+
+  <!-- 03 -->
+  <div class="card c3" data-project="dbt-snowflake" data-drag>
+    <span class="num">03</span>
+    <div class="stack">
+      <span class="lab">SQL / dbt</span>
+      <h2 class="nm" id="nm3">dbt × Snowflake</h2>
+      <p class="bl">staging から marts まで、モデルを整理する。</p>
+    </div>
+    <div class="side">
+      <div class="chips"><span class="chip br">main</span><span class="chip rv">1 review</span></div>
+      <span class="upd"><i>UPDATED</i>10/12</span>
+    </div>
+  </div>
+
+  <!-- 02 -->
+  <div class="card c2" data-project="sales-analysis" data-drag>
+    <span class="lab">Python</span>
+    <span class="num" id="n2">02</span>
+    <h2 class="nm">売上データ分析</h2>
+    <p class="bl">月別の売上推移と前年比。11〜12月に集中。</p>
+    <div class="chips" style="margin-top:4px"><span class="chip br">main</span><span class="chip rv">1 review</span></div>
+    <span class="upd" style="margin-top:auto"><i>UPDATED</i>10/16</span>
+  </div>
+
+  <!-- 04 -->
+  <div class="card c4" data-project="life-plan" data-drag>
+    <span class="lab">Markdown</span>
+    <h2 class="nm" id="nm4">人生設計<br>2027–2029</h2>
+    <p class="bl">3年後にどうなっていたいかを、言葉にしていく。</p>
+    <div class="chips"><span class="chip br">main</span><span class="chip rv0">0 review</span></div>
+    <span class="upd"><i>UPDATED</i>10/19</span>
+    <span class="num">04</span>
+  </div>
+
+  <!-- 05 -->
+  <div class="card c5" data-project="memo-editor" data-drag>
+    <span class="lab">Rust + TypeScript</span>
+    <h2 class="nm" id="nm5">このアプリ自身</h2>
+    <p class="bl">いま作っているメモ型AIエディタ。いま、ここ。</p>
+    <div class="chips"><span class="chip br">main</span><span class="chip">1 review</span></div>
+    <span class="upd"><i>UPDATED</i>今日</span>
+    <span class="num">05</span>
+  </div>
+
+  <div class="tools">
+    <span class="tl">Pen</span>
+    <button data-action="pen" aria-pressed="false">ペン</button>
+    <button class="sw" data-pen-color="#14130f" style="--c:#14130f" aria-label="黒"></button>
+    <button class="sw" data-pen-color="#e8401c" style="--c:#e8401c" aria-label="朱"></button>
+    <button class="sw" data-pen-color="#8d897d" style="--c:#8d897d" aria-label="灰"></button>
+    <button data-action="pen-undo">戻す</button>
+    <button data-action="pen-clear">消す</button>
+    <span class="hint">ドラッグで配置 / クリックで開く</span>
+  </div>
+  
+
+  <svg id="pen"></svg>
+</div>
+
+<div id="editor">
+  <header class="eh">
+    <button class="back" data-action="back" aria-label="ボードへ戻る">
+      <svg width="30" height="14" viewBox="0 0 30 14" fill="none" stroke="#14130f" stroke-width="1.8" stroke-linecap="square"><path class="arrow" d="M29 7H2M8 1 2 7l6 6"/></svg>
+      <span>Index — Esc</span>
+    </button>
+    <div class="tt">
+      <div class="kick"><span class="tag" data-slot="lang"></span><span data-slot="blurb"></span></div>
+      <h1 data-slot="title"></h1>
+    </div>
+    <div class="facts">
+      <div class="fact"><i>branch</i><b data-slot="branch"></b></div>
+      <div class="fact"><i>review</i><b class="rv" data-slot="count-review"></b></div>
+      <div class="fact path"><i>path</i><b data-slot="path"></b></div>
+    </div>
+  </header>
+  <aside class="side-l">
+    <h3 class="sh">Files<span>ファイル</span></h3>
+    <div data-slot="tree"></div>
+  </aside>
+  <main class="main">
+    <div data-slot="tabs"></div>
+    <div data-slot="doc"></div>
+  </main>
+  <aside class="side-r">
+    <h3 class="sh">Talk<span>AIとの会話</span></h3>
+    <div data-slot="chat"></div>
+  </aside>
+</div>
+
+<script src="assets/common.js"></script>
+<script>
+MemoLab.ready(function(){
+  var vm='#e8401c', ink='#14130f';
+  MemoLab.link('.c1','.c3',{color:vm,width:1.3,curve:.08,dots:true});
+  MemoLab.link('.c1','.c2',{color:ink,width:1.2,curve:-.12,dots:true});
+  MemoLab.link('.c2','.c5',{color:vm,width:1.3,dash:'3 6',curve:.1,dots:true});
+  MemoLab.link('.c4','.c2',{color:ink,width:1.2,curve:.1,dots:true});
+  MemoLab.link('.c3','.c5',{color:ink,width:1.2,curve:-.1,dots:true});
+
+  MemoLab.around('#rv1',{shape:'circle',color:vm,width:2.2,pad:7,seed:4});
+  MemoLab.around('#nm3',{shape:'underline',color:vm,width:2.6,pad:5,seed:2});
+  MemoLab.around('#nm5',{shape:'underline',color:ink,width:2.6,pad:5,seed:6});
+  MemoLab.around('#n2',{shape:'circle',color:vm,width:1.8,pad:2,seed:9});
+
+  MemoLab.scribble('arrow',430,700,70,46,{color:vm,width:2,bend:-24,seed:3});
+  MemoLab.scribble('star',1300,780,32,32,{color:vm,width:2.2});
+  MemoLab.scribble('cross',470,352,20,20,{color:ink,width:2});
+});
+</script>
+</body>
+</html>
+
+
