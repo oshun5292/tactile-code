@@ -1,0 +1,40 @@
+/* 見た目の値(色・書体・影・角丸)はここに集める。値は samples/36-gentle-bento.html の :root 由来。 */
+:root {
+  --bg: #fbf9f4;
+  --bg2: #f5f1e8;
+  --ink: #34302b;
+  --ink2: #5d574f; /* 本文の補助色 */
+  --soft: #7a746a; /* 36の #8a8379 より少し濃くし、小さい文字のコントラストを確保 */
+  --line: #e9e3d6;
+  --white: #fffffd;
+
+  --sky: #d9e9fa;     --sky-d: #7fb0e0;
+  --mint: #d9efdc;    --mint-d: #82c28d;
+  --lav: #e7defa;     --lav-d: #a891dd;
+  --butter: #fcf0c4;  --butter-d: #e5c552;
+  --peach: #fddcd1;   --peach-d: #ee9a82;
+  /* 36に無い言語用。同じ淡い系統で調和させる */
+  --amber: #fde8c2;   --amber-d: #eab35a;
+  --rose: #fbdbe6;    --rose-d: #e58fae;
+  --coral: #fbdfcf;   --coral-d: #e59a6e;
+  --teal: #d3eeeb;    --teal-d: #6fbfb5;
+  --sand: #ece4d0;    --sand-d: #c4b283;
+  --lime: #e6f0c8;    --lime-d: #a6c35a;
+  --slate: #dfe3ea;   --slate-d: #8f9bb0;
+  --clay: #efd9d0;    --clay-d: #c99383;
+  --stone: #ece8df;   --stone-d: #b5ad9d;
+
+  --danger: #b4452f;
+  --ok: #3b8a58;
+  --warn: #a8691a;
+
+  --sh: 0 1px 2px rgba(52, 48, 43, 0.05), 0 8px 24px -8px rgba(52, 48, 43, 0.12);
+  --sh-up: 0 2px 4px rgba(52, 48, 43, 0.05), 0 16px 32px -10px rgba(52, 48, 43, 0.2);
+
+  --round: "Zen Maru Gothic", "Yu Gothic UI", "Hiragino Maru Gothic ProN", "Meiryo", sans-serif;
+  --num: "Fraunces Variable", "Fraunces", "Georgia", "Yu Mincho", serif;
+  --mono: "JetBrains Mono", "Cascadia Mono", Consolas, "BIZ UDGothic", "MS Gothic", monospace;
+
+  --card-w: 420px;
+  --focus: 0 0 0 3px var(--sky-d);
+}
