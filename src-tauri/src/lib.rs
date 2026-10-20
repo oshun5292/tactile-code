@@ -29,8 +29,6 @@ pub fn run() {
             commands::move_project,
             commands::refresh_project,
             commands::get_board,
-            commands::add_edge,
-            commands::remove_edge,
             commands::add_stroke,
             commands::remove_stroke,
             commands::clear_strokes,

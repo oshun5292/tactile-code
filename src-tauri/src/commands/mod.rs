@@ -1,5 +1,5 @@
 //! Tauri コマンドの入口(薄く保つ。処理は services / storage)。
-use crate::domain::{BoardState, Edge, Position, ProjectSummary, StoredProject, Stroke, Viewport};
+use crate::domain::{BoardState, Position, ProjectSummary, StoredProject, Stroke, Viewport};
 use crate::services::{board, paths, summary::build_summary};
 use crate::storage::Store;
 use tauri::State;
@@ -112,8 +112,6 @@ pub async fn remove_project(id: String, store: State<'_, Store>) -> Result<(), S
             if data.projects.len() == before {
                 return Err("プロジェクトが見つかりません".to_string());
             }
-            // 消えたカードにつながる線は宙に浮くので一緒に消す(手書きは残す)
-            data.edges.retain(|e| e.source != id && e.target != id);
             Ok(())
         })
     })
@@ -195,26 +193,6 @@ pub async fn refresh_project(
 #[tauri::command]
 pub async fn get_board(store: State<'_, Store>) -> Result<BoardState, String> {
     run_store(&store, |s| Ok(board::board_state(&s.read()))).await
-}
-
-#[tauri::command]
-pub async fn add_edge(
-    source: String,
-    target: String,
-    store: State<'_, Store>,
-) -> Result<Edge, String> {
-    run_store(&store, move |s| {
-        s.update(|data| board::add_edge(data, &source, &target))
-    })
-    .await
-}
-
-#[tauri::command]
-pub async fn remove_edge(id: String, store: State<'_, Store>) -> Result<(), String> {
-    run_store(&store, move |s| {
-        s.update(|data| board::remove_edge(data, &id))
-    })
-    .await
 }
 
 #[tauri::command]

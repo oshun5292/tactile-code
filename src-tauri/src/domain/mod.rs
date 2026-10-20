@@ -63,15 +63,6 @@ pub struct StoredProject {
     pub position: Position,
 }
 
-/// カード同士のつなぎ。source / target は ProjectSummary.id(段階2契約 §2)。
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Edge {
-    pub id: String,
-    pub source: String,
-    pub target: String,
-}
-
 /// 手書き1本。points はボード(フロー)座標。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -94,21 +85,19 @@ pub struct Viewport {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BoardState {
-    pub edges: Vec<Edge>,
     pub strokes: Vec<Stroke>,
     pub viewport: Option<Viewport>,
 }
 
 pub const SCHEMA_VERSION: u32 = 2;
 
-/// v1 のファイルには edges / strokes / viewport が無いので、欠けたら既定値で読む。
+/// v1 のファイルには strokes / viewport が無いので、欠けたら既定値で読む。
+/// 旧版が書いた `edges`(コネクタ)は未知のフィールドとして無視する(次の保存で消える)。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StoreFile {
     pub schema_version: u32,
     pub projects: Vec<StoredProject>,
-    #[serde(default)]
-    pub edges: Vec<Edge>,
     #[serde(default)]
     pub strokes: Vec<Stroke>,
     #[serde(default)]
@@ -120,7 +109,6 @@ impl Default for StoreFile {
         Self {
             schema_version: SCHEMA_VERSION,
             projects: Vec::new(),
-            edges: Vec::new(),
             strokes: Vec::new(),
             viewport: None,
         }

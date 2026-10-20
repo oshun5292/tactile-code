@@ -95,7 +95,7 @@ pub fn save(file: &Path, data: &StoreFile) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::{Edge, Position, StoredProject, Stroke, Viewport};
+    use crate::domain::{Position, StoredProject, Stroke, Viewport};
 
     fn sample() -> StoreFile {
         StoreFile {
@@ -106,11 +106,6 @@ mod tests {
                 note: "メモ".into(),
                 description_override: Some("説明".into()),
                 position: Position { x: 1.5, y: 2.0 },
-            }],
-            edges: vec![Edge {
-                id: "e1".into(),
-                source: "id1".into(),
-                target: "id1".into(),
             }],
             strokes: vec![Stroke {
                 id: "s1".into(),
@@ -136,9 +131,9 @@ mod tests {
         let text = std::fs::read_to_string(&f).unwrap();
         assert!(text.contains("schemaVersion") && text.contains("descriptionOverride"));
         assert!(
-            text.contains("\"edges\"")
-                && text.contains("\"strokes\"")
+            text.contains("\"strokes\"")
                 && text.contains("\"viewport\"")
+                && !text.contains("edges")
         );
         assert!(!f.with_extension("json.tmp").exists());
     }
@@ -173,7 +168,7 @@ mod tests {
         assert_eq!(got.schema_version, 2);
         assert_eq!(got.projects.len(), 1);
         assert_eq!(got.projects[0].note, "n");
-        assert!(got.edges.is_empty() && got.strokes.is_empty() && got.viewport.is_none());
+        assert!(got.strokes.is_empty() && got.viewport.is_none());
         // 読んだだけでは書き換えない。次の保存で v2 になる
         assert!(std::fs::read_to_string(&f).unwrap().contains(":1,"));
         store
@@ -189,6 +184,23 @@ mod tests {
         let text = std::fs::read_to_string(&f).unwrap();
         assert!(text.contains("\"schemaVersion\":2"));
         assert_eq!(load(&f).projects[0].id, "p1");
+    }
+
+    #[test]
+    fn file_with_legacy_edges_is_readable() {
+        let d = tempfile::tempdir().unwrap();
+        let f = d.path().join("projects.json");
+        let old = r##"{"schemaVersion":2,"projects":[{"id":"p1","path":"C:/w/a","note":"n","position":{"x":3.0,"y":4.0}}],"edges":[{"id":"e1","source":"p1","target":"p1"}],"strokes":[{"id":"s1","color":"#34302b","width":3.0,"points":[[0.0,0.0],[1.0,1.0]]}]}"##;
+        std::fs::write(&f, old).unwrap();
+        let store = Store::new(f.clone());
+        let got = store.read();
+        assert_eq!(got.projects.len(), 1);
+        assert_eq!(got.strokes.len(), 1);
+        // 次の保存で edges は書かれなくなる
+        store.update(|_| Ok(())).unwrap();
+        let text = std::fs::read_to_string(&f).unwrap();
+        assert!(!text.contains("edges"));
+        assert_eq!(load(&f).strokes.len(), 1);
     }
 
     #[test]

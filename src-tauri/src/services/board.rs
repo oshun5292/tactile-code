@@ -1,6 +1,6 @@
-//! つなぎ・手書き・表示位置の検証と更新(段階2契約 §3)。
+//! 手書き・表示位置の検証と更新(段階2契約 §3)。
 //! 保存や排他は Store 側の責務。ここは StoreFile を直接書き換える純粋な処理にして、単体でテストできるようにする。
-use crate::domain::{BoardState, Edge, StoreFile, Stroke, Viewport};
+use crate::domain::{BoardState, StoreFile, Stroke, Viewport};
 
 pub const MAX_STROKES: usize = 2000;
 pub const MAX_POINTS: usize = 5000;
@@ -11,43 +11,9 @@ pub const MAX_ZOOM: f64 = 2.0;
 
 pub fn board_state(data: &StoreFile) -> BoardState {
     BoardState {
-        edges: data.edges.clone(),
         strokes: data.strokes.clone(),
         viewport: data.viewport,
     }
-}
-
-pub fn add_edge(data: &mut StoreFile, source: &str, target: &str) -> Result<Edge, String> {
-    if source == target {
-        return Err("同じカードにはつなげません".to_string());
-    }
-    let exists = |id: &str| data.projects.iter().any(|p| p.id == id);
-    if !exists(source) || !exists(target) {
-        return Err("プロジェクトが見つかりません".to_string());
-    }
-    // 向きが逆でも同じ2枚なら重複とみなす
-    let dup = data.edges.iter().any(|e| {
-        (e.source == source && e.target == target) || (e.source == target && e.target == source)
-    });
-    if dup {
-        return Err("すでにつながっています".to_string());
-    }
-    let edge = Edge {
-        id: uuid::Uuid::new_v4().to_string(),
-        source: source.to_string(),
-        target: target.to_string(),
-    };
-    data.edges.push(edge.clone());
-    Ok(edge)
-}
-
-pub fn remove_edge(data: &mut StoreFile, id: &str) -> Result<(), String> {
-    let before = data.edges.len();
-    data.edges.retain(|e| e.id != id);
-    if data.edges.len() == before {
-        return Err("つなぎが見つかりません".to_string());
-    }
-    Ok(())
 }
 
 /// `#rrggbb`(英数の16進6桁)だけ許す。画面側でそのまま色として使うので、余計な文字を通さない。
@@ -142,37 +108,6 @@ mod tests {
             y: 0.0,
             zoom,
         }
-    }
-
-    #[test]
-    fn add_edge_validations() {
-        let mut d = data();
-        let e = add_edge(&mut d, "a", "b").unwrap();
-        assert_eq!((e.source.as_str(), e.target.as_str()), ("a", "b"));
-        assert_eq!(
-            add_edge(&mut d, "a", "b").unwrap_err(),
-            "すでにつながっています"
-        );
-        assert_eq!(
-            add_edge(&mut d, "b", "a").unwrap_err(),
-            "すでにつながっています"
-        );
-        assert_eq!(
-            add_edge(&mut d, "a", "a").unwrap_err(),
-            "同じカードにはつなげません"
-        );
-        assert!(add_edge(&mut d, "a", "zzz").is_err());
-        assert!(add_edge(&mut d, "zzz", "a").is_err());
-        assert_eq!(d.edges.len(), 1);
-    }
-
-    #[test]
-    fn remove_edge_works() {
-        let mut d = data();
-        let e = add_edge(&mut d, "a", "b").unwrap();
-        assert!(remove_edge(&mut d, "nope").is_err());
-        remove_edge(&mut d, &e.id).unwrap();
-        assert!(d.edges.is_empty());
     }
 
     #[test]

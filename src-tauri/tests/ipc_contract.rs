@@ -27,8 +27,6 @@ fn harness() -> Harness {
             move_project,
             refresh_project,
             get_board,
-            add_edge,
-            remove_edge,
             add_stroke,
             remove_stroke,
             clear_strokes,
@@ -216,43 +214,18 @@ fn add_dir(h: &Harness, dir: &tempfile::TempDir) -> String {
     p["id"].as_str().unwrap().to_string()
 }
 
-/// 段階2契約 §2, §3: get_board と各コマンドの JSON の形(camelCase)と、カード削除での edges の巻き込み。
+/// 段階2契約 §2, §3: get_board と各コマンドの JSON の形(camelCase)と、カード削除で手書きが残ること。
 #[test]
 fn stage2_board_contract() {
     let h = harness();
     // 空の状態
     assert_eq!(
         call(&h, "get_board", json!({})).unwrap(),
-        json!({ "edges": [], "strokes": [], "viewport": null })
+        json!({ "strokes": [], "viewport": null })
     );
 
-    let (d1, d2, d3) = (
-        tempfile::tempdir().unwrap(),
-        tempfile::tempdir().unwrap(),
-        tempfile::tempdir().unwrap(),
-    );
-    let (a, b, c) = (add_dir(&h, &d1), add_dir(&h, &d2), add_dir(&h, &d3));
-
-    // add_edge: {id, source, target} だけ
-    let e = call(&h, "add_edge", json!({ "source": a, "target": b })).unwrap();
-    let mut keys: Vec<&str> = e.as_object().unwrap().keys().map(|k| k.as_str()).collect();
-    keys.sort();
-    assert_eq!(keys, ["id", "source", "target"]);
-    assert_eq!(e["source"], json!(a));
-    assert_eq!(e["target"], json!(b));
-    assert!(uuid::Uuid::parse_str(e["id"].as_str().unwrap()).is_ok());
-    let e1 = e["id"].as_str().unwrap().to_string();
-
-    assert_eq!(
-        call(&h, "add_edge", json!({ "source": b, "target": a })).unwrap_err(),
-        json!("すでにつながっています")
-    );
-    assert_eq!(
-        call(&h, "add_edge", json!({ "source": a, "target": a })).unwrap_err(),
-        json!("同じカードにはつなげません")
-    );
-    assert!(call(&h, "add_edge", json!({ "source": a, "target": "nope" })).is_err());
-    call(&h, "add_edge", json!({ "source": b, "target": c })).unwrap();
+    let d1 = tempfile::tempdir().unwrap();
+    let a = add_dir(&h, &d1);
 
     // add_stroke: {id, color, width, points: [[x,y],...]}
     let s = call(
@@ -312,7 +285,6 @@ fn stage2_board_contract() {
     assert!(call(&h, "save_viewport", json!({ "x": 0, "y": 0, "zoom": 3 })).is_err());
 
     let board = call(&h, "get_board", json!({})).unwrap();
-    assert_eq!(board["edges"].as_array().unwrap().len(), 2);
     assert_eq!(board["strokes"].as_array().unwrap().len(), 2);
     assert_eq!(
         board["viewport"],
@@ -330,22 +302,13 @@ fn stage2_board_contract() {
         s2["id"]
     );
 
-    // カードを消すと、そのカードにつながる edges だけ消え、手書きは残る
+    // カードを消しても、手書きは残る
     call(&h, "remove_project", json!({ "id": a })).unwrap();
     let board = call(&h, "get_board", json!({})).unwrap();
-    let edges = board["edges"].as_array().unwrap();
-    assert_eq!(edges.len(), 1);
-    assert_eq!(edges[0]["source"], json!(b));
     assert_eq!(board["strokes"].as_array().unwrap().len(), 1);
-    assert!(call(&h, "remove_edge", json!({ "id": e1 })).is_err());
-    let e2 = edges[0]["id"].as_str().unwrap().to_string();
-    assert_eq!(
-        call(&h, "remove_edge", json!({ "id": e2 })).unwrap(),
-        Value::Null
-    );
+    assert!(board.get("edges").is_none());
 
     assert_eq!(call(&h, "clear_strokes", json!({})).unwrap(), Value::Null);
     let board = call(&h, "get_board", json!({})).unwrap();
     assert_eq!(board["strokes"], json!([]));
-    assert_eq!(board["edges"], json!([]));
 }
