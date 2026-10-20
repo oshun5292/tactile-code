@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phase 2 提案書 tactile code</title>
+<style>
+:root{
+  --bg:#fbf9f4; --panel:#fffffd; --ink:#34302b; --soft:#7d766b; --line:#e9e3d6; --bg2:#f5f1e8;
+  --sky:#d9e9fa; --sky-d:#4f8fd0; --mint:#d9efdc; --mint-d:#3b8a58; --butter:#fcf0c4; --butter-d:#a87f0a; --peach:#fddcd1; --peach-d:#c2553b; --lav:#e7defa; --lav-d:#7a5fc0;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.8 "Zen Maru Gothic","Yu Gothic UI","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;overflow-wrap:anywhere}
+a{color:var(--sky-d)}
+.wrap{max-width:980px;margin:0 auto;padding:0 16px 90px}
+header{padding:40px 0 6px}
+.eyebrow{font:12px/1 Consolas,"Cascadia Mono",monospace;color:var(--soft);letter-spacing:.06em}
+h1{font-size:30px;margin:10px 0 6px;line-height:1.35}
+h1 small{display:block;font-size:14px;color:var(--soft);font-weight:400;margin-top:4px}
+h2{font-size:21px;margin:48px 0 12px;padding-bottom:8px;border-bottom:2px solid var(--line);scroll-margin-top:16px}
+h2 .n{font-family:Georgia,serif;color:var(--soft);margin-right:10px;font-weight:400}
+h3{font-size:16px;margin:22px 0 8px}
+p{margin:8px 0}
+ul,ol{margin:6px 0;padding-left:1.4em}
+li{margin:4px 0}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:16px 20px;margin:12px 0}
+.box>:first-child{margin-top:0}.box>:last-child{margin-bottom:0}
+.tag{display:inline-block;font-size:11.5px;font-weight:700;line-height:1.7;padding:0 9px;border-radius:99px;margin-right:6px;vertical-align:1px;white-space:nowrap}
+.t-fact{background:var(--mint);color:var(--mint-d)}
+.t-unk{background:var(--butter);color:var(--butter-d)}
+.t-opn{background:var(--peach);color:var(--peach-d)}
+.t-dec{background:var(--sky);color:var(--sky-d)}
+.legend{display:flex;gap:6px 18px;flex-wrap:wrap;font-size:13px;color:var(--soft);margin-top:12px}
+code{font:12.5px Consolas,"Cascadia Mono",monospace;background:var(--bg2);padding:1px 7px;border-radius:6px}
+pre{background:var(--bg2);border-radius:14px;padding:12px 16px;font:12.5px/1.6 Consolas,"Cascadia Mono",monospace;white-space:pre-wrap;overflow-wrap:anywhere;margin:10px 0}
+.toc{columns:2 260px;column-gap:28px;padding-left:1.2em}
+.toc a{color:var(--ink);text-decoration:none}.toc a:hover{text-decoration:underline}
+.toc li{break-inside:avoid}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin:12px 0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:14px 18px}
+.card h4{margin:0 0 6px;font-size:15px}
+.card.rec{border:2px solid var(--mint-d);background:#fbfffb}
+.card dl{margin:0;font-size:13.5px}
+.card dt{font-weight:700;color:var(--soft);font-size:12px;margin-top:8px}
+.card dd{margin:0}
+table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);font-size:13.5px;margin:10px 0;table-layout:fixed}
+th,td{padding:8px 10px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
+th{background:var(--bg2);font-size:12.5px;color:var(--soft)}
+tr:last-child td{border-bottom:0}
+.src{font-size:12.5px;color:var(--soft)}
+.q{border-left:4px solid var(--peach-d);padding:4px 0 4px 14px;margin:14px 0;background:var(--panel);border-radius:0 14px 14px 0}
+.q b{display:block}
+@media(max-width:600px){ h1{font-size:25px} table{font-size:12.5px} th,td{padding:6px 7px} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">PHASE 2 PROPOSAL / 2026-10-21 / 提案(実装前)</div>
+  <h1>Phase 2 提案書<small>コードレビューと GitHub 状態の表示 — tactile code</small></h1>
+  <div class="legend">
+    <span><span class="tag t-fact">事実</span>公式ドキュメントで確認(出典 URL つき)</span>
+    <span><span class="tag t-unk">未確認</span>確認できていない・要検証</span>
+    <span><span class="tag t-opn">判断</span>私の推奨・意見</span>
+    <span><span class="tag t-dec">決定</span>既に決まっていること</span>
+  </div>
+</header>
+
+<h2 id="purpose"><span class="n">0</span>目的</h2>
+<div class="box">
+  <p>Phase 2(PR・CI の状態をカードに出す、アプリ内で PR の差分を読んでコメントする)を<b>どう作るか</b>、ユーザーが方針を決めるための資料です。<b>この文書は実装ではなく提案</b>で、コードには一切触れていません。</p>
+  <p>先に結論(すべて <span class="tag t-opn">判断</span>):</p>
+  <ul>
+    <li>認証は <b>fine-grained PAT(個人用アクセストークン)を、Windows の資格情報マネージャーに保管</b>して始める。将来 Device Flow へ差し替えられる窓口にしておく。</li>
+    <li>状態表示は <b>読み取り専用の REST + ETag 条件付きリクエスト</b>で、60〜120 秒間隔のポーリング。</li>
+    <li>レビューは段階で進める: ① 読むだけ → ② 下書き(アプリ内保存)→ ③ GitHub へ投稿。</li>
+    <li><b>早めに検証すべき最大の不安</b>: fine-grained PAT は Checks API が使えないと公式に書かれている(§2)。CI 状態の取り方に影響するため、最初の PR で小さく試す。</li>
+  </ul>
+  <p class="src">注: 指示にあった <code>docs/roadmap.md</code> は、リポジトリに存在しませんでした(<code>docs/</code> には requirements.html と stage1〜3-contract.md のみ)。そのため Phase 2 の前提は requirements.html のみを根拠にしています。</p>
+</div>
+
+<h2 id="toc">目次</h2>
+<div class="box">
+  <ol class="toc">
+    <li><a href="#premise">前提(既に決まっていること)</a></li>
+    <li><a href="#auth">1　認証とトークン保管</a></li>
+    <li><a href="#data">2　取得する情報と API</a></li>
+    <li><a href="#review">3　コードレビュー機能</a></li>
+    <li><a href="#arch">4　アーキテクチャとコマンド案</a></li>
+    <li><a href="#steps">5　段階的な進め方(PR の分け方)</a></li>
+    <li><a href="#risk">6　リスクと未確認事項</a></li>
+    <li><a href="#questions">7　ユーザーが決める質問(推奨つき)</a></li>
+  </ol>
+</div>
+
+<h2 id="premise"><span class="n">前</span>前提(既に決まっていること)</h2>
+<div class="box">
+  <p><span class="tag t-dec">決定</span>Phase 2 =「コードレビューと GitHub 状態」。ローカル git の差分表示、行コメント、GitHub API で PR 件数・CI 状態を取得(出典: <code>docs/requirements.html</code> のフェーズ表・Q1)。</p>
+  <p><span class="tag t-dec">決定</span>FR-04: ローカル git から origin・ブランチ・未 push/未 pull 件数は MVP で表示済み。<b>PR 件数・CI は GitHub API が必要なので次段階</b>。</p>
+  <p><span class="tag t-dec">決定</span>CLAUDE.md の設計ルール: 外部通信・ファイル・プロセスは Rust 側、React は <code>src/api/</code> のラッパー経由で <code>invoke</code>。個人利用・公開リポジトリ。AI は窓口(trait)の裏に隠して差し替え可能に。</p>
+  <p><span class="tag t-dec">決定</span>カードに「レビュー件数の大きな数字」は置かない(FR 決定事項)。PR の状態は、数字を目立たせない小さなチップで出す想定が自然です(<span class="tag t-opn">判断</span>)。</p>
+</div>
+
+<h2 id="auth"><span class="n">1</span>認証とトークン保管</h2>
+<h3>1-1　認証方法の比較</h3>
+<p>観点は「手間」「安全性」「権限の範囲」「このアプリ(Tauri・個人利用・公開リポジトリ)への適性」です。</p>
+
+<div class="grid">
+  <div class="card rec">
+    <h4>A. fine-grained PAT(推奨・最初の一歩)</h4>
+    <dl>
+      <dt>手間</dt><dd>GitHub の設定画面でトークンを作り、アプリの設定欄に貼るだけ。アプリ側の実装は最小。期限(最大 366 日、または無期限)ごとに作り直しが必要。</dd>
+      <dt>安全性</dt><dd>リポジトリと権限を選んで絞れる。漏れても被害範囲が小さい。</dd>
+      <dt>権限の範囲</dt><dd>1 つの所有者(ユーザー or 組織)単位。公開リポジトリの読み取りは常に可能。</dd>
+      <dt>適性</dt><dd>個人利用で最適。ただし Checks API が使えない(下記)。</dd>
+    </dl>
+  </div>
+  <div class="card">
+    <h4>B. OAuth App の Device Flow</h4>
+    <dl>
+      <dt>手間</dt><dd>GitHub で OAuth App を登録し Device Flow を有効化。アプリ内にコード表示画面とポーリング実装が必要。</dd>
+      <dt>安全性</dt><dd>ユーザーがブラウザで承認。クライアントシークレット不要なので、配布物に秘密を埋め込まない。</dd>
+      <dt>権限の範囲</dt><dd>スコープ(例 <code>repo</code>)単位で、fine-grained より粗くなりがち。</dd>
+      <dt>適性</dt><dd>将来、他人に配るなら有力。個人利用では手間が割に合わない。</dd>
+    </dl>
+  </div>
+  <div class="card">
+    <h4>C. gh CLI のトークンを流用</h4>
+    <dl>
+      <dt>手間</dt><dd>最小。<code>gh auth token</code> の出力を Rust から取得するだけ。ユーザーは既に gh を使用済み(要件書で gh CLI による確認の記載あり)。</dd>
+      <dt>安全性</dt><dd>アプリが gh と同じ強さのトークンを扱うことになる。範囲を絞れない。</dd>
+      <dt>権限の範囲</dt><dd>gh のログイン時の権限そのまま(未確認)。</dd>
+      <dt>適性</dt><dd>「試す」には良いが、gh 未インストール環境で動かない。常用の正規手段にはしない。</dd>
+    </dl>
+  </div>
+  <div class="card">
+    <h4>D. GitHub App(ユーザートークン)</h4>
+    <dl>
+      <dt>手間</dt><dd>App 登録、リポジトリへのインストール、Device Flow の有効化が必要。最も手順が多い。</dd>
+      <dt>安全性</dt><dd>権限が細かく、トークンは 8 時間で失効(更新トークンは 6 か月)する設計。</dd>
+      <dt>権限の範囲</dt><dd>App と本人の両方がアクセスできるリポジトリのみ。</dd>
+      <dt>適性</dt><dd>個人開発の現段階では過剰。公開配布するなら再検討。</dd>
+    </dl>
+  </div>
+</div>
+
+<h3>事実(出典つき)</h3>
+<div class="box">
+  <ul>
+    <li><span class="tag t-fact">事実</span>GitHub は、可能なら classic より fine-grained トークンを推奨している。fine-grained は選んだリポジトリに限定でき、公開リポジトリは常に読み取り可能。1 トークンは 1 つの所有者のリソースに限られる。<br><span class="src">出典: <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens">Managing your personal access tokens</a></span></li>
+    <li><span class="tag t-fact">事実</span>同ページに「fine-grained トークンでは現在できないこと」として <b>Checks API の呼び出し</b>、複数組織への同時アクセス、自分がメンバーでない公開リポジトリへの貢献などが挙がっている。classic は権限が広く、1 年未使用で削除される。<br><span class="src">出典: 同上</span></li>
+    <li><span class="tag t-fact">事実</span>Device Flow は <code>POST https://github.com/login/device/code</code> でコードを得て、ユーザーが <code>https://github.com/login/device</code> に入力し、<code>POST https://github.com/login/oauth/access_token</code> をポーリングして取得する。クライアントシークレット不要。コード有効期限は既定 900 秒、最小ポーリング間隔は 5 秒(速すぎると <code>slow_down</code>)。事前にアプリ設定で Device Flow を有効にする必要がある。<br><span class="src">出典: <a href="https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps">Authorizing OAuth apps</a></span></li>
+    <li><span class="tag t-fact">事実</span>GitHub App のユーザートークンは既定 8 時間で失効、更新トークンは 6 か月。Device Flow 対応・シークレット不要。App と本人の双方がアクセスできる資源のみ。<br><span class="src">出典: <a href="https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app">Generating a user access token for a GitHub App</a></span></li>
+    <li><span class="tag t-fact">事実</span><code>gh auth token</code> は、指定ホスト(既定ホスト)のアカウントの認証トークンを出力する。<br><span class="src">出典: <a href="https://cli.github.com/manual/gh_auth_token">gh auth token</a></span></li>
+  </ul>
+</div>
+<div class="box">
+  <ul>
+    <li><span class="tag t-unk">未確認</span>Checks API(<code>/commits/{ref}/check-runs</code>)のドキュメントは、fine-grained PAT に必要な権限を記載しておらず、classic / OAuth は <code>repo</code> スコープが必要と書くのみ(<a href="https://docs.github.com/en/rest/checks/runs">出典</a>)。<b>公開リポジトリで認証なし・fine-grained PAT で実際に動くか</b>は未検証。</li>
+    <li><span class="tag t-unk">未確認</span><code>gh auth token</code> が返すトークンの種類・権限・保管場所(ドキュメントに記載なし)。</li>
+    <li><span class="tag t-unk">未確認</span>公開リポジトリの PR 一覧などを認証なしで読めること自体は REST の一般知識として有力だが、今回の調査では endpoint ごとの明記を確認できていない。認証なし時のレート制限は 1 時間 60 回(下記、事実)で、5 カード程度でも足りなくなるため、実用上トークンは必要。</li>
+  </ul>
+</div>
+
+<h3>1-2　トークンの保管場所の比較</h3>
+<table>
+  <tr><th style="width:22%">案</th><th>内容</th><th style="width:26%">評価</th></tr>
+  <tr><td><b>OS の資格情報マネージャー</b><br>(Windows Credential Manager)</td><td>Rust の <code>keyring</code> クレート等から読み書き。アプリのデータ JSON にはトークンを書かない。OS が暗号化・ユーザー単位で保護。</td><td><span class="tag t-opn">判断</span>推奨。実装も短い。</td></tr>
+  <tr><td>暗号化ファイル</td><td>アプリ専用ファイルに暗号化して保存。</td><td>鍵の置き場が結局問題になる。自前の暗号実装はリスク。非推奨。</td></tr>
+  <tr><td>保管しない</td><td>起動のたびに貼る、または gh から都度取得。</td><td>安全だが毎回手間。gh 流用(案 C)なら成立する。</td></tr>
+  <tr><td>平文の JSON(設定ファイル)</td><td>アプリのデータ JSON に保存。</td><td>公開リポジトリの隣にあるファイルで事故りやすい。不可。</td></tr>
+</table>
+<div class="box">
+  <ul>
+    <li><span class="tag t-fact">事実</span><code>keyring</code> クレートは docs.rs 上でバージョン 4.2.0・MIT/Apache-2.0。macOS / Windows / *nix で「パスワード・秘密の設定と読み出しを共通の方法で行う」ことを目的とし、Windows 向けのネイティブストアを含む。<br><span class="src">出典: <a href="https://docs.rs/keyring/latest/keyring/">docs.rs keyring</a></span></li>
+    <li><span class="tag t-unk">未確認</span>Windows 資格情報の保存サイズ上限、必要な feature フラグ、v4 系の具体的な API(<code>Entry</code> の使い方)。取得できたページに記載がなく、実装前に確認が必要。<code>pnpm add</code> と同様、クレート追加(<code>cargo add</code>)はユーザー確認の上で行う。</li>
+    <li><span class="tag t-opn">判断</span>トークンは Rust の内部だけで保持し、React には<b>「設定済みか」の真偽値だけ</b>返す。ログ・エラー文にトークンを出さない。</li>
+  </ul>
+</div>
+
+<h2 id="data"><span class="n">2</span>取得する情報と API</h2>
+<h3>2-1　情報ごとの取得方法</h3>
+<table>
+  <tr><th style="width:20%">表示したいもの</th><th style="width:44%">使うエンドポイント</th><th>必要な権限(fine-grained PAT)</th></tr>
+  <tr><td>開いている PR の数</td><td><code>GET /repos/{owner}/{repo}/pulls?state=open&amp;per_page=100</code>(件数は配列の長さ)</td><td><span class="tag t-fact">事実</span>Pull requests: read</td></tr>
+  <tr><td>レビュー待ちの PR</td><td>同じ一覧の各 PR の <code>requested_reviewers</code> に自分が含まれるか。または GraphQL の <code>reviewDecision</code> / <code>reviewRequests</code></td><td>Pull requests: read(REST は事実)。GraphQL の項目名は <span class="tag t-unk">未確認</span></td></tr>
+  <tr><td>CI の状態(Checks / Actions)</td><td>案①: <code>GET /repos/{o}/{r}/commits/{ref}/check-runs</code><br>案②: <code>GET /repos/{o}/{r}/actions/runs?branch=…</code>(Actions のワークフロー実行)<br>案③: <code>GET /repos/{o}/{r}/commits/{ref}/status</code>(旧来の commit status のみ)</td><td>案①: <span class="tag t-unk">未確認</span>(fine-grained 非対応の記載あり)<br>案②: Actions: read(workflow runs 一覧で事実、runs 一般は <span class="tag t-unk">未確認</span>)<br>案③: Commit statuses: read(事実)</td></tr>
+  <tr><td>ブランチの ahead/behind</td><td>既にローカル git で取得済み(FR-04)。GitHub API は不要</td><td>なし</td></tr>
+</table>
+<div class="box">
+  <ul>
+    <li><span class="tag t-fact">事実</span>PR 一覧は <code>state</code>(open/closed/all。既定 open)、<code>head</code>、<code>base</code> で絞れ、<code>per_page</code> は最大 100。<br><span class="src">出典: <a href="https://docs.github.com/en/rest/pulls/pulls">REST: Pull requests</a></span></li>
+    <li><span class="tag t-fact">事実</span>PR 取得では <code>mergeable</code> が <code>null</code> のとき GitHub が計算中で、少し待って再試行する。<code>requested_reviewers</code>、<code>review_comments</code>(件数)が取れる。<br><span class="src">出典: 同上</span></li>
+    <li><span class="tag t-fact">事実</span>check-runs は ref(SHA / <code>heads/ブランチ名</code> / タグ)で取得、<code>status</code>(queued/in_progress/completed)と <code>per_page</code>(最大 100)指定可。1 つの ref に check suite が 1000 を超えると最新 1000 件のみ。<br><span class="src">出典: <a href="https://docs.github.com/en/rest/checks/runs">REST: Check runs</a></span></li>
+    <li><span class="tag t-fact">事実</span>combined status の <code>state</code> は failure(いずれかが error/failure)/ pending(無し、またはいずれか pending)/ success(全 context が success)。ページ上、<b>commit status のみの説明で、Actions には触れていない</b>。<br><span class="src">出典: <a href="https://docs.github.com/en/rest/commits/statuses">REST: Commit statuses</a></span></li>
+    <li><span class="tag t-fact">事実</span>権限表: PR 一覧・PR ファイル一覧は Pull requests: read、PR のレビュー/コメント作成は Pull requests: write、combined status は Commit statuses: read、ワークフロー実行一覧は Actions: read。check-runs と search は表に記載なし。<br><span class="src">出典: <a href="https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens">Permissions required for fine-grained PATs</a></span></li>
+  </ul>
+  <p><span class="tag t-opn">判断</span>CI は、GitHub Actions を使っているリポジトリが中心なら<b>案②(Actions: read)を第一候補</b>にし、Checks API は最初の PR で<b>実機の小さな検証(スパイク)</b>をしてから採否を決める。表示は「成功 / 失敗 / 実行中 / 不明」の 4 値に丸め、細かい内訳はカードに出さない(カードに情報を詰めすぎない方針に合わせる)。</p>
+  <p><span class="tag t-opn">判断</span>REST は 1 カードあたり 2〜3 リクエスト(PR 一覧、CI)。カードが増えるなら GraphQL で複数リポジトリを 1 クエリにまとめる手もあるが、<span class="tag t-unk">未確認</span>の項目名が多く、最初は REST で始め、問題が出てから検討する。</p>
+</div>
+
+<h3>2-2　レート制限・ポーリング・キャッシュ</h3>
+<div class="box">
+  <ul>
+    <li><span class="tag t-fact">事実</span>主制限(1 時間あたり): 認証なし 60 回(IP 単位)、PAT や OAuth のユーザートークン 5,000 回(ユーザーの全トークンで共有)。<br><span class="src">出典: <a href="https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api">Rate limits for the REST API</a></span></li>
+    <li><span class="tag t-fact">事実</span>副次制限: 同時リクエスト 100 まで、REST は 1 分あたり 900 ポイント(GET は 1 点、POST/PATCH/PUT/DELETE は 5 点)、コンテンツ作成は約 80 回/分・500 回/時。応答ヘッダー <code>x-ratelimit-remaining</code>、<code>x-ratelimit-reset</code>、一部で <code>retry-after</code>。<br><span class="src">出典: 同上</span></li>
+    <li><span class="tag t-fact">事実</span>条件付きリクエスト: 応答の <code>etag</code> を <code>if-none-match</code> で送り、<code>304</code> が返れば、<b>認証済みなら主制限に数えられない</b>。ポーリングするなら固定間隔で、<code>x-poll-interval</code> ヘッダーがあればその秒数以上待つ。リクエストは並列でなく<b>直列</b>に。制限に当たったら <code>retry-after</code> に従う。<br><span class="src">出典: <a href="https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api">Best practices for using the REST API</a></span></li>
+    <li><span class="tag t-fact">事実</span>GraphQL の主制限は 1 時間 5,000 ポイント。コスト = 各接続が <code>first</code>/<code>last</code> 上限まで要求した場合のリクエスト数合計 ÷ 100(最小 1)。接続には <code>first</code>/<code>last</code>(1〜100)必須、1 回のクエリのノード上限は 500,000。<br><span class="src">出典: <a href="https://docs.github.com/en/graphql/overview/rate-limits-and-node-limits-for-the-graphql-api">GraphQL rate limits</a></span></li>
+    <li><span class="tag t-fact">事実</span>GitHub はポーリングより webhook を推奨。ただしデスクトップアプリは外部から受信できないため、webhook は現実的でない(この点は <span class="tag t-opn">判断</span>)。</li>
+  </ul>
+</div>
+<table>
+  <tr><th style="width:30%">項目</th><th>方針案(<span class="tag t-opn">判断</span>)</th></tr>
+  <tr><td>ポーリング間隔の目安</td><td>ウィンドウが見えている間だけ 60〜120 秒に 1 回。非表示・最小化中は止める。ウィンドウにフォーカスが戻った時に 1 回即時更新。「今すぐ更新」ボタンも置く。</td></tr>
+  <tr><td>使用量の見積もり</td><td>10 リポジトリ × 2 リクエスト ÷ 90 秒 = 約 800 回/時。304 は主制限に数えられない(事実)ので、5,000 回/時に対して十分余裕がある計算。</td></tr>
+  <tr><td>キャッシュ</td><td>Rust 側のメモリに、リポジトリごとの最後の応答と ETag を保持。画面表示は常にキャッシュから出し、更新は裏で。永続化は初回は不要(再起動時に取り直す)。</td></tr>
+  <tr><td>失敗時</td><td>通信失敗・403・429 は「不明」表示にして、前回値を薄く残す。<code>x-ratelimit-remaining</code> が 0 なら次の <code>reset</code> まで停止。連続エラーは指数的に間隔を延ばす(公式の推奨に沿う)。</td></tr>
+  <tr><td>未連携フォルダ</td><td>origin が GitHub でない / トークン未設定のフォルダは通信しない。「未連携・ローカルのみ」(FR-04)の表示を維持。</td></tr>
+</table>
+
+<h2 id="review"><span class="n">3</span>コードレビュー機能</h2>
+<h3>3-1　必要な要素</h3>
+<div class="box">
+  <ul>
+    <li><b>差分の取得</b>: <span class="tag t-fact">事実</span><code>GET /repos/{o}/{r}/pulls/{n}/files</code> が各ファイルの <code>filename</code>、<code>status</code>、<code>additions</code>、<code>deletions</code>、<code>patch</code>(任意項目)を返す。最大 3,000 ファイル、既定 30 件/ページ。また PR 取得で <code>application/vnd.github.diff</code> を指定すると diff 形式で取れる。<br><span class="src">出典: <a href="https://docs.github.com/en/rest/pulls/pulls">REST: Pull requests</a></span><br><span class="tag t-unk">未確認</span>巨大ファイルで <code>patch</code> が省かれるか(ドキュメントに記載なし)。</li>
+    <li><b>ローカルの差分</b>(PR になる前の差分): <span class="tag t-dec">決定</span>Phase 2 はローカル git の差分表示から始める。Rust 側で git の差分を取り、同じ表示部品で見せる(<span class="tag t-opn">判断</span>)。GitHub の PR 差分とは取得元が違うだけで、表示は共通化できる。</li>
+    <li><b>表示(CodeMirror)</b>: <span class="tag t-fact">事実</span><code>@codemirror/merge</code> は、2 つの文書を並べる <code>MergeView</code> と、1 つのエディタに元の文書(<code>original</code>)を渡す <code>unifiedMergeView</code> を提供する。どちらも<b>全文のテキストを渡す方式</b>で、パッチ入力の記載はない。<br><span class="src">出典: <a href="https://github.com/codemirror/merge">github.com/codemirror/merge</a></span></li>
+    <li><span class="tag t-unk">未確認</span>同ページに「リポジトリは archived、開発先は code.haverbeke.berlin へ移動」とある。npm パッケージの現行バージョンと保守状況、React 19 での扱いは未確認。</li>
+    <li><span class="tag t-opn">判断</span>差分表示は 2 つの経路が考えられる。(a) <code>MergeView</code> に「変更前の全文」「変更後の全文」を渡す(Rust 側でファイル全文を取得: PR なら <code>GET contents</code> 等で base/head の全文が必要、ローカルなら <code>git show</code>)。(b) <code>patch</code> 文字列を自前で整形して読み取り専用表示。<b>(a) は見た目が既存エディタと揃い、行番号が正確。(b) は通信が少ない</b>。最初のスパイクで (a) を試し、重ければ (b) に切り替える。</li>
+    <li><b>行コメントの投稿</b>: <span class="tag t-fact">事実</span><code>POST /repos/{o}/{r}/pulls/{n}/comments</code>。必須は <code>body</code>、<code>commit_id</code>、<code>path</code>。位置は <code>line</code> + <code>side</code>(LEFT=削除、RIGHT=追加/文脈)。複数行は <code>start_line</code> + <code>start_side</code>、ファイル全体は <code>subject_type=file</code>。<code>position</code> は非推奨。古い <code>commit_id</code> を使うと、後続コミットで行が変わった時にコメントが outdated になる。<br><span class="src">出典: <a href="https://docs.github.com/en/rest/pulls/comments">REST: Review comments</a></span></li>
+    <li><b>レビューの提出</b>: <span class="tag t-fact">事実</span><code>POST /repos/{o}/{r}/pulls/{n}/reviews</code>。<code>event</code> は <code>APPROVE</code> / <code>REQUEST_CHANGES</code> / <code>COMMENT</code>、空なら PENDING(後で提出)。<code>comments</code> 配列(<code>path</code>、<code>body</code>、<code>line</code>/<code>side</code> など)で複数コメントを一括投稿できる。通知が飛び、短時間の大量作成は副次制限の対象。権限は Pull requests: write。<br><span class="src">出典: <a href="https://docs.github.com/en/rest/pulls/reviews">REST: Reviews</a></span></li>
+  </ul>
+  <p><span class="tag t-opn">判断</span>投稿は<b>1 コメントずつ POST するより、下書きをためて 1 回の「レビュー作成(comments 配列つき)」で出す</b>のが、通知・副次制限の面でも、ユーザーの意図(まとめて出す)の面でも自然。</p>
+</div>
+
+<h3>3-2　MVP でどこまでやるか(段階案)</h3>
+<div class="grid">
+  <div class="card rec">
+    <h4>① 読むだけ(推奨の最初のゴール)</h4>
+    <dl><dt>内容</dt><dd>ローカル差分と、開いている PR の変更ファイル一覧・差分を読む。コメントは書かない。</dd>
+    <dt>権限</dt><dd>Pull requests: read のみ。副作用なし。</dd>
+    <dt>リスク</dt><dd>低い。誤投稿が起きない。</dd></dl>
+  </div>
+  <div class="card">
+    <h4>② 行コメントの下書き</h4>
+    <dl><dt>内容</dt><dd>行を選んでコメントを書き、<b>アプリ内(ローカル JSON)にだけ</b>保存。GitHub には送らない。</dd>
+    <dt>権限</dt><dd>追加なし。</dd>
+    <dt>リスク</dt><dd>中。下書きの保存形式(ファイル・行・コミット)を、③ の API 項目と合わせて設計する必要。</dd></dl>
+  </div>
+  <div class="card">
+    <h4>③ GitHub へ投稿</h4>
+    <dl><dt>内容</dt><dd>下書きを 1 つのレビューとして提出。確認ダイアログ必須(誤送信防止)。</dd>
+    <dt>権限</dt><dd>Pull requests: write(トークンの権限を上げる)。</dd>
+    <dt>リスク</dt><dd>高い。通知が相手に飛ぶ。公開リポジトリでは投稿が公開される。</dd></dl>
+  </div>
+</div>
+<p><span class="tag t-opn">判断</span>Phase 2 の合格ラインは ① まで。② ③ は別 PR で、③ は「書き込み権限のトークンを別に用意」してから。個人リポジトリで自分の PR にコメントする使い方が中心なら、③ の優先度は下げてよい。</p>
+
+<h2 id="arch"><span class="n">4</span>アーキテクチャとコマンド案</h2>
+<div class="box">
+  <p><span class="tag t-dec">決定</span>React から直接通信しない。Rust 側に窓口を作り、<code>src/api/</code> のラッパー経由で <code>invoke</code>。AI と同様、窓口(trait)の裏に隠して差し替え可能にする。</p>
+  <p><span class="tag t-opn">判断</span>以下は<b>案</b>で、名前・型は実装時に調整します。</p>
+</div>
+<pre>Rust 側の構成案
+src-tauri/src/
+  domain/      github.rs   型: RepoRef, PrSummary, CiState, ReviewDraft ...
+  services/    github/
+                 mod.rs      trait GitHubProvider (差し替え口)
+                 rest.rs     REST 実装 (reqwest + ETag キャッシュ)
+                 auth.rs     トークンの取得/保存 (keyring)
+  commands/    github.rs   薄い入口 (invoke から呼ばれる)
+
+React 側
+src/api/github.ts           invoke のラッパー (型つき)
+src/features/github/        チップ・PR 一覧・差分ビュー・下書き</pre>
+<table>
+  <tr><th style="width:34%">コマンド案</th><th style="width:33%">入力(概略)</th><th>出力(概略)</th></tr>
+  <tr><td><code>github_auth_status</code></td><td>なし</td><td><code>{ configured: bool, login?: string }</code>(トークン自体は返さない)</td></tr>
+  <tr><td><code>github_save_token</code> / <code>github_clear_token</code></td><td><code>token: string</code> / なし</td><td>成否。保存前に <code>GET /user</code> で検証する案</td></tr>
+  <tr><td><code>github_repo_status</code></td><td><code>project_id</code>(origin は Rust 側で解決)</td><td><code>{ openPrs: number, reviewRequested: number, ci: "success"|"failure"|"running"|"unknown", fetchedAt, stale: bool }</code></td></tr>
+  <tr><td><code>github_list_prs</code></td><td><code>project_id, state</code></td><td><code>PrSummary[]</code>(番号・題名・作者・head/base・レビュー状態)</td></tr>
+  <tr><td><code>github_pr_files</code></td><td><code>project_id, pr_number</code></td><td><code>{ path, status, additions, deletions, patch? }[]</code></td></tr>
+  <tr><td><code>git_diff_local</code></td><td><code>project_id, base?, path?</code></td><td>ファイル一覧と変更前/後のテキスト(パスはプロジェクト内に検証)</td></tr>
+  <tr><td><code>review_draft_save</code> / <code>_list</code></td><td>ドラフト(path, line, side, body, commit_id)</td><td>ローカル JSON に保存(<code>schema_version</code> を持つ)</td></tr>
+  <tr><td><code>github_submit_review</code>(③)</td><td><code>project_id, pr_number, event, draftIds</code></td><td>成否と GitHub 上の URL</td></tr>
+</table>
+<div class="box">
+  <ul>
+    <li><span class="tag t-opn">判断</span><code>trait GitHubProvider</code> を作り、REST 実装を 1 つ目の実装にする。将来 GraphQL や別ホスト(GitHub Enterprise)に差し替えても、コマンドと React は変わらない。</li>
+    <li><span class="tag t-opn">判断</span>認証も <code>trait TokenSource</code>(keyring / gh 流用 / Device Flow)として分け、認証方式の変更が他へ波及しないようにする。</li>
+    <li><span class="tag t-opn">判断</span>安全面: 投稿系は <code>project_id</code> から origin を解決し、登録済みプロジェクトのリポジトリ以外には書き込まない。React が任意の URL を渡せない形にする。「パスの安全」の方針と同じ発想。</li>
+    <li><span class="tag t-unk">未確認</span>HTTP クライアントの選択(<code>reqwest</code> など)と Tauri v2 の権限(capabilities)設定への影響。Rust 側の通信なので WebView の CSP は直接関係しない見込みだが、検証していない。</li>
+  </ul>
+</div>
+
+<h2 id="steps"><span class="n">5</span>段階的な進め方(PR の分け方の案)</h2>
+<p>現在の進め方(機能ごとのブランチ・小さなコミット・ユーザーがマージ)に沿った案です(<span class="tag t-opn">判断</span>)。</p>
+<table>
+  <tr><th style="width:15%">PR</th><th style="width:45%">内容</th><th>確認方法</th></tr>
+  <tr><td>2-0</td><td>スパイク(使い捨て): PAT で Checks API / Actions runs / PR 一覧を実際に叩き、<b>どの権限で何が取れるか</b>を確定。<code>@codemirror/merge</code> の導入可否も確認。</td><td>結果をこの文書の「未確認」へ反映</td></tr>
+  <tr><td>2-1</td><td>トークンの保管(keyring)+設定画面の最小 UI+<code>github_auth_status</code>。<code>cargo add</code> はユーザー確認。</td><td>保存・削除・再起動後も残る</td></tr>
+  <tr><td>2-2</td><td><code>GitHubProvider</code> と PR 件数・CI 状態の取得、カード/ヘッダーのチップ表示、ポーリングと ETag キャッシュ。</td><td>実リポジトリでカード表示、オフライン時の「不明」表示</td></tr>
+  <tr><td>2-3</td><td>ローカル git 差分の表示(読むだけ)。エディタ内に差分ビュー。</td><td>変更ファイルを選ぶと差分が見える</td></tr>
+  <tr><td>2-4</td><td>PR の差分表示(読むだけ)。2-3 の部品を再利用。</td><td>自分の PR の差分が読める</td></tr>
+  <tr><td>2-5</td><td>行コメントの下書き(ローカル保存のみ)。</td><td>再起動後も下書きが残る</td></tr>
+  <tr><td>2-6</td><td>GitHub への投稿(レビュー提出)。確認ダイアログ、書き込み権限。</td><td>テスト用リポジトリの PR で試す</td></tr>
+</table>
+<p class="src">それぞれの PR の説明には、確認したこと・未確認・既知の課題を書く(CLAUDE.md の約束)。</p>
+
+<h2 id="risk"><span class="n">6</span>リスクと未確認事項</h2>
+<table>
+  <tr><th style="width:12%">区分</th><th>内容</th><th style="width:34%">対処案</th></tr>
+  <tr><td><span class="tag t-fact">事実</span></td><td>fine-grained PAT は Checks API を呼べないと公式ページに記載(出典 §1)。</td><td>2-0 で実機検証。ダメなら Actions runs(案②)か、classic / OAuth へ</td></tr>
+  <tr><td><span class="tag t-fact">事実</span></td><td>fine-grained PAT は 1 所有者のみ。複数の組織をまたげない。</td><td>個人リポジトリ中心なら影響小</td></tr>
+  <tr><td><span class="tag t-unk">未確認</span></td><td><code>@codemirror/merge</code> のリポジトリは archived・移転済みと表示。現行の保守・npm 版の状況。</td><td>2-0 で確認。代替は自前の patch 表示</td></tr>
+  <tr><td><span class="tag t-unk">未確認</span></td><td><code>patch</code> が省かれる条件、GraphQL の項目名(<code>statusCheckRollup</code> 等)、keyring v4 の具体 API とサイズ上限。</td><td>実装前にドキュメントを確認</td></tr>
+  <tr><td><span class="tag t-unk">未確認</span></td><td>公開リポジトリを認証なしで読めるかを endpoint 別に確認できていない。</td><td>認証なしの「軽量モード」を作るかはスパイクで判断</td></tr>
+  <tr><td><span class="tag t-opn">判断</span></td><td>トークン流出(公開リポジトリ・ログ・画面)。</td><td>保存は keyring のみ、React に渡さない、ログに出さない、権限は最小</td></tr>
+  <tr><td><span class="tag t-opn">判断</span></td><td>誤投稿(通知・公開コメント)。</td><td>③ は最後。確認ダイアログ。書き込み権限は別トークン</td></tr>
+  <tr><td><span class="tag t-opn">判断</span></td><td>差分表示が重い(大きなファイル・多数ファイル)。</td><td>ファイル単位で遅延取得・表示。サイズ上限を設ける</td></tr>
+</table>
+
+<h2 id="questions"><span class="n">7</span>ユーザーが決める質問(推奨つき)</h2>
+<p>おもに ①②④ を決めてもらえれば、2-0 を始められます。</p>
+
+<div class="q"><b>Q1　認証方式は?</b>
+  A. fine-grained PAT(推奨) / B. Device Flow / C. gh 流用 / D. GitHub App<br>
+  <span class="tag t-opn">推奨</span>A。理由: 個人利用では最も簡単で、権限も絞れる。窓口(<code>TokenSource</code>)は分けておき、後で B に移れる。</div>
+
+<div class="q"><b>Q2　トークンの保管は?</b>
+  A. Windows 資格情報マネージャー(推奨) / B. 暗号化ファイル / C. 保管しない<br>
+  <span class="tag t-opn">推奨</span>A。理由: OS の仕組みに任せられ、設定 JSON にトークンが残らない。</div>
+
+<div class="q"><b>Q3　CI の取得は、どこまで求める?</b>
+  A. Actions のみ(Actions: read) / B. Checks API も使う(権限の制約次第) / C. 当面は PR 件数だけ<br>
+  <span class="tag t-opn">推奨</span>A。まず 2-0 のスパイクで、B が fine-grained で動くか確認する。ご自身のリポジトリで、Actions 以外の CI(外部サービス)を使っているものはありますか?</div>
+
+<div class="q"><b>Q4　コードレビューの最初のゴールは?</b>
+  A. ① 読むだけ(推奨) / B. ② まで / C. ③ まで一気に<br>
+  <span class="tag t-opn">推奨</span>A。理由: 副作用がなく、差分表示の部品を固めるのが先。</div>
+
+<div class="q"><b>Q5　レビューの対象は?</b>
+  A. ローカル差分のみ(決定済みの出発点) / B. 自分の PR も / C. 他人の PR も<br>
+  <span class="tag t-opn">推奨</span>A → B の順。公開リポジトリで他人の PR にコメントする使い方は、現状の個人利用の想定に無いため後回し。</div>
+
+<div class="q"><b>Q6　状態の更新頻度は?</b>
+  A. 60〜120 秒の自動 + フォーカス時 + 手動ボタン(推奨) / B. 手動のみ<br>
+  <span class="tag t-opn">推奨</span>A。ETag により 304 は主制限に数えられない(事実)ので、負荷は小さい。</div>
+
+<div class="q"><b>Q7　クレートの追加について</b>
+  keyring、reqwest など Rust の依存追加が複数発生します。<code>pnpm add</code> と同様、追加の都度確認する運用でよいですか?<br>
+  <span class="tag t-opn">推奨</span>はい。2-0 / 2-1 の PR で、追加する名前と理由を先に提示します。</div>
+
+<div class="box" style="margin-top:30px">
+  <p class="src">調査日: 2026-10-21。出典はすべて GitHub 公式ドキュメント(docs.github.com / cli.github.com)、docs.rs、github.com/codemirror/merge のページ内容。ページの取得は要約ツール経由のため、数値や仕様は実装前に原文で再確認してください。</p>
+</div>
+
+</div>
+</body>
+</html>
