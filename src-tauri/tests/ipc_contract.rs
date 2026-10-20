@@ -41,6 +41,7 @@ fn harness() -> Harness {
             create_dir,
             rename_entry,
             delete_entry,
+            duplicate_entry,
             open_in_vscode,
             list_files,
             search_in_project
@@ -777,6 +778,77 @@ fn stage3b2_file_ops_contract() {
     ] {
         assert_eq!(call(&h, cmd, body).unwrap_err(), nope, "{cmd}");
     }
+}
+
+/// N4契約: duplicate_entry の JSON の形と挙動。
+#[test]
+fn stage_n4_duplicate_entry_contract() {
+    let h = harness();
+    let d = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(d.path().join("sub/inner")).unwrap();
+    std::fs::write(d.path().join("sub/メモ a.md"), "本文").unwrap();
+    std::fs::write(d.path().join("sub/inner/x.txt"), "x").unwrap();
+    let id = add_dir(&h, &d);
+
+    // ファイル: FsEntry の形(camelCase)・引数名は relPath
+    let r = call(
+        &h,
+        "duplicate_entry",
+        json!({ "projectId": id, "relPath": "sub/メモ a.md" }),
+    )
+    .unwrap();
+    let mut keys: Vec<&str> = r.as_object().unwrap().keys().map(|k| k.as_str()).collect();
+    keys.sort();
+    assert_eq!(keys, ["kind", "modified", "name", "relPath", "size"]);
+    assert_eq!(r["relPath"], json!("sub/メモ a copy.md"));
+    assert_eq!(r["name"], json!("メモ a copy.md"));
+    assert_eq!(r["kind"], json!("file"));
+    assert_eq!(r["size"], json!(6));
+    assert_eq!(
+        std::fs::read_to_string(d.path().join("sub/メモ a copy.md")).unwrap(),
+        "本文"
+    );
+
+    // 連番・フォルダ(中身ごと)
+    let r = call(
+        &h,
+        "duplicate_entry",
+        json!({ "projectId": id, "relPath": "sub/メモ a.md" }),
+    )
+    .unwrap();
+    assert_eq!(r["relPath"], json!("sub/メモ a copy 2.md"));
+    let r = call(
+        &h,
+        "duplicate_entry",
+        json!({ "projectId": id, "relPath": "sub" }),
+    )
+    .unwrap();
+    assert_eq!(r["kind"], json!("dir"));
+    assert_eq!(r["relPath"], json!("sub copy"));
+    assert!(d.path().join("sub copy/inner/x.txt").is_file());
+    assert!(d.path().join("sub/inner/x.txt").is_file());
+
+    // 拒否系(ルート・不在・外・.git)と未登録プロジェクト
+    for bad in ["", "nope.txt", "../x", ".git", ".git/config"] {
+        assert!(
+            call(
+                &h,
+                "duplicate_entry",
+                json!({ "projectId": id, "relPath": bad })
+            )
+            .is_err(),
+            "{bad}"
+        );
+    }
+    assert_eq!(
+        call(
+            &h,
+            "duplicate_entry",
+            json!({ "projectId": "nope", "relPath": "a" })
+        )
+        .unwrap_err(),
+        json!("プロジェクトが見つかりません")
+    );
 }
 
 /// N2契約: list_files の JSON の形と挙動。

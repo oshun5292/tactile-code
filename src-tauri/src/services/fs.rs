@@ -919,6 +919,167 @@ pub fn delete_entry(root: &Path, rel: &str) -> Result<(), String> {
     trash::delete(plain_path(&t.path)).map_err(|_| "ごみ箱へ移せませんでした".to_string())
 }
 
+// ---------------------------------------------------------------- 複製(段階N4)
+
+/// フォルダ複製の上限(暴走コピーでディスクを埋めないため)
+const MAX_DUP_FILES: usize = 5_000;
+const MAX_DUP_BYTES: u64 = 200 * 1024 * 1024;
+const TOO_BIG: &str = "複製: 大きすぎるため複製できません(5,000ファイル・200MBまで)";
+
+/// `foo.ts` → (`foo`, `.ts`)。先頭のドットだけの名前(`.env`)は拡張子なし扱い。
+fn split_ext(name: &str) -> (&str, &str) {
+    match name.rfind('.') {
+        Some(i) if i > 0 => name.split_at(i),
+        _ => (name, ""),
+    }
+}
+
+/// 複製先の名前: `foo copy.ts` → `foo copy 2.ts` …(最初に空いているもの)。
+fn free_copy_name(parent: &Path, name: &str) -> Result<String, String> {
+    let (stem, ext) = split_ext(name);
+    for n in 1..=10_000u32 {
+        let cand = if n == 1 {
+            format!("{stem} copy{ext}")
+        } else {
+            format!("{stem} copy {n}{ext}")
+        };
+        if !exists_nofollow(&parent.join(&cand)) {
+            return Ok(cand);
+        }
+    }
+    Err("複製の名前を決められませんでした".to_string())
+}
+
+/// 複製の進み具合(上限の判定用)
+struct DupBudget {
+    files: usize,
+    bytes: u64,
+    max_files: usize,
+    max_bytes: u64,
+}
+
+impl DupBudget {
+    fn take(&mut self, size: u64) -> Result<(), String> {
+        self.files += 1;
+        self.bytes = self.bytes.saturating_add(size);
+        if self.files > self.max_files || self.bytes > self.max_bytes {
+            return Err(TOO_BIG.to_string());
+        }
+        Ok(())
+    }
+}
+
+/// 開いた複製先 `output` へ、1ファイルの中身をコピーする(複製先の作成は呼び出し側)。
+fn copy_file_into(
+    src: &Path,
+    output: &mut std::fs::File,
+    budget: &mut DupBudget,
+) -> Result<(), String> {
+    let mut input = std::fs::File::open(src).map_err(|e| io_msg(&e, "複製する"))?;
+    let size = input.metadata().map_err(|e| io_msg(&e, "複製する"))?.len();
+    budget.take(size)?;
+    // 読む間に大きくなっても、予算の残り+1 で止めて超過を検出する
+    let remain = budget.max_bytes.saturating_sub(budget.bytes - size);
+    let copied = std::io::copy(&mut (&mut input).take(remain + 1), output)
+        .map_err(|e| io_msg(&e, "複製する"))?;
+    if copied > remain {
+        return Err(TOO_BIG.to_string());
+    }
+    output.sync_all().map_err(|e| io_msg(&e, "複製する"))
+}
+
+/// 作成済みの複製先フォルダ `dst` へ、中身を再帰コピー。リンクと `.git` と一時ファイルは飛ばす(中へも入らない)。
+fn copy_dir_contents(src: &Path, dst: &Path, budget: &mut DupBudget) -> Result<(), String> {
+    let rd = std::fs::read_dir(src).map_err(|e| io_msg(&e, "フォルダを読む"))?;
+    for ent in rd {
+        let ent = ent.map_err(|e| io_msg(&e, "フォルダを読む"))?;
+        let fname = ent.file_name();
+        let name = fname.to_string_lossy();
+        if is_dot_git(&name) || name.starts_with(TMP_PREFIX) {
+            continue;
+        }
+        let md = std::fs::symlink_metadata(ent.path()).map_err(|e| io_msg(&e, "複製する"))?;
+        if is_reparse(&md) {
+            continue;
+        }
+        let to = dst.join(&fname);
+        if md.is_dir() {
+            std::fs::create_dir(&to).map_err(|e| io_msg(&e, "複製する"))?;
+            copy_dir_contents(&ent.path(), &to, budget)?;
+        } else if md.is_file() {
+            let mut out = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&to)
+                .map_err(|e| io_msg(&e, "複製する"))?;
+            copy_file_into(&ent.path(), &mut out, budget)?;
+        }
+    }
+    Ok(())
+}
+
+pub fn duplicate_entry(root: &Path, rel: &str) -> Result<FsEntry, String> {
+    duplicate_limited(root, rel, MAX_DUP_FILES, MAX_DUP_BYTES)
+}
+
+fn duplicate_limited(
+    root: &Path,
+    rel: &str,
+    max_files: usize,
+    max_bytes: u64,
+) -> Result<FsEntry, String> {
+    let src = locate(root, rel)?;
+    let md = std::fs::symlink_metadata(&src.path).map_err(|e| io_msg(&e, "ファイルを調べる"))?;
+    // リンクはコピーしない(リンク先=外側の実体を、プロジェクトに取り込まないため)
+    if is_reparse(&md) {
+        return Err("リンクは複製できません".to_string());
+    }
+    if !md.is_dir() && !md.is_file() {
+        return Err("複製できない種類のものです".to_string());
+    }
+    let new_name = free_copy_name(&src.parent, &src.name)?;
+    let dst_path = src.parent.join(&new_name);
+    let parent_rel = rel.rsplit_once('/').map_or("", |(p, _)| p);
+    let new_rel = join_rel(parent_rel, &new_name);
+    // 名前の字面も他と同じ検証にかける(予約名などを作らない)
+    validate_rel(&new_rel)?;
+
+    let mut budget = DupBudget {
+        files: 0,
+        bytes: 0,
+        max_files,
+        max_bytes,
+    };
+    // 複製先は create_new / create_dir で作る。ここで失敗したら何も作っていないので、後始末もしない
+    let exists_err = |e: std::io::Error| match e.kind() {
+        std::io::ErrorKind::AlreadyExists => "既存: 同じ名前がすでにあります".to_string(),
+        _ => io_msg(&e, "複製する"),
+    };
+    let result = if md.is_dir() {
+        std::fs::create_dir(&dst_path).map_err(exists_err)?;
+        copy_dir_contents(&src.path, &dst_path, &mut budget)
+    } else {
+        let mut out = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&dst_path)
+            .map_err(exists_err)?;
+        let r = copy_file_into(&src.path, &mut out, &mut budget);
+        drop(out);
+        r
+    };
+    if let Err(e) = result {
+        // ここに来るのは「自分が作った複製」だけ。元(src)には触れない
+        if md.is_dir() {
+            let _ = std::fs::remove_dir_all(&dst_path);
+        } else {
+            let _ = std::fs::remove_file(&dst_path);
+        }
+        return Err(e);
+    }
+    entry_of(&new_rel, &new_name, &dst_path)
+}
+
 /// PATH から実行ファイルを探す。Windows では `code` が code.cmd のため拡張子も試す。
 fn find_in_path(name: &str, path_var: &std::ffi::OsStr) -> Option<PathBuf> {
     let exts: &[&str] = if cfg!(windows) {
@@ -2017,6 +2178,183 @@ mod tests {
             assert!(!err.starts_with("VSCode:"), "{bad}: {err}");
         }
         assert!(open_in_vscode(&d.path().join("gone"), "").is_err());
+    }
+
+    fn tree(root: &Path) -> Vec<String> {
+        fn walk(dir: &Path, base: &Path, out: &mut Vec<String>) {
+            for e in std::fs::read_dir(dir).unwrap().flatten() {
+                let p = e.path();
+                let rel = p
+                    .strip_prefix(base)
+                    .unwrap()
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                if p.is_dir() {
+                    out.push(format!("{rel}/"));
+                    walk(&p, base, out);
+                } else {
+                    out.push(format!("{rel}={}", std::fs::read_to_string(&p).unwrap()));
+                }
+            }
+        }
+        let mut out = Vec::new();
+        walk(root, root, &mut out);
+        out.sort();
+        out
+    }
+
+    #[test]
+    fn duplicate_names_and_numbering() {
+        let d = proj();
+        let p = d.path();
+        for n in ["foo.ts", "noext", ".env", "a.tar.gz", "日本語 メモ.md"] {
+            std::fs::write(p.join(n), n).unwrap();
+        }
+        std::fs::create_dir(p.join("dir.d")).unwrap();
+        let cases = [
+            ("foo.ts", "foo copy.ts"),
+            ("noext", "noext copy"),
+            (".env", ".env copy"),
+            ("a.tar.gz", "a.tar copy.gz"),
+            ("日本語 メモ.md", "日本語 メモ copy.md"),
+            ("dir.d", "dir copy.d"),
+        ];
+        for (src, want) in cases {
+            let e = duplicate_entry(p, src).unwrap();
+            assert_eq!((e.name.as_str(), e.rel_path.as_str()), (want, want));
+            assert_eq!(e.kind == EntryKind::Dir, src == "dir.d");
+        }
+        assert_eq!(
+            std::fs::read_to_string(p.join("foo copy.ts")).unwrap(),
+            "foo.ts"
+        );
+        // 連番(最初に空いているもの)。コピー自体の複製は「copy copy」になる
+        assert_eq!(duplicate_entry(p, "foo.ts").unwrap().name, "foo copy 2.ts");
+        assert_eq!(duplicate_entry(p, "foo.ts").unwrap().name, "foo copy 3.ts");
+        std::fs::remove_file(p.join("foo copy 2.ts")).unwrap();
+        assert_eq!(duplicate_entry(p, "foo.ts").unwrap().name, "foo copy 2.ts");
+        assert_eq!(
+            duplicate_entry(p, "foo copy.ts").unwrap().name,
+            "foo copy copy.ts"
+        );
+        // 元は変わらない
+        assert_eq!(std::fs::read_to_string(p.join("foo.ts")).unwrap(), "foo.ts");
+    }
+
+    #[test]
+    fn duplicate_dir_recursive_skips_git_and_keeps_source() {
+        let d = proj();
+        let p = d.path();
+        std::fs::create_dir_all(p.join("proj 日本語/a/b")).unwrap();
+        std::fs::create_dir_all(p.join("proj 日本語/empty")).unwrap();
+        std::fs::create_dir_all(p.join("proj 日本語/.git")).unwrap();
+        std::fs::write(p.join("proj 日本語/.git/config"), "g").unwrap();
+        std::fs::write(p.join("proj 日本語/a/b/f.txt"), "deep").unwrap();
+        std::fs::write(p.join("proj 日本語/top.md"), "top").unwrap();
+        let before = tree(&p.join("proj 日本語"));
+        let e = duplicate_entry(p, "proj 日本語").unwrap();
+        assert_eq!(e.rel_path, "proj 日本語 copy");
+        assert_eq!(e.kind, EntryKind::Dir);
+        assert_eq!(tree(&p.join("proj 日本語")), before);
+        // .git 以外が、空フォルダも含めて同じ
+        let copy = tree(&p.join("proj 日本語 copy"));
+        let want: Vec<_> = before
+            .iter()
+            .filter(|s| !s.starts_with(".git"))
+            .cloned()
+            .collect();
+        assert_eq!(copy, want);
+        // サブフォルダの中の複製は、relPath が親付きになる
+        let e = duplicate_entry(p, "proj 日本語/a/b/f.txt").unwrap();
+        assert_eq!(e.rel_path, "proj 日本語/a/b/f copy.txt");
+    }
+
+    #[test]
+    fn duplicate_rejects_root_git_missing_and_bad() {
+        let d = proj();
+        let p = d.path();
+        std::fs::write(p.join("a.txt"), "x").unwrap();
+        std::fs::create_dir(p.join(".git")).unwrap();
+        for bad in [
+            "",
+            ".git",
+            ".git/config",
+            "nope",
+            "../a.txt",
+            "/a.txt",
+            "a//b",
+            "a\\b",
+            "CON",
+            "a.txt/x",
+        ] {
+            assert!(duplicate_entry(p, bad).is_err(), "{bad}");
+        }
+        let names: Vec<_> = std::fs::read_dir(p)
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .collect();
+        assert_eq!(names.len(), 2, "{names:?}");
+        assert!(duplicate_entry(&p.join("gone"), "a.txt").is_err());
+    }
+
+    #[test]
+    fn duplicate_limits_clean_up_only_the_copy() {
+        let d = proj();
+        let p = d.path();
+        std::fs::create_dir_all(p.join("big/sub")).unwrap();
+        for i in 0..4 {
+            std::fs::write(p.join("big/sub").join(format!("f{i}.txt")), "12345").unwrap();
+        }
+        let before = tree(&p.join("big"));
+        // ファイル数の上限
+        let err = duplicate_limited(p, "big", 3, 1000).unwrap_err();
+        assert!(err.starts_with("複製:"), "{err}");
+        assert!(!p.join("big copy").exists(), "途中の複製が残った");
+        // バイト数の上限(合計20バイト > 19)
+        assert!(duplicate_limited(p, "big", 100, 19).is_err());
+        assert!(!p.join("big copy").exists());
+        assert_eq!(tree(&p.join("big")), before);
+        // ちょうど上限なら通る
+        duplicate_limited(p, "big", 4, 20).unwrap();
+        assert_eq!(tree(&p.join("big copy")), before);
+        // 単体ファイルも上限の対象。失敗した複製は残らず、元も変わらない
+        std::fs::write(p.join("one.txt"), "123456").unwrap();
+        assert!(duplicate_limited(p, "one.txt", 10, 5).is_err());
+        assert!(!p.join("one copy.txt").exists());
+        assert_eq!(
+            std::fs::read_to_string(p.join("one.txt")).unwrap(),
+            "123456"
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn duplicate_does_not_follow_links() {
+        let d = proj();
+        let outside = proj();
+        std::fs::write(outside.path().join("secret.txt"), "s").unwrap();
+        std::fs::create_dir_all(d.path().join("dir")).unwrap();
+        std::fs::write(d.path().join("dir/ok.txt"), "ok").unwrap();
+        let link = d.path().join("dir").join("lnk");
+        if make_junction(&link, outside.path()).is_none() {
+            eprintln!("ジャンクションを作れないため skip");
+            return;
+        }
+        // フォルダ複製の途中のリンクは飛ばす
+        duplicate_entry(d.path(), "dir").unwrap();
+        assert!(d.path().join("dir copy/ok.txt").is_file());
+        assert!(!d.path().join("dir copy/lnk").exists());
+        // リンク自体は複製しない
+        assert!(duplicate_entry(d.path(), "dir/lnk").is_err());
+        assert!(!d.path().join("dir/lnk copy").exists());
+        // リンクの中を指す経路も拒否
+        assert!(duplicate_entry(d.path(), "dir/lnk/secret.txt").is_err());
+        assert_eq!(
+            std::fs::read_to_string(outside.path().join("secret.txt")).unwrap(),
+            "s"
+        );
+        let _ = std::fs::remove_dir(&link);
     }
 
     #[cfg(windows)]

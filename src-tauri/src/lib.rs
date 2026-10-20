@@ -43,6 +43,7 @@ pub fn run() {
             commands::create_dir,
             commands::rename_entry,
             commands::delete_entry,
+            commands::duplicate_entry,
             commands::open_in_vscode,
             commands::list_files,
             commands::search_in_project
