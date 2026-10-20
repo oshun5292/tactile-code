@@ -27,7 +27,14 @@ pub fn run() {
             commands::update_project_note,
             commands::update_project_description,
             commands::move_project,
-            commands::refresh_project
+            commands::refresh_project,
+            commands::get_board,
+            commands::add_edge,
+            commands::remove_edge,
+            commands::add_stroke,
+            commands::remove_stroke,
+            commands::clear_strokes,
+            commands::save_viewport
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

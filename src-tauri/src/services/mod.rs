@@ -1,3 +1,4 @@
+pub mod board;
 pub mod git;
 pub mod language;
 pub mod paths;
