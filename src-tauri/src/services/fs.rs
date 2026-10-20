@@ -2,7 +2,7 @@
 //! パスの検証は `resolve` に集めてある。list_dir / read_file / write_file は必ずここを通る(漏れ防止)。
 use crate::domain::{
     ContentKind, EditorSession, EntryKind, Eol, FileContent, FileStat, FsEntry, SavedFile,
-    SessionTab,
+    SessionTab, TextEncoding,
 };
 use std::cmp::Ordering;
 use std::io::{Read, Write};
@@ -257,7 +257,233 @@ pub fn list_dir(root: &Path, rel: &str) -> Result<Vec<FsEntry>, String> {
 
 // ---------------------------------------------------------------- 読み込み
 
-pub fn read_file(root: &Path, rel: &str) -> Result<FileContent, String> {
+const BOM_UTF16LE: [u8; 2] = [0xFF, 0xFE];
+const BOM_UTF16BE: [u8; 2] = [0xFE, 0xFF];
+
+/// 文字コードの判定・変換の結果(デコード側)。
+enum Decoded {
+    Text {
+        text: String,
+        encoding: TextEncoding,
+        has_bom: bool,
+    },
+    Binary,
+    Unsupported {
+        encoding: TextEncoding,
+        has_bom: bool,
+    },
+}
+
+/// UTF-16 は encoding_rs ではエンコードできない(デコードだけ)ため、両方向とも手書きで揃える。
+/// 奇数バイトや対の壊れたサロゲートは None(置換文字にしない)。
+fn decode_utf16(body: &[u8], little: bool) -> Option<String> {
+    if !body.len().is_multiple_of(2) {
+        return None;
+    }
+    let (pairs, _) = body.as_chunks::<2>();
+    let units: Vec<u16> = pairs
+        .iter()
+        .map(|&c| {
+            if little {
+                u16::from_le_bytes(c)
+            } else {
+                u16::from_be_bytes(c)
+            }
+        })
+        .collect();
+    String::from_utf16(&units).ok()
+}
+
+fn encode_utf16(text: &str, little: bool) -> Vec<u8> {
+    text.encode_utf16()
+        .flat_map(|u| {
+            if little {
+                u.to_le_bytes()
+            } else {
+                u.to_be_bytes()
+            }
+        })
+        .collect()
+}
+
+fn legacy_encoding(enc: TextEncoding) -> Option<&'static encoding_rs::Encoding> {
+    Some(match enc {
+        TextEncoding::ShiftJis => encoding_rs::SHIFT_JIS,
+        TextEncoding::EucJp => encoding_rs::EUC_JP,
+        TextEncoding::Windows1252 => encoding_rs::WINDOWS_1252,
+        TextEncoding::Gbk => encoding_rs::GBK,
+        TextEncoding::Big5 => encoding_rs::BIG5,
+        TextEncoding::EucKr => encoding_rs::EUC_KR,
+        _ => return None,
+    })
+}
+
+/// BOM の自動処理(encoding_rs の decode)は使わず、不正な並びは置換せず None にする。
+fn decode_legacy(body: &[u8], enc: TextEncoding) -> Option<String> {
+    legacy_encoding(enc)?
+        .decode_without_bom_handling_and_without_replacement(body)
+        .map(|s| s.into_owned())
+}
+
+fn has_nul_in_head(buf: &[u8]) -> bool {
+    buf[..buf.len().min(BINARY_SNIFF)].contains(&0)
+}
+
+/// 自動判定(契約 §3)。BOM → NUL(バイナリ)→ UTF-8 → Shift_JIS → EUC-JP の順。
+fn detect_and_decode(buf: &[u8]) -> Decoded {
+    let utf16 = if buf.starts_with(&BOM_UTF16LE) {
+        Some(true)
+    } else if buf.starts_with(&BOM_UTF16BE) {
+        Some(false)
+    } else {
+        None
+    };
+    if let Some(little) = utf16 {
+        let encoding = if little {
+            TextEncoding::Utf16Le
+        } else {
+            TextEncoding::Utf16Be
+        };
+        return match decode_utf16(&buf[2..], little) {
+            Some(text) => Decoded::Text {
+                text,
+                encoding,
+                has_bom: true,
+            },
+            None => Decoded::Unsupported {
+                encoding,
+                has_bom: true,
+            },
+        };
+    }
+    let has_bom = buf.starts_with(&BOM);
+    let body = if has_bom { &buf[3..] } else { buf };
+    if has_nul_in_head(body) {
+        return Decoded::Binary;
+    }
+    if let Ok(text) = std::str::from_utf8(body) {
+        return Decoded::Text {
+            text: text.to_string(),
+            encoding: TextEncoding::Utf8,
+            has_bom,
+        };
+    }
+    if has_bom {
+        // UTF-8 の BOM があるのに中身が壊れている → 他の文字コードを推測しない
+        return Decoded::Unsupported {
+            encoding: TextEncoding::Utf8,
+            has_bom,
+        };
+    }
+    for encoding in [TextEncoding::ShiftJis, TextEncoding::EucJp] {
+        if let Some(text) = decode_legacy(body, encoding) {
+            return Decoded::Text {
+                text,
+                encoding,
+                has_bom: false,
+            };
+        }
+    }
+    Decoded::Unsupported {
+        encoding: TextEncoding::Utf8,
+        has_bom: false,
+    }
+}
+
+/// 文字コード指定の読み込み。自動判定はせず、不正な並びがあれば Unsupported。
+fn decode_as(buf: &[u8], enc: TextEncoding) -> Decoded {
+    match enc {
+        TextEncoding::Utf16Le | TextEncoding::Utf16Be => {
+            let little = enc == TextEncoding::Utf16Le;
+            let bom: &[u8] = if little { &BOM_UTF16LE } else { &BOM_UTF16BE };
+            let has_bom = buf.starts_with(bom);
+            let body = if has_bom { &buf[2..] } else { buf };
+            match decode_utf16(body, little) {
+                Some(text) => Decoded::Text {
+                    text,
+                    encoding: enc,
+                    has_bom,
+                },
+                None => Decoded::Unsupported {
+                    encoding: enc,
+                    has_bom,
+                },
+            }
+        }
+        TextEncoding::Utf8 => {
+            let has_bom = buf.starts_with(&BOM);
+            let body = if has_bom { &buf[3..] } else { buf };
+            if has_nul_in_head(body) {
+                return Decoded::Binary;
+            }
+            match std::str::from_utf8(body) {
+                Ok(text) => Decoded::Text {
+                    text: text.to_string(),
+                    encoding: enc,
+                    has_bom,
+                },
+                Err(_) => Decoded::Unsupported {
+                    encoding: enc,
+                    has_bom,
+                },
+            }
+        }
+        _ => {
+            if has_nul_in_head(buf) {
+                return Decoded::Binary;
+            }
+            match decode_legacy(buf, enc) {
+                Some(text) => Decoded::Text {
+                    text,
+                    encoding: enc,
+                    has_bom: false,
+                },
+                None => Decoded::Unsupported {
+                    encoding: enc,
+                    has_bom: false,
+                },
+            }
+        }
+    }
+}
+
+/// 本文を指定の文字コードのバイト列にする。表せない文字があれば `変換:` で始まるエラー。
+fn encode_text(text: &str, enc: TextEncoding, has_bom: bool) -> Result<Vec<u8>, String> {
+    match enc {
+        TextEncoding::Utf8 => {
+            let mut out = Vec::with_capacity(text.len() + 3);
+            if has_bom {
+                out.extend_from_slice(&BOM);
+            }
+            out.extend_from_slice(text.as_bytes());
+            Ok(out)
+        }
+        TextEncoding::Utf16Le | TextEncoding::Utf16Be => {
+            let little = enc == TextEncoding::Utf16Le;
+            // BOM 無しの UTF-16 は自動判定できず開けなくなるため、常に付ける
+            let mut out: Vec<u8> = if little { BOM_UTF16LE } else { BOM_UTF16BE }.to_vec();
+            out.extend(encode_utf16(text, little));
+            Ok(out)
+        }
+        _ => {
+            let e = legacy_encoding(enc).ok_or("変換: 未対応の文字コードです")?;
+            let (bytes, _, had_errors) = e.encode(text);
+            if had_errors {
+                return Err(format!(
+                    "変換: 一部の文字が {} で表せません",
+                    e.name().to_lowercase()
+                ));
+            }
+            Ok(bytes.into_owned())
+        }
+    }
+}
+
+pub fn read_file(
+    root: &Path,
+    rel: &str,
+    encoding: Option<TextEncoding>,
+) -> Result<FileContent, String> {
     let f = resolve(root, rel)?;
     if !f.path.is_file() {
         return Err("ファイルではありません".to_string());
@@ -265,7 +491,7 @@ pub fn read_file(root: &Path, rel: &str) -> Result<FileContent, String> {
     let mut file = std::fs::File::open(&f.path).map_err(|e| io_msg(&e, "ファイルを開く"))?;
     let md = file.metadata().map_err(|e| io_msg(&e, "ファイルを読む"))?;
     let modified = modified_of(&md).ok_or("更新日時を取得できませんでした")?;
-    let mk = |kind, content, size, eol, has_bom| FileContent {
+    let mk = |kind, content, size, eol, has_bom, encoding| FileContent {
         rel_path: rel.to_string(),
         kind,
         content,
@@ -273,9 +499,18 @@ pub fn read_file(root: &Path, rel: &str) -> Result<FileContent, String> {
         modified: modified.clone(),
         eol,
         has_bom,
+        encoding,
     };
+    let default_enc = encoding.unwrap_or(TextEncoding::Utf8);
     if md.len() > MAX_BYTES {
-        return Ok(mk(ContentKind::TooLarge, None, md.len(), Eol::Lf, false));
+        return Ok(mk(
+            ContentKind::TooLarge,
+            None,
+            md.len(),
+            Eol::Lf,
+            false,
+            default_enc,
+        ));
     }
     let mut buf = Vec::new();
     // 読む間に大きくなっても、上限+1 で止める
@@ -285,33 +520,55 @@ pub fn read_file(root: &Path, rel: &str) -> Result<FileContent, String> {
         .map_err(|e| io_msg(&e, "ファイルを読む"))?;
     let size = buf.len() as u64;
     if size > MAX_BYTES {
-        return Ok(mk(ContentKind::TooLarge, None, size, Eol::Lf, false));
-    }
-    if buf[..buf.len().min(BINARY_SNIFF)].contains(&0) {
-        return Ok(mk(ContentKind::Binary, None, size, Eol::Lf, false));
-    }
-    let has_bom = buf.starts_with(&BOM);
-    let body = if has_bom { &buf[3..] } else { &buf[..] };
-    let Ok(text) = std::str::from_utf8(body) else {
         return Ok(mk(
+            ContentKind::TooLarge,
+            None,
+            size,
+            Eol::Lf,
+            false,
+            default_enc,
+        ));
+    }
+    let decoded = match encoding {
+        Some(enc) => decode_as(&buf, enc),
+        None => detect_and_decode(&buf),
+    };
+    match decoded {
+        Decoded::Binary => Ok(mk(
+            ContentKind::Binary,
+            None,
+            size,
+            Eol::Lf,
+            false,
+            default_enc,
+        )),
+        Decoded::Unsupported { encoding, has_bom } => Ok(mk(
             ContentKind::UnsupportedEncoding,
             None,
             size,
             Eol::Lf,
             has_bom,
-        ));
-    };
-    let eol = match text.find('\n') {
-        Some(i) if i > 0 && text.as_bytes()[i - 1] == b'\r' => Eol::Crlf,
-        _ => Eol::Lf,
-    };
-    Ok(mk(
-        ContentKind::Text,
-        Some(text.replace("\r\n", "\n")),
-        size,
-        eol,
-        has_bom,
-    ))
+            encoding,
+        )),
+        Decoded::Text {
+            text,
+            encoding,
+            has_bom,
+        } => {
+            let eol = match text.find('\n') {
+                Some(i) if i > 0 && text.as_bytes()[i - 1] == b'\r' => Eol::Crlf,
+                _ => Eol::Lf,
+            };
+            Ok(mk(
+                ContentKind::Text,
+                Some(text.replace("\r\n", "\n")),
+                size,
+                eol,
+                has_bom,
+                encoding,
+            ))
+        }
+    }
 }
 
 // ---------------------------------------------------------------- 書き込み
@@ -321,6 +578,7 @@ pub struct WriteRequest<'a> {
     pub expected_modified: Option<&'a str>,
     pub eol: Eol,
     pub has_bom: bool,
+    pub encoding: TextEncoding,
     pub force: bool,
 }
 
@@ -342,18 +600,17 @@ pub fn write_file(root: &Path, rel: &str, req: &WriteRequest) -> Result<SavedFil
         .parent()
         .ok_or("保存先のフォルダを解決できませんでした")?;
 
-    let mut bytes = Vec::with_capacity(req.content.len() + 3);
-    if req.has_bom {
-        bytes.extend_from_slice(&BOM);
-    }
-    match req.eol {
-        Eol::Lf => bytes.extend_from_slice(req.content.as_bytes()),
-        Eol::Crlf => bytes.extend_from_slice(
-            req.content
-                .replace("\r\n", "\n")
-                .replace('\n', "\r\n")
-                .as_bytes(),
-        ),
+    // 改行を整えてから文字コードへ変換する(変換できなければ、何も書かずに失敗)
+    let text = match req.eol {
+        Eol::Lf => std::borrow::Cow::Borrowed(req.content),
+        Eol::Crlf => {
+            std::borrow::Cow::Owned(req.content.replace("\r\n", "\n").replace('\n', "\r\n"))
+        }
+    };
+    let bytes = encode_text(&text, req.encoding, req.has_bom)?;
+    // UTF-16 などは UTF-8 より大きくなるので、変換後のサイズでも上限を守る
+    if bytes.len() as u64 > MAX_BYTES {
+        return Err("2MBを超えるため保存できません".to_string());
     }
 
     // 同じフォルダに書いてから置き換える(途中で失敗しても元のファイルは壊れない)
@@ -659,6 +916,7 @@ mod tests {
             expected_modified: expected,
             eol: Eol::Lf,
             has_bom: false,
+            encoding: TextEncoding::Utf8,
             force,
         }
     }
@@ -693,7 +951,10 @@ mod tests {
             "sub/.GIT/HEAD",
         ];
         for rel in bad {
-            assert!(read_file(d.path(), rel).is_err(), "読めてしまった: {rel}");
+            assert!(
+                read_file(d.path(), rel, None).is_err(),
+                "読めてしまった: {rel}"
+            );
             assert!(list_dir(d.path(), rel).is_err(), "一覧できた: {rel}");
             assert!(
                 write_file(d.path(), rel, &req("x", None, true)).is_err(),
@@ -702,8 +963,8 @@ mod tests {
         }
         // 正常なものは通る(予約名に似ているだけの名前)
         std::fs::write(d.path().join("console.txt"), "ok").unwrap();
-        assert!(read_file(d.path(), "console.txt").is_ok());
-        assert!(read_file(d.path(), "a.txt").is_ok());
+        assert!(read_file(d.path(), "console.txt", None).is_ok());
+        assert!(read_file(d.path(), "a.txt", None).is_ok());
     }
 
     #[test]
@@ -711,7 +972,7 @@ mod tests {
         let d = proj();
         std::fs::create_dir(d.path().join(".git")).unwrap();
         std::fs::write(d.path().join(".git").join("config"), "x").unwrap();
-        assert!(read_file(d.path(), ".git/config").is_err());
+        assert!(read_file(d.path(), ".git/config", None).is_err());
         assert!(write_file(d.path(), ".git/config", &req("y", None, true)).is_err());
         assert_eq!(
             std::fs::read_to_string(d.path().join(".git").join("config")).unwrap(),
@@ -779,26 +1040,32 @@ mod tests {
         let p = d.path();
         std::fs::write(p.join("t.txt"), "あ\nb").unwrap();
         std::fs::write(p.join("bin.dat"), [b'a', 0, b'b']).unwrap();
-        std::fs::write(p.join("sjis.txt"), [0x82, 0xA0]).unwrap();
+        std::fs::write(p.join("sjis.txt"), [0x81, 0x20]).unwrap(); // どの文字コードでも不正な並び
         std::fs::write(p.join("big.txt"), vec![b'a'; (MAX_BYTES + 1) as usize]).unwrap();
         std::fs::write(p.join("edge.txt"), vec![b'a'; MAX_BYTES as usize]).unwrap();
 
-        let t = read_file(p, "t.txt").unwrap();
+        let t = read_file(p, "t.txt", None).unwrap();
         assert_eq!(t.kind, ContentKind::Text);
         assert_eq!(t.content.as_deref(), Some("あ\nb"));
         assert_eq!(t.eol, Eol::Lf);
         assert!(!t.has_bom);
         assert!(t.modified.contains('T'));
-        assert_eq!(read_file(p, "bin.dat").unwrap().kind, ContentKind::Binary);
-        let s = read_file(p, "sjis.txt").unwrap();
+        assert_eq!(
+            read_file(p, "bin.dat", None).unwrap().kind,
+            ContentKind::Binary
+        );
+        let s = read_file(p, "sjis.txt", None).unwrap();
         assert_eq!(s.kind, ContentKind::UnsupportedEncoding);
         assert!(s.content.is_none());
-        let b = read_file(p, "big.txt").unwrap();
+        let b = read_file(p, "big.txt", None).unwrap();
         assert_eq!(b.kind, ContentKind::TooLarge);
         assert!(b.content.is_none());
-        assert_eq!(read_file(p, "edge.txt").unwrap().kind, ContentKind::Text);
-        assert!(read_file(p, "nope.txt").is_err());
-        assert!(read_file(p, "").is_err()); // フォルダは読めない
+        assert_eq!(
+            read_file(p, "edge.txt", None).unwrap().kind,
+            ContentKind::Text
+        );
+        assert!(read_file(p, "nope.txt", None).is_err());
+        assert!(read_file(p, "", None).is_err()); // フォルダは読めない
     }
 
     #[test]
@@ -814,7 +1081,7 @@ mod tests {
         for (i, orig) in cases.iter().enumerate() {
             let name = format!("f{i}.txt");
             std::fs::write(p.join(&name), orig).unwrap();
-            let r = read_file(p, &name).unwrap();
+            let r = read_file(p, &name, None).unwrap();
             let c = r.content.clone().unwrap();
             assert!(!c.contains('\r'));
             let w = WriteRequest {
@@ -822,6 +1089,7 @@ mod tests {
                 expected_modified: Some(&r.modified),
                 eol: r.eol,
                 has_bom: r.has_bom,
+                encoding: r.encoding,
                 force: false,
             };
             write_file(p, &name, &w).unwrap();
@@ -829,7 +1097,7 @@ mod tests {
         }
         // 最初の改行が CRLF かどうか
         std::fs::write(p.join("m.txt"), "a\nb\r\n").unwrap();
-        assert_eq!(read_file(p, "m.txt").unwrap().eol, Eol::Lf);
+        assert_eq!(read_file(p, "m.txt", None).unwrap().eol, Eol::Lf);
     }
 
     #[test]
@@ -837,11 +1105,14 @@ mod tests {
         let d = proj();
         let p = d.path();
         std::fs::write(p.join("a.txt"), "v1").unwrap();
-        let r = read_file(p, "a.txt").unwrap();
+        let r = read_file(p, "a.txt", None).unwrap();
         // 変更なし → 通る
         let saved = write_file(p, "a.txt", &req("v2", Some(&r.modified), false)).unwrap();
         assert_eq!(saved.size, 2);
-        assert_eq!(read_file(p, "a.txt").unwrap().modified, saved.modified);
+        assert_eq!(
+            read_file(p, "a.txt", None).unwrap().modified,
+            saved.modified
+        );
         // 外部で変更 → 競合
         std::thread::sleep(std::time::Duration::from_millis(30));
         std::fs::write(p.join("a.txt"), "external").unwrap();
@@ -938,7 +1209,7 @@ mod tests {
             eprintln!("ジャンクションを作れないため skip");
             return;
         }
-        assert!(read_file(d.path(), "link/secret.txt").is_err());
+        assert!(read_file(d.path(), "link/secret.txt", None).is_err());
         assert!(list_dir(d.path(), "link").is_err());
         assert!(write_file(d.path(), "link/secret.txt", &req("x", None, true)).is_err());
         assert_eq!(
@@ -965,7 +1236,7 @@ mod tests {
             eprintln!("シンボリックリンクを作れないため skip");
             return;
         }
-        assert!(read_file(d.path(), "flink").is_err());
+        assert!(read_file(d.path(), "flink", None).is_err());
         assert!(write_file(d.path(), "flink", &req("x", None, true)).is_err());
         assert!(list_dir(d.path(), "").unwrap().is_empty());
         assert_eq!(
@@ -981,9 +1252,229 @@ mod tests {
         std::fs::write(d.path().join("a.txt"), "x").unwrap();
         // ルートの綴りの大文字小文字が違っても、内側と判定される
         let upper = PathBuf::from(d.path().to_string_lossy().to_uppercase());
-        assert!(read_file(&upper, "a.txt").is_ok());
+        assert!(read_file(&upper, "a.txt", None).is_ok());
         // ファイル名の大文字小文字違い(Windows)
-        assert!(read_file(d.path(), "A.TXT").is_ok());
+        assert!(read_file(d.path(), "A.TXT", None).is_ok());
+    }
+
+    // ---- 段階3b-3: 文字コード ----
+
+    fn text_of(p: &Path, name: &str, enc: Option<TextEncoding>) -> FileContent {
+        read_file(p, name, enc).unwrap()
+    }
+
+    fn save(
+        p: &Path,
+        name: &str,
+        content: &str,
+        enc: TextEncoding,
+        bom: bool,
+    ) -> Result<SavedFile, String> {
+        let w = WriteRequest {
+            content,
+            expected_modified: None,
+            eol: Eol::Lf,
+            has_bom: bom,
+            encoding: enc,
+            force: true,
+        };
+        write_file(p, name, &w)
+    }
+
+    fn utf16_bytes(s: &str, little: bool, bom: bool) -> Vec<u8> {
+        let mut v = Vec::new();
+        if bom {
+            v.extend(if little { [0xFF, 0xFE] } else { [0xFE, 0xFF] });
+        }
+        v.extend(encode_utf16(s, little));
+        v
+    }
+
+    #[test]
+    fn detect_boms_and_utf8() {
+        let d = proj();
+        let p = d.path();
+        std::fs::write(p.join("u8.txt"), "\u{FEFF}日本語".as_bytes()).unwrap();
+        std::fs::write(
+            p.join("le.txt"),
+            utf16_bytes("a日\u{1F600}\r\nb", true, true),
+        )
+        .unwrap();
+        std::fs::write(p.join("be.txt"), utf16_bytes("a日", false, true)).unwrap();
+        std::fs::write(p.join("plain.txt"), "日本語".as_bytes()).unwrap();
+        let r = text_of(p, "u8.txt", None);
+        assert_eq!((r.encoding, r.has_bom), (TextEncoding::Utf8, true));
+        assert_eq!(r.content.as_deref(), Some("日本語"));
+        let r = text_of(p, "le.txt", None);
+        assert_eq!(
+            (r.encoding, r.has_bom, r.eol),
+            (TextEncoding::Utf16Le, true, Eol::Crlf)
+        );
+        assert_eq!(r.content.as_deref(), Some("a日\u{1F600}\nb"));
+        let r = text_of(p, "be.txt", None);
+        assert_eq!((r.encoding, r.has_bom), (TextEncoding::Utf16Be, true));
+        assert_eq!(r.content.as_deref(), Some("a日"));
+        let r = text_of(p, "plain.txt", None);
+        assert_eq!((r.encoding, r.has_bom), (TextEncoding::Utf8, false));
+    }
+
+    #[test]
+    fn detect_shift_jis_euc_jp_and_unknown() {
+        let d = proj();
+        let p = d.path();
+        let (sj, _, _) = encoding_rs::SHIFT_JIS.encode("日本語のテキスト");
+        let (euc, _, _) = encoding_rs::EUC_JP.encode("日本語のテキスト");
+        std::fs::write(p.join("sj.txt"), &sj).unwrap();
+        std::fs::write(p.join("euc.txt"), &euc).unwrap();
+        // 先頭 0x81 に ASCII が続く並びは、UTF-8・Shift_JIS・EUC-JP のどれでもない
+        std::fs::write(p.join("bad.txt"), [b'a', 0x81, 0x20]).unwrap();
+        // BOM の無い UTF-16 は NUL を含むのでバイナリ扱い
+        std::fs::write(p.join("nobom16.txt"), utf16_bytes("abc", true, false)).unwrap();
+        std::fs::write(p.join("badbom.txt"), [0xEF, 0xBB, 0xBF, 0x81, 0x20]).unwrap();
+        std::fs::write(p.join("odd16.txt"), [0xFF, 0xFE, 0x41]).unwrap();
+        let r = text_of(p, "sj.txt", None);
+        assert_eq!(r.encoding, TextEncoding::ShiftJis);
+        assert_eq!(r.content.as_deref(), Some("日本語のテキスト"));
+        assert!(!r.has_bom);
+        let r = text_of(p, "euc.txt", None);
+        assert_eq!(r.encoding, TextEncoding::EucJp);
+        assert_eq!(r.content.as_deref(), Some("日本語のテキスト"));
+        let kind = |n: &str| text_of(p, n, None).kind;
+        assert_eq!(kind("bad.txt"), ContentKind::UnsupportedEncoding);
+        assert_eq!(kind("nobom16.txt"), ContentKind::Binary);
+        assert_eq!(kind("badbom.txt"), ContentKind::UnsupportedEncoding);
+        assert_eq!(kind("odd16.txt"), ContentKind::UnsupportedEncoding);
+    }
+
+    #[test]
+    fn byte_roundtrip_per_encoding() {
+        let d = proj();
+        let p = d.path();
+        let text = "日本語のテキスト\r\n二行目\r\n";
+        let cases: Vec<(&str, Vec<u8>)> = vec![
+            ("sj", encoding_rs::SHIFT_JIS.encode(text).0.into_owned()),
+            ("euc", encoding_rs::EUC_JP.encode(text).0.into_owned()),
+            ("le", utf16_bytes(text, true, true)),
+            ("be", utf16_bytes(text, false, true)),
+            ("u8", text.as_bytes().to_vec()),
+            ("u8bom", [&BOM[..], text.as_bytes()].concat()),
+        ];
+        for (name, orig) in cases {
+            let name = format!("{name}.txt");
+            std::fs::write(p.join(&name), &orig).unwrap();
+            let r = text_of(p, &name, None);
+            assert_eq!(r.kind, ContentKind::Text, "{name}");
+            let w = WriteRequest {
+                content: r.content.as_deref().unwrap(),
+                expected_modified: Some(&r.modified),
+                eol: r.eol,
+                has_bom: r.has_bom,
+                encoding: r.encoding,
+                force: false,
+            };
+            write_file(p, &name, &w).unwrap();
+            assert_eq!(std::fs::read(p.join(&name)).unwrap(), orig, "{name}");
+        }
+    }
+
+    #[test]
+    fn unmappable_chars_refuse_to_write() {
+        let d = proj();
+        let p = d.path();
+        std::fs::write(p.join("a.txt"), "keep").unwrap();
+        let err = save(
+            p,
+            "a.txt",
+            "絵文字 \u{1F600}",
+            TextEncoding::ShiftJis,
+            false,
+        )
+        .unwrap_err();
+        assert!(err.starts_with("変換:"), "{err}");
+        assert!(err.contains("shift_jis"), "{err}");
+        let err = save(p, "a.txt", "日本語", TextEncoding::Windows1252, false).unwrap_err();
+        assert!(err.starts_with("変換:"), "{err}");
+        // 元のファイルは無傷で、一時ファイルも残らない
+        assert_eq!(std::fs::read_to_string(p.join("a.txt")).unwrap(), "keep");
+        assert_eq!(std::fs::read_dir(p).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn utf16_always_gets_bom_and_surrogates_roundtrip() {
+        let d = proj();
+        let p = d.path();
+        std::fs::write(p.join("a.txt"), "x").unwrap();
+        // hasBom=false を渡しても、UTF-16 は BOM を付けて保存する
+        save(p, "a.txt", "a\u{1F600}", TextEncoding::Utf16Le, false).unwrap();
+        assert_eq!(
+            std::fs::read(p.join("a.txt")).unwrap(),
+            [0xFF, 0xFE, 0x61, 0x00, 0x3D, 0xD8, 0x00, 0xDE]
+        );
+        save(p, "a.txt", "a", TextEncoding::Utf16Be, false).unwrap();
+        assert_eq!(
+            std::fs::read(p.join("a.txt")).unwrap(),
+            [0xFE, 0xFF, 0x00, 0x61]
+        );
+        let r = text_of(p, "a.txt", None);
+        assert_eq!((r.encoding, r.has_bom), (TextEncoding::Utf16Be, true));
+    }
+
+    #[test]
+    fn change_encoding_on_save() {
+        let d = proj();
+        let p = d.path();
+        std::fs::write(p.join("a.txt"), "日本語".as_bytes()).unwrap();
+        // UTF-8 の本文を Shift_JIS で保存 → 読み直すと Shift_JIS と判定される
+        save(p, "a.txt", "日本語のテキスト", TextEncoding::ShiftJis, true).unwrap();
+        let bytes = std::fs::read(p.join("a.txt")).unwrap();
+        assert!(
+            !bytes.starts_with(&BOM),
+            "UTF-8 以外には UTF-8 の BOM を付けない"
+        );
+        assert_eq!(text_of(p, "a.txt", None).encoding, TextEncoding::ShiftJis);
+    }
+
+    #[test]
+    fn read_with_explicit_encoding() {
+        let d = proj();
+        let p = d.path();
+        let (sj, _, _) = encoding_rs::SHIFT_JIS.encode("日本語のテキスト");
+        std::fs::write(p.join("sj.txt"), &sj).unwrap();
+        std::fs::write(p.join("u8.txt"), "日本語".as_bytes()).unwrap();
+        std::fs::write(p.join("bad.txt"), [b'a', 0x81, 0x20]).unwrap();
+        std::fs::write(p.join("le.txt"), utf16_bytes("abc", true, false)).unwrap();
+        std::fs::write(p.join("bin.dat"), [b'a', 0, 0x82, 0xA0]).unwrap();
+        // 指定どおりに読む
+        let r = text_of(p, "sj.txt", Some(TextEncoding::ShiftJis));
+        assert_eq!(r.content.as_deref(), Some("日本語のテキスト"));
+        assert_eq!(r.encoding, TextEncoding::ShiftJis);
+        // 誤った指定は、置換文字にせず unsupportedEncoding(指定した文字コードを返す)
+        let r = text_of(p, "sj.txt", Some(TextEncoding::Utf8));
+        assert_eq!(r.kind, ContentKind::UnsupportedEncoding);
+        assert!(r.content.is_none());
+        assert_eq!(r.encoding, TextEncoding::Utf8);
+        // 自動判定の対象外の文字コードも、指定すれば読める
+        let r = text_of(p, "u8.txt", Some(TextEncoding::Windows1252));
+        assert_eq!(r.kind, ContentKind::Text);
+        assert_eq!(r.encoding, TextEncoding::Windows1252);
+        assert_ne!(r.content.as_deref(), Some("日本語"));
+        assert_eq!(
+            text_of(p, "bad.txt", Some(TextEncoding::ShiftJis)).kind,
+            ContentKind::UnsupportedEncoding
+        );
+        // BOM 無し UTF-16 は、指定すれば読める
+        let r = text_of(p, "le.txt", Some(TextEncoding::Utf16Le));
+        assert_eq!(r.content.as_deref(), Some("abc"));
+        assert!(!r.has_bom);
+        // NUL を含む非 UTF-16 指定はバイナリ
+        assert_eq!(
+            text_of(p, "bin.dat", Some(TextEncoding::ShiftJis)).kind,
+            ContentKind::Binary
+        );
+        // 指定読みでも UTF-8 の BOM は外して hasBom に反映
+        std::fs::write(p.join("bom.txt"), [&BOM[..], "あ".as_bytes()].concat()).unwrap();
+        let r = text_of(p, "bom.txt", Some(TextEncoding::Utf8));
+        assert_eq!((r.content.as_deref(), r.has_bom), (Some("あ"), true));
     }
 
     // ---- 段階3b-1: stat_files / sanitize_session ----
@@ -1022,7 +1513,7 @@ mod tests {
     fn stat_modified_matches_read_file_and_changes_on_write() {
         let d = proj();
         std::fs::write(d.path().join("a.txt"), "x").unwrap();
-        let read = read_file(d.path(), "a.txt").unwrap();
+        let read = read_file(d.path(), "a.txt", None).unwrap();
         let st = stat_files(d.path(), &strs(&["a.txt"])).unwrap();
         assert_eq!(st[0].modified.as_deref(), Some(read.modified.as_str()));
         // 自分の保存の戻り値とも一致する(誤検知しない)

@@ -188,6 +188,29 @@ pub enum Eol {
     Crlf,
 }
 
+/// 扱える文字コード(段階3b-3)。名前は src/api/types.ts の ENCODINGS と一致させる。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TextEncoding {
+    #[serde(rename = "utf-8")]
+    Utf8,
+    #[serde(rename = "shift_jis")]
+    ShiftJis,
+    #[serde(rename = "euc-jp")]
+    EucJp,
+    #[serde(rename = "utf-16le")]
+    Utf16Le,
+    #[serde(rename = "utf-16be")]
+    Utf16Be,
+    #[serde(rename = "windows-1252")]
+    Windows1252,
+    #[serde(rename = "gbk")]
+    Gbk,
+    #[serde(rename = "big5")]
+    Big5,
+    #[serde(rename = "euc-kr")]
+    EucKr,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FileContent {
@@ -198,6 +221,7 @@ pub struct FileContent {
     pub modified: String,
     pub eol: Eol,
     pub has_bom: bool,
+    pub encoding: TextEncoding,
 }
 
 #[derive(Debug, Clone, Serialize)]
