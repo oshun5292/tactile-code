@@ -1,7 +1,7 @@
 //! Tauri コマンドの入口(薄く保つ。処理は services / storage)。
 use crate::domain::{
-    BoardState, Eol, FileContent, FsEntry, Position, ProjectSummary, SavedFile, StoredProject,
-    Stroke, Viewport,
+    BoardState, EditorSession, Eol, FileContent, FileStat, FsEntry, Position, ProjectSummary,
+    SavedFile, StoredProject, Stroke, Viewport,
 };
 use crate::services::{board, fs, paths, summary::build_summary};
 use crate::storage::Store;
@@ -81,6 +81,7 @@ pub async fn add_project(path: String, store: State<'_, Store>) -> Result<Projec
                 note: String::new(),
                 description_override: None,
                 position: free_grid_slot(&data.projects),
+                editor_session: None,
             };
             data.projects.push(p.clone());
             Ok(p)
@@ -301,6 +302,53 @@ pub async fn write_file(
             force,
         };
         fs::write_file(&project_root(s, &project_id)?, &rel_path, &req)
+    })
+    .await
+}
+
+// ---- 段階3b-1: 外部変更の検知とタブの復元 ----
+
+#[tauri::command]
+pub async fn stat_files(
+    project_id: String,
+    rel_paths: Vec<String>,
+    store: State<'_, Store>,
+) -> Result<Vec<FileStat>, String> {
+    run_store(&store, move |s| {
+        fs::stat_files(&project_root(s, &project_id)?, &rel_paths)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn get_editor_session(
+    project_id: String,
+    store: State<'_, Store>,
+) -> Result<Option<EditorSession>, String> {
+    run_store(&store, move |s| {
+        s.read()
+            .projects
+            .into_iter()
+            .find(|p| p.id == project_id)
+            .map(|p| p.editor_session)
+            .ok_or_else(|| "プロジェクトが見つかりません".to_string())
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn save_editor_session(
+    project_id: String,
+    data: EditorSession,
+    store: State<'_, Store>,
+) -> Result<(), String> {
+    // 不正なパスの除去と上限の切り詰めは保存前に行う(エラーにしない)
+    let data = fs::sanitize_session(data);
+    run_store(&store, move |s| {
+        s.update(|all| {
+            find(all, &project_id)?.editor_session = Some(data);
+            Ok(())
+        })
     })
     .await
 }

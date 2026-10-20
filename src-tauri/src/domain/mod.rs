@@ -61,6 +61,44 @@ pub struct StoredProject {
     #[serde(default)]
     pub description_override: Option<String>,
     pub position: Position,
+    /// 段階3b-1: エディタの復元用。古いファイルには無いので default で読む。
+    /// 無いときは書き出さず、ファイルの形を変えない(schemaVersion は 2 のまま)。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub editor_session: Option<EditorSession>,
+}
+
+/// マークダウンの表示モード(フロントの "write" | "split" | "read")。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MdMode {
+    Write,
+    Split,
+    Read,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionTab {
+    pub rel_path: String,
+    pub md_mode: MdMode,
+}
+
+/// 再起動後に復元する、プロジェクトごとのエディタの状態(契約書 docs/stage3b1-contract.md §2)。
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EditorSession {
+    pub tabs: Vec<SessionTab>,
+    pub active: Option<String>,
+    pub expanded: Vec<String>,
+}
+
+/// stat_files の1件分。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileStat {
+    pub rel_path: String,
+    pub exists: bool,
+    pub modified: Option<String>,
 }
 
 /// 手書き1本。points はボード(フロー)座標。

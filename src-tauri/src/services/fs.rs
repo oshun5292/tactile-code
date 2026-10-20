@@ -1,6 +1,9 @@
 //! エディタのためのファイル操作(一覧・読み込み・保存)。契約書 docs/stage3-contract.md §4。
 //! パスの検証は `resolve` に集めてある。list_dir / read_file / write_file は必ずここを通る(漏れ防止)。
-use crate::domain::{ContentKind, EntryKind, Eol, FileContent, FsEntry, SavedFile};
+use crate::domain::{
+    ContentKind, EditorSession, EntryKind, Eol, FileContent, FileStat, FsEntry, SavedFile,
+    SessionTab,
+};
 use std::cmp::Ordering;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -398,6 +401,66 @@ fn write_tmp_and_replace(
     std::fs::rename(tmp, target).map_err(|e| io_msg(&e, "保存する"))
 }
 
+// ---------------------------------------------------------------- 外部変更の検知・セッション(段階3b-1)
+
+pub const MAX_STAT_FILES: usize = 200;
+pub const MAX_SESSION_TABS: usize = 200;
+pub const MAX_SESSION_EXPANDED: usize = 500;
+pub const MAX_SESSION_PATH_CHARS: usize = 1000;
+
+/// 更新日時だけを返す。無い・読めない・パスが不正は exists:false(1件の失敗で全体を止めない)。
+/// 検証は他と同じ resolve を通す(リンクで外を覗かせない)。
+pub fn stat_files(root: &Path, rels: &[String]) -> Result<Vec<FileStat>, String> {
+    if rels.len() > MAX_STAT_FILES {
+        return Err(format!("一度に調べられるのは{MAX_STAT_FILES}件までです"));
+    }
+    Ok(rels
+        .iter()
+        .map(|rel| {
+            let modified = resolve(root, rel)
+                .ok()
+                .and_then(|f| std::fs::metadata(&f.path).ok())
+                .filter(|md| md.is_file())
+                .and_then(|md| modified_of(&md));
+            FileStat {
+                rel_path: rel.clone(),
+                // 更新日時が取れないファイルは、比較できないので「無い」側に倒す
+                exists: modified.is_some(),
+                modified,
+            }
+        })
+        .collect())
+}
+
+/// 保存前の整え。字面が不正なパスは落とし、長すぎる文字列と件数は切り詰める(エラーにしない)。
+/// 存在確認はしない(復元時にフロントが捨てる)。
+pub fn sanitize_session(s: EditorSession) -> EditorSession {
+    let clean = |p: String| -> Option<String> {
+        let p: String = p.chars().take(MAX_SESSION_PATH_CHARS).collect();
+        validate_rel(&p).is_ok().then_some(p)
+    };
+    EditorSession {
+        tabs: s
+            .tabs
+            .into_iter()
+            .filter_map(|t| {
+                clean(t.rel_path).map(|rel_path| SessionTab {
+                    rel_path,
+                    md_mode: t.md_mode,
+                })
+            })
+            .take(MAX_SESSION_TABS)
+            .collect(),
+        active: s.active.and_then(clean),
+        expanded: s
+            .expanded
+            .into_iter()
+            .filter_map(clean)
+            .take(MAX_SESSION_EXPANDED)
+            .collect(),
+    }
+}
+
 // ---------------------------------------------------------------- テスト
 
 #[cfg(test)]
@@ -739,5 +802,151 @@ mod tests {
         assert!(read_file(&upper, "a.txt").is_ok());
         // ファイル名の大文字小文字違い(Windows)
         assert!(read_file(d.path(), "A.TXT").is_ok());
+    }
+
+    // ---- 段階3b-1: stat_files / sanitize_session ----
+
+    fn strs(v: &[&str]) -> Vec<String> {
+        v.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn stat_existing_missing_and_bad_paths_keep_order() {
+        let d = proj();
+        std::fs::write(d.path().join("a.txt"), "x").unwrap();
+        std::fs::create_dir(d.path().join("dir")).unwrap();
+        let rels = strs(&[
+            "a.txt",
+            "nope.txt",
+            "../a.txt",
+            "dir",
+            ".git/config",
+            "a.txt",
+        ]);
+        let got = stat_files(d.path(), &rels).unwrap();
+        assert_eq!(got.len(), rels.len());
+        for (g, r) in got.iter().zip(&rels) {
+            assert_eq!(&g.rel_path, r);
+        }
+        assert!(got[0].exists && got[0].modified.is_some());
+        assert_eq!(got[0].modified, got[5].modified);
+        // 不在・不正・フォルダは exists:false で modified は null
+        for g in &got[1..=4] {
+            assert!(!g.exists && g.modified.is_none(), "{}", g.rel_path);
+        }
+    }
+
+    #[test]
+    fn stat_modified_matches_read_file_and_changes_on_write() {
+        let d = proj();
+        std::fs::write(d.path().join("a.txt"), "x").unwrap();
+        let read = read_file(d.path(), "a.txt").unwrap();
+        let st = stat_files(d.path(), &strs(&["a.txt"])).unwrap();
+        assert_eq!(st[0].modified.as_deref(), Some(read.modified.as_str()));
+        // 自分の保存の戻り値とも一致する(誤検知しない)
+        let saved = write_file(d.path(), "a.txt", &req("yy", None, true)).unwrap();
+        let st = stat_files(d.path(), &strs(&["a.txt"])).unwrap();
+        assert_eq!(st[0].modified.as_deref(), Some(saved.modified.as_str()));
+    }
+
+    #[test]
+    fn stat_limit_and_missing_root() {
+        let d = proj();
+        let many: Vec<String> = (0..=MAX_STAT_FILES).map(|i| format!("f{i}")).collect();
+        assert!(stat_files(d.path(), &many).is_err());
+        assert_eq!(
+            stat_files(d.path(), &many[..MAX_STAT_FILES]).unwrap().len(),
+            200
+        );
+        // ルートが消えていても失敗にしない
+        let gone = d.path().join("gone");
+        let got = stat_files(&gone, &strs(&["a.txt"])).unwrap();
+        assert!(!got[0].exists);
+        assert!(stat_files(d.path(), &[]).unwrap().is_empty());
+    }
+
+    #[test]
+    fn stat_symlink_to_outside_is_not_exists() {
+        let d = proj();
+        let outside = proj();
+        std::fs::write(outside.path().join("secret.txt"), "s").unwrap();
+        let link = d.path().join("flink");
+        #[cfg(windows)]
+        let made = std::os::windows::fs::symlink_file(outside.path().join("secret.txt"), &link);
+        #[cfg(unix)]
+        let made = std::os::unix::fs::symlink(outside.path().join("secret.txt"), &link);
+        if made.is_err() {
+            eprintln!("シンボリックリンクを作れないため skip");
+            return;
+        }
+        let got = stat_files(d.path(), &strs(&["flink"])).unwrap();
+        assert!(!got[0].exists && got[0].modified.is_none());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn stat_junction_to_outside_is_not_exists() {
+        let d = proj();
+        let outside = proj();
+        std::fs::write(outside.path().join("secret.txt"), "s").unwrap();
+        let link = d.path().join("link");
+        if make_junction(&link, outside.path()).is_none() {
+            eprintln!("ジャンクションを作れないため skip");
+            return;
+        }
+        let got = stat_files(d.path(), &strs(&["link/secret.txt"])).unwrap();
+        assert!(!got[0].exists);
+        let _ = std::fs::remove_dir(&link);
+    }
+
+    fn tab(p: &str) -> SessionTab {
+        SessionTab {
+            rel_path: p.to_string(),
+            md_mode: crate::domain::MdMode::Split,
+        }
+    }
+
+    #[test]
+    fn sanitize_drops_bad_paths_and_keeps_good() {
+        let s = EditorSession {
+            tabs: vec![
+                tab("a.md"),
+                tab("../x"),
+                tab("/abs"),
+                tab("sub/b.rs"),
+                tab(".git/HEAD"),
+            ],
+            active: Some("../x".into()),
+            expanded: strs(&["sub", "a//b", "C:", "sub/deep"]),
+        };
+        let got = sanitize_session(s);
+        assert_eq!(got.tabs, vec![tab("a.md"), tab("sub/b.rs")]);
+        assert_eq!(got.active, None);
+        assert_eq!(got.expanded, strs(&["sub", "sub/deep"]));
+        let ok = sanitize_session(EditorSession {
+            tabs: vec![],
+            active: Some("sub/b.rs".into()),
+            expanded: vec![],
+        });
+        assert_eq!(ok.active.as_deref(), Some("sub/b.rs"));
+    }
+
+    #[test]
+    fn sanitize_truncates_counts_and_long_paths() {
+        let tabs: Vec<SessionTab> = (0..300).map(|i| tab(&format!("f{i}.txt"))).collect();
+        let expanded: Vec<String> = (0..700).map(|i| format!("d{i}")).collect();
+        let long = "a".repeat(1500);
+        let mut tabs2 = tabs.clone();
+        tabs2.insert(0, tab(&long));
+        let got = sanitize_session(EditorSession {
+            tabs: tabs2,
+            active: Some(long.clone()),
+            expanded,
+        });
+        assert_eq!(got.tabs.len(), MAX_SESSION_TABS);
+        assert_eq!(got.expanded.len(), MAX_SESSION_EXPANDED);
+        // 長いパスは 1,000 文字に切り詰めて残す(エラーにしない)
+        assert_eq!(got.tabs[0].rel_path.chars().count(), 1000);
+        assert_eq!(got.active.unwrap().chars().count(), 1000);
     }
 }

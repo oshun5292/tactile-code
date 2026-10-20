@@ -33,7 +33,10 @@ fn harness() -> Harness {
             save_viewport,
             list_dir,
             read_file,
-            write_file
+            write_file,
+            stat_files,
+            get_editor_session,
+            save_editor_session
         ])
         .build(mock_context(noop_assets()))
         .unwrap();
@@ -421,4 +424,139 @@ fn stage3_editor_contract() {
     )
     .unwrap_err();
     assert_eq!(err, json!("プロジェクトが見つかりません"));
+}
+
+/// 段階3b-1契約 §2, §3: stat_files / get_editor_session / save_editor_session の JSON の形と挙動。
+#[test]
+fn stage3b1_session_and_stat_contract() {
+    let h = harness();
+    let d = tempfile::tempdir().unwrap();
+    std::fs::write(d.path().join("a.txt"), "hello").unwrap();
+    let id = add_dir(&h, &d);
+
+    // stat: 入力順・camelCase、不在と不正は exists:false(全体は成功)
+    let st = call(
+        &h,
+        "stat_files",
+        json!({ "projectId": id, "relPaths": ["a.txt", "nope.txt", "../a.txt"] }),
+    )
+    .unwrap();
+    let arr = st.as_array().unwrap();
+    assert_eq!(arr.len(), 3);
+    let mut keys: Vec<&str> = arr[0]
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(|k| k.as_str())
+        .collect();
+    keys.sort();
+    assert_eq!(keys, ["exists", "modified", "relPath"]);
+    assert_eq!(arr[0]["relPath"], json!("a.txt"));
+    assert_eq!(arr[0]["exists"], json!(true));
+    assert!(arr[0]["modified"].is_string());
+    assert_eq!(
+        arr[1],
+        json!({ "relPath": "nope.txt", "exists": false, "modified": null })
+    );
+    assert_eq!(arr[2]["exists"], json!(false));
+    // read_file の modified と同じ文字列(誤検知しない)
+    let r = call(
+        &h,
+        "read_file",
+        json!({ "projectId": id, "relPath": "a.txt" }),
+    )
+    .unwrap();
+    assert_eq!(arr[0]["modified"], r["modified"]);
+    // 201件はエラー、未登録のプロジェクトも日本語エラー
+    let many: Vec<String> = (0..201).map(|i| format!("f{i}")).collect();
+    assert!(
+        call(
+            &h,
+            "stat_files",
+            json!({ "projectId": id, "relPaths": many })
+        )
+        .is_err()
+    );
+    assert_eq!(
+        call(
+            &h,
+            "stat_files",
+            json!({ "projectId": "nope", "relPaths": [] })
+        )
+        .unwrap_err(),
+        json!("プロジェクトが見つかりません")
+    );
+
+    // セッション: 保存が無ければ null
+    assert_eq!(
+        call(&h, "get_editor_session", json!({ "projectId": id })).unwrap(),
+        Value::Null
+    );
+    let data = json!({
+        "tabs": [{ "relPath": "a.txt", "mdMode": "split" }, { "relPath": "../evil", "mdMode": "read" }],
+        "active": "a.txt",
+        "expanded": ["sub", "a//b"]
+    });
+    assert_eq!(
+        call(
+            &h,
+            "save_editor_session",
+            json!({ "projectId": id, "data": data })
+        )
+        .unwrap(),
+        Value::Null
+    );
+    // 不正なパスは保存時に落ちる
+    assert_eq!(
+        call(&h, "get_editor_session", json!({ "projectId": id })).unwrap(),
+        json!({
+            "tabs": [{ "relPath": "a.txt", "mdMode": "split" }],
+            "active": "a.txt",
+            "expanded": ["sub"]
+        })
+    );
+    // 上書き。active は null 可
+    call(
+        &h,
+        "save_editor_session",
+        json!({ "projectId": id, "data": {
+            "tabs": [{ "relPath": "a.txt", "mdMode": "write" }], "active": null, "expanded": [] } }),
+    )
+    .unwrap();
+    let got = call(&h, "get_editor_session", json!({ "projectId": id })).unwrap();
+    assert_eq!(got["active"], Value::Null);
+    assert_eq!(got["tabs"][0]["mdMode"], json!("write"));
+    // 未登録のプロジェクトは、保存も取得もエラー
+    assert_eq!(
+        call(
+            &h,
+            "save_editor_session",
+            json!({ "projectId": "nope", "data": { "tabs": [], "active": null, "expanded": [] } })
+        )
+        .unwrap_err(),
+        json!("プロジェクトが見つかりません")
+    );
+    assert!(call(&h, "get_editor_session", json!({ "projectId": "nope" })).is_err());
+    // 他のプロジェクトのセッションには影響しない
+    let d2 = tempfile::tempdir().unwrap();
+    let id2 = add_dir(&h, &d2);
+    assert_eq!(
+        call(&h, "get_editor_session", json!({ "projectId": id2 })).unwrap(),
+        Value::Null
+    );
+    // 上限: 件数の超過は切り詰め(エラーにしない)
+    let tabs: Vec<Value> = (0..250)
+        .map(|i| json!({ "relPath": format!("f{i}.txt"), "mdMode": "split" }))
+        .collect();
+    call(
+        &h,
+        "save_editor_session",
+        json!({ "projectId": id, "data": { "tabs": tabs, "active": null, "expanded": [] } }),
+    )
+    .unwrap();
+    let got = call(&h, "get_editor_session", json!({ "projectId": id })).unwrap();
+    assert_eq!(got["tabs"].as_array().unwrap().len(), 200);
+    // 一覧用の要約には editorSession を含めない(既存の形を変えない)
+    let p = call(&h, "refresh_project", json!({ "id": id })).unwrap();
+    assert!(p.get("editorSession").is_none());
 }
