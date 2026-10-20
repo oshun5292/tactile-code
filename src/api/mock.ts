@@ -1,7 +1,7 @@
 // ブラウザ(Tauri の外)用のモック。メモリ上だけで追加・削除・編集が動く。
 // URL に ?mock=empty / error / loading / missing を付けると、各状態を確認できる(撮影用)。
 import { MOCK_FILES } from "./mockFiles";
-import type { Api, BoardState, Eol, FileKind, FsEntry, GitInfo, ProjectSummary, Stroke } from "./types";
+import type { Api, BoardState, EditorSessionData, Eol, FileKind, FsEntry, GitInfo, ProjectSummary, Stroke } from "./types";
 
 const DAY = 86_400_000;
 const daysAgo = (n: number) => new Date(Date.now() - n * DAY).toISOString();
@@ -210,7 +210,53 @@ function listMockDir(projectId: string, relPath: string): FsEntry[] {
   return [...[...dirs.values()].sort(byName), ...out.sort(byName)];
 }
 
+const sessionDb = new Map<string, EditorSessionData>();
+
+// 動作確認用: コンソールから「外部で書き換えた/消した」状態を作る。content が null なら削除。
+if (typeof window !== "undefined") {
+  (window as unknown as Record<string, unknown>).__mockExternal = (projectId: string, relPath: string, content: string | null) => {
+    const files = filesOf(projectId);
+    if (content === null) return files.delete(relPath);
+    const f = files.get(relPath);
+    if (!f) return false;
+    Object.assign(f, { content, size: new TextEncoder().encode(content).length, modified: new Date().toISOString() });
+    return true;
+  };
+}
+
 export const mockApi: Api = {
+  async statFiles(projectId, relPaths) {
+    find(projectId);
+    const files = filesOf(projectId);
+    return relPaths.slice(0, 200).map((relPath) => {
+      const f = files.get(relPath);
+      return { relPath, exists: !!f, modified: f ? f.modified : null };
+    });
+  },
+  async getEditorSession(projectId) {
+    find(projectId);
+    const d = sessionDb.get(projectId);
+    return d ? structuredClone(d) : null;
+  },
+  async saveEditorSession(projectId, data) {
+    find(projectId);
+    sessionDb.set(projectId, {
+      tabs: data.tabs.slice(0, 200).map((t) => ({ ...t, relPath: t.relPath.slice(0, 1000) })),
+      active: data.active,
+      expanded: data.expanded.slice(0, 500).map((p) => p.slice(0, 1000)),
+    });
+  },
+  async onCloseRequested(_handler) {
+    // beforeunload は同期でしか止められず、handler(非同期)は使えない。
+    // 代わりに、画面に出ている未保存の印(.tab[data-dirty])を見て、ブラウザ標準の警告を出す。
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!document.querySelector(".tab[data-dirty]")) return;
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  },
   async listDir(projectId, relPath) {
     await sleep(120);
     find(projectId);

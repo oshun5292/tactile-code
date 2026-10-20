@@ -99,6 +99,13 @@
 }
 .tab-name { overflow: hidden; text-overflow: ellipsis; }
 .tab-dirty { color: var(--warn); font-size: 11px; line-height: 1; flex: none; }
+.tab-ext { flex: none; font-size: 10.5px; font-weight: 700; padding: 0 7px; border-radius: 99px; background: var(--bg2); color: var(--warn); line-height: 17px; }
+.tab-ext[data-kind="reloaded"] { color: var(--soft); }
+.tab-ext[data-kind="deleted"] { color: var(--danger); }
+.ext-banner {
+  flex: none; padding: 6px 20px; font-size: 12px; background: var(--bg2); color: var(--warn); border-bottom: 1px solid var(--line);
+}
+.ext-banner[data-kind="deleted"] { color: var(--danger); }
 .tab-close {
   appearance: none; border: 0; background: transparent; color: inherit; cursor: pointer; width: 24px; height: 24px; margin: 0 8px 0 2px;
   border-radius: 50%; display: grid; place-items: center; opacity: 0.55; flex: none;

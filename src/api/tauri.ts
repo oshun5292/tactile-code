@@ -1,7 +1,8 @@
 // Tauri の invoke を包む薄いラッパー。React から直接 invoke を呼ばないための窓口。
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { Api, BoardState, FileContent, FsEntry, ProjectSummary, SavedFile, Stroke } from "./types";
+import type { Api, BoardState, EditorSessionData, FileContent, FileStat, FsEntry, ProjectSummary, SavedFile, Stroke } from "./types";
 
 export const tauriApi: Api = {
   listProjects: () => invoke<ProjectSummary[]>("list_projects"),
@@ -38,4 +39,14 @@ export const tauriApi: Api = {
   readFile: (projectId, relPath) => invoke<FileContent>("read_file", { projectId, relPath }),
   writeFile: (projectId, relPath, content, expectedModified, eol, hasBom, force) =>
     invoke<SavedFile>("write_file", { projectId, relPath, content, expectedModified, eol, hasBom, force }),
+  statFiles: (projectId, relPaths) => invoke<FileStat[]>("stat_files", { projectId, relPaths }),
+  getEditorSession: (projectId) => invoke<EditorSessionData | null>("get_editor_session", { projectId }),
+  saveEditorSession: async (projectId, data) => {
+    await invoke("save_editor_session", { projectId, data });
+  },
+  // 閉じる要求を止めるか通すかは handler が決める。通すときは何もしなければウィンドウが閉じる。
+  onCloseRequested: (handler) =>
+    getCurrentWindow().onCloseRequested(async (event) => {
+      if (!(await handler())) event.preventDefault();
+    }),
 };

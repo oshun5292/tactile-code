@@ -13,9 +13,13 @@ import {
   iconForFile,
   isDirty,
   isMarkdownFile,
+  judgeExternal,
   neighborTab,
   openTabIn,
   parentPath,
+  planRestore,
+  pollTargets,
+  buildSessionData,
   toggleExpanded,
   unopenableReason,
   updateTab,
@@ -192,5 +196,97 @@ describe("ツリー", () => {
     const rows = visibleRows(dirs, ["a", "b", "c"]);
     const statuses = rows.filter((r) => r.type === "status").map((r) => (r.type === "status" ? r.status : ""));
     expect(statuses).toEqual(["empty", "loading", "error"]);
+  });
+});
+
+describe("外部変更の判定", () => {
+  const ready = (modified: string, draft?: string) => {
+    const t = applyLoaded(openTabIn(emptySession(), "a.ts").tabs[0], { ...file("a.ts"), modified });
+    return draft === undefined ? t : { ...t, draft };
+  };
+  const stat = (modified: string | null, exists = true) => ({ relPath: "a.ts", exists, modified });
+
+  it("同じ更新日時なら何もしない", () => {
+    expect(judgeExternal(ready("t1"), stat("t1"))).toBe("none");
+  });
+  it("未保存が無ければ読み直す", () => {
+    expect(judgeExternal(ready("t1"), stat("t2"))).toBe("reload");
+  });
+  it("未保存があれば上書きせず印だけ", () => {
+    expect(judgeExternal(ready("t1", "edited"), stat("t2"))).toBe("mark-changed");
+  });
+  it("消えたら印(タブは閉じない)", () => {
+    expect(judgeExternal(ready("t1"), stat(null, false))).toBe("mark-deleted");
+  });
+  it("削除の印は、同じ更新日時で戻ったら外す", () => {
+    expect(judgeExternal({ ...ready("t1"), external: "deleted" }, stat("t1"))).toBe("clear");
+  });
+  it("読み込み中・失敗のタブは対象外", () => {
+    expect(judgeExternal(openTabIn(emptySession(), "a.ts").tabs[0], stat("t2"))).toBe("none");
+  });
+  it("modified が null なら判断しない", () => {
+    expect(judgeExternal(ready("t1"), stat(null))).toBe("none");
+  });
+  it("保存中のタブは問い合わせない", () => {
+    let s = openTabIn(openTabIn(emptySession(), "a.ts"), "b.ts");
+    s = updateTab(s, "a.ts", { status: "ready", save: "saving", modified: "t1" });
+    s = updateTab(s, "b.ts", { status: "ready", modified: "t2" });
+    expect(pollTargets(s)).toEqual([{ relPath: "b.ts", modified: "t2" }]);
+  });
+  it("問い合わせは最大件数で切る", () => {
+    let s = emptySession();
+    for (let i = 0; i < 5; i++) s = updateTab(openTabIn(s, `f${i}`), `f${i}`, { status: "ready" });
+    expect(pollTargets(s, 3)).toHaveLength(3);
+  });
+});
+
+describe("タブの復元", () => {
+  it("保存データを組み立てる(表示モードは保存用の名前に)", () => {
+    let s = openTabIn(openTabIn(emptySession(), "a.md", "preview"), "src/b.ts", "edit");
+    s = { ...s, expanded: ["src"] };
+    expect(buildSessionData(s)).toEqual({
+      tabs: [
+        { relPath: "a.md", mdMode: "read" },
+        { relPath: "src/b.ts", mdMode: "write" },
+      ],
+      active: "src/b.ts",
+      expanded: ["src"],
+    });
+  });
+  it("存在するファイルだけ復元し、重複は捨てる", () => {
+    const plan = planRestore(
+      {
+        tabs: [
+          { relPath: "a.md", mdMode: "read" },
+          { relPath: "gone.ts", mdMode: "write" },
+          { relPath: "a.md", mdMode: "split" },
+        ],
+        active: "a.md",
+        expanded: ["src", "src"],
+      },
+      [
+        { relPath: "a.md", exists: true, modified: "t" },
+        { relPath: "gone.ts", exists: false, modified: null },
+      ],
+    );
+    expect(plan).toEqual({ tabs: [{ relPath: "a.md", mdMode: "preview" }], active: "a.md", expanded: ["src"] });
+  });
+  it("アクティブが消えていたら、最後のタブに", () => {
+    const plan = planRestore(
+      { tabs: [{ relPath: "a", mdMode: "split" }, { relPath: "b", mdMode: "split" }], active: "gone", expanded: [] },
+      [
+        { relPath: "a", exists: true, modified: "t" },
+        { relPath: "b", exists: true, modified: "t" },
+      ],
+    );
+    expect(plan.active).toBe("b");
+  });
+  it("保存が無ければ空", () => {
+    expect(planRestore(null, [])).toEqual({ tabs: [], active: null, expanded: [] });
+  });
+  it("保存データの組み立ては上限で切る", () => {
+    let s = emptySession();
+    for (let i = 0; i < 205; i++) s = openTabIn(s, `f${i}`);
+    expect(buildSessionData(s).tabs).toHaveLength(200);
   });
 });
