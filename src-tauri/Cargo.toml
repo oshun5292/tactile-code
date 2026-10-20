@@ -20,8 +20,21 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# フォルダを歩く(.gitignore を尊重する)。言語の自動検知に使う
+ignore = "0.4"
+# プロジェクトの id
+uuid = { version = "1", features = ["v4"] }
+# 日時を ISO 8601 の文字列にする
+time = { version = "0.3", features = ["formatting"] }
+
+[dev-dependencies]
+# テスト用の一時フォルダ
+tempfile = "3"
+# コマンドの呼び出し(IPC)をテストする
+tauri = { version = "2", features = ["test"] }
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

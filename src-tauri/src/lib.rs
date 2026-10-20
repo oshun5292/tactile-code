@@ -1,14 +1,34 @@
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
+pub mod commands;
+pub mod domain;
+pub mod services;
+pub mod storage;
 
+// 単体テストの exe に tauri 本体(Windows では comctl32 v6 が必要)を持ち込まないため、テスト時は除外
+#[cfg(not(test))]
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    use tauri::Manager;
+
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet])
+        .plugin(tauri_plugin_dialog::init());
+
+    builder
+        .setup(|app| {
+            // 保存先は OS のアプリ専用フォルダ(契約書 §4)
+            let dir = app.path().app_data_dir()?;
+            app.manage(storage::Store::new(dir.join("projects.json")));
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            commands::list_projects,
+            commands::add_project,
+            commands::remove_project,
+            commands::update_project_note,
+            commands::update_project_description,
+            commands::move_project,
+            commands::refresh_project
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
