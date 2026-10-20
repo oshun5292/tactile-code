@@ -13,9 +13,9 @@ use time::format_description::well_known::Rfc3339;
 
 /// クイックオープンの一覧の上限(超えたら打ち切り)
 const MAX_LIST_FILES: usize = 50_000;
-const MAX_BYTES: u64 = 2 * 1024 * 1024;
-const BINARY_SNIFF: usize = 8000;
-const BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
+pub(crate) const MAX_BYTES: u64 = 2 * 1024 * 1024;
+pub(crate) const BINARY_SNIFF: usize = 8000;
+pub(crate) const BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
 const TMP_PREFIX: &str = ".tactile-tmp-";
 /// 一覧に常に出さない名前(どの階層でも)
 const HIDDEN_NAMES: [&str; 6] = [
@@ -264,7 +264,17 @@ pub fn list_files(root: &Path) -> Result<FileList, String> {
     list_files_limited(root, MAX_LIST_FILES)
 }
 
+/// 検索の対象列挙(上限は一覧と同じ)。
+pub(crate) fn walk_for_search(root: &Path) -> Result<(PathBuf, FileList), String> {
+    walk_project_files(root, MAX_LIST_FILES)
+}
+
 fn list_files_limited(root: &Path, limit: usize) -> Result<FileList, String> {
+    walk_project_files(root, limit).map(|(_, list)| list)
+}
+
+/// 全ファイル一覧の本体。検索(search.rs)も同じ列挙・除外を使うため、実体のルートも返す。
+pub(crate) fn walk_project_files(root: &Path, limit: usize) -> Result<(PathBuf, FileList), String> {
     // ルートの検証は resolve に任せる(存在しない場合などを弾く)
     let canon_root = resolve(root, "")?.path;
     let walker = ignore::WalkBuilder::new(&canon_root)
@@ -316,10 +326,13 @@ fn list_files_limited(root: &Path, limit: usize) -> Result<FileList, String> {
         rel_paths.push(inner.join("/"));
     }
     rel_paths.sort_by(|a, b| natural_cmp(a, b));
-    Ok(FileList {
-        rel_paths,
-        truncated,
-    })
+    Ok((
+        canon_root,
+        FileList {
+            rel_paths,
+            truncated,
+        },
+    ))
 }
 
 // ---------------------------------------------------------------- 読み込み

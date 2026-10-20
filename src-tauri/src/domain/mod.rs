@@ -109,6 +109,36 @@ pub struct FileList {
     pub truncated: bool,
 }
 
+/// 検索の1件。line は 1 始まり、column / length は Unicode スカラー値の数(行頭から)。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchMatch {
+    pub rel_path: String,
+    pub line: usize,
+    pub column: usize,
+    pub length: usize,
+    pub preview: String,
+    /// preview の中で、一致が始まる位置(文字数)
+    pub preview_column: usize,
+}
+
+/// search_in_project の結果。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchResult {
+    pub matches: Vec<SearchMatch>,
+    pub truncated: bool,
+    pub files_searched: usize,
+}
+
+/// 検索の設定(正規表現は無し)。
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchOptions {
+    pub case_sensitive: bool,
+    pub whole_word: bool,
+}
+
 /// 手書き1本。points はボード(フロー)座標。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
