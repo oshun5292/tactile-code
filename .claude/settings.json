@@ -43,13 +43,29 @@
       "Bash(git push --force *)",
       "Bash(git push -f *)",
       "Bash(git reset --hard *)",
-      "Bash(rm -rf *)",
+      "Bash(rm -rf /*)",
+      "Bash(rm -rf ~*)",
+      "Bash(rm -rf .git*)",
       "PowerShell(git push --force *)",
       "PowerShell(git push -f *)",
       "PowerShell(git reset --hard *)",
-      "PowerShell(Remove-Item * -Recurse *)",
       "Read(./.env)",
       "Read(./.env.*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/guard-delete.mjs",
+            "timeout": 10,
+            "statusMessage": "削除ガードで確認中..."
+          }
+        ]
+      }
     ]
   }
 }

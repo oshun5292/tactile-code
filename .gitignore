@@ -10,6 +10,7 @@ prototype/
 # --- 依存・ビルド成果物 ---
 node_modules/
 dist/
+dist-ssr/
 target/
 src-tauri/target/
 src-tauri/gen/
