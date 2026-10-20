@@ -85,6 +85,16 @@
 .tree-row[data-active] { background: var(--white); font-weight: 700; box-shadow: inset 4px 0 0 var(--proj-d), var(--sh); }
 .tree-row:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; box-shadow: none; }
 .tree-row[data-active]:focus-visible { box-shadow: inset 4px 0 0 var(--proj-d), var(--sh); }
+/* git の印(N11)。色は tokens.css の --git-*。文字(M/U/A/D/R/!)でも区別できる */
+.tree-git { flex: none; font-family: var(--mono); font-size: 11px; font-weight: 700; line-height: 1; min-width: 12px; text-align: center; }
+.tree-git-dot { width: 7px; height: 7px; min-width: 0; border-radius: 50%; background: currentColor; margin: 0 3px; }
+[data-git="modified"] { --git-c: var(--git-modified); }
+[data-git="added"], [data-git="untracked"] { --git-c: var(--git-added); }
+[data-git="deleted"] { --git-c: var(--git-deleted); }
+[data-git="renamed"] { --git-c: var(--git-renamed); }
+[data-git="conflicted"] { --git-c: var(--git-conflicted); }
+.tree-git[data-git] { color: var(--git-c); }
+.tree-name[data-git], .tab-name[data-git] { color: var(--git-c); }
 .tree-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ico {
   width: 26px; height: 18px; border-radius: 6px; flex: none; text-align: center; background: var(--c, var(--stone-d)); color: var(--ink);

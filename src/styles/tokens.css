@@ -27,6 +27,12 @@
   --danger: #b4452f;
   --ok: #3b8a58;
   --warn: #a8691a;
+  /* ツリー・タブの git 状態の印(N11)。文字色なので背景(#fbf9f4)に対して読める濃さにする */
+  --git-modified: var(--warn);
+  --git-added: var(--ok);
+  --git-deleted: var(--danger);
+  --git-renamed: #2f6fa8;
+  --git-conflicted: #8c1f12;
 
   --sh: 0 1px 2px rgba(52, 48, 43, 0.05), 0 8px 24px -8px rgba(52, 48, 43, 0.12);
   --sh-up: 0 2px 4px rgba(52, 48, 43, 0.05), 0 16px 32px -10px rgba(52, 48, 43, 0.2);

@@ -1,3 +1,4 @@
+import type { GitFileState } from "../../api/types";
 import { useEffect, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
 import { languageColor } from "../../shared/languageColors";
 import { ContextMenu, type MenuItem } from "../../shared/ui/ContextMenu";
@@ -11,6 +12,8 @@ const EXTERNAL_LABEL: Record<ExternalMark, string> = {
 
 type Props = {
   session: Session;
+  /** git の状態(変更のあるファイル名を色で示す。任意) */
+  gitFiles: ReadonlyMap<string, GitFileState>;
   onActivate: (relPath: string) => void;
   onClose: (relPath: string) => void;
   /** メニューの「他を閉じる」等。対象の計算は tabsToClose、未保存の確認は呼び出し側 */
@@ -24,7 +27,7 @@ type Props = {
 const DRAG_TYPE = "application/x-tactile-tab";
 
 /** タブ(36 の .ml-tab)。アクティブはプロジェクト色の上線、未保存は ●。多いときは横スクロール。 */
-export function TabBar({ session, onActivate, onClose, onCloseMany, onCopyPath, onReorder }: Props) {
+export function TabBar({ session, gitFiles, onActivate, onClose, onCloseMany, onCopyPath, onReorder }: Props) {
   const listRef = useRef<HTMLDivElement>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; relPath: string } | null>(null);
   // ドラッグ中のタブと、挿入線を出す隙間の番号(動かない位置なら null)
@@ -158,7 +161,9 @@ export function TabBar({ session, onActivate, onClose, onCloseMany, onCopyPath, 
               <span className="ico" style={{ "--c": languageColor(icon.language).d } as CSSProperties} aria-hidden="true">
                 {icon.abbr}
               </span>
-              <span className="tab-name">{name}</span>
+              <span className="tab-name" data-git={gitFiles.get(t.relPath)}>
+                {name}
+              </span>
               {t.external && (
                 <span className="tab-ext" data-kind={t.external}>
                   {EXTERNAL_LABEL[t.external]}

@@ -58,6 +58,11 @@ export type SearchOptions = { caseSensitive: boolean; wholeWord: boolean };
 /** エディタの設定(N9/N10)。保存が無ければ null を返し、既定値はフロントが持つ。 */
 export type AutoSaveMode = "off" | "afterDelay" | "onFocusChange";
 export type EditorSettings = { fontSize: number; wordWrap: boolean; autoSave: AutoSaveMode; autoSaveDelayMs: number };
+/** ツリーの git 状態の印(N11)。 */
+export type GitFileState = "modified" | "added" | "deleted" | "renamed" | "untracked" | "conflicted";
+export type GitFileStatus = { relPath: string; state: GitFileState };
+/** git 管理外のフォルダ・git が無い環境では isRepo:false(エラーにしない)。 */
+export type GitStatusResult = { isRepo: boolean; files: GitFileStatus[]; truncated: boolean };
 export type SavedFile = { modified: string; size: number };
 
 // 段階3b-1(docs/stage3b1-contract.md §2)。
@@ -103,6 +108,8 @@ export interface Api {
   listFiles(projectId: string): Promise<FileList>;
   /** 文字列検索(正規表現は使わない)。UTF-8 のテキストだけを対象にする。結果は最大 2,000 件で打ち切り。 */
   searchInProject(projectId: string, query: string, options: SearchOptions): Promise<SearchResult>;
+  /** ツリーに出す git の変更状態。ファイル単位(フォルダの集計はフロントが行う)。最大 5,000 件で打ち切り。 */
+  getGitStatus(projectId: string): Promise<GitStatusResult>;
   /** 保存済みの設定。無ければ null。 */
   getSettings(): Promise<EditorSettings | null>;
   /** 範囲外の値は丸めて保存する(fontSize 10〜28、autoSaveDelayMs 200〜10000)。 */

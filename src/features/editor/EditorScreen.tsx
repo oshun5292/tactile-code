@@ -8,6 +8,7 @@ import { AiPanel } from "./AiPanel";
 import { DocView } from "./DocView";
 import { EditorHeader } from "./EditorHeader";
 import { FileTree } from "./FileTree";
+import { selectGitView, useGit } from "./gitStore";
 import { GotoLine } from "./GotoLine";
 import { useSettings } from "./settingsStore";
 import { startAutoSave } from "./autoSave";
@@ -29,6 +30,7 @@ export function EditorScreen({ projectId }: { projectId: string }) {
   const project = useBoard((s) => s.projects.find((p) => p.id === projectId));
   const session = useEditor((s) => s.sessions[projectId]) ?? EMPTY;
   const dirs = useEditor((s) => s.dirs[projectId]) ?? EMPTY_DIRS;
+  const git = useGit(selectGitView(projectId));
   const prompt = useEditor((s) => s.prompt);
   const conflict = useEditor((s) => s.conflict);
   const focusTick = useEditor((s) => s.focusTick);
@@ -319,6 +321,8 @@ export function EditorScreen({ projectId }: { projectId: string }) {
         <div className="side-body" hidden={side !== "files"}>
           <FileTree
             dirs={dirs}
+            gitFiles={git.files}
+            gitDirs={git.dirs}
             expanded={session.expanded}
             activePath={session.active}
             onToggleDir={(p) => ed.toggleDir(projectId, p)}
@@ -347,6 +351,7 @@ export function EditorScreen({ projectId }: { projectId: string }) {
       <main className="pagemain">
         <TabBar
           session={session}
+          gitFiles={git.files}
           onActivate={(p) => ed.activateTab(projectId, p)}
           onClose={(p) => ed.requestCloseTab(p)}
           onCloseMany={(ps) => ed.requestCloseTabs(ps)}

@@ -40,6 +40,7 @@ import {
 import type { RevealTarget } from "./cm/CodeEditor";
 import type { Eol } from "../../api/types";
 import { withEol, type IndentSetting } from "./statusBarLogic";
+import { useGit } from "./gitStore";
 
 /** 未保存のタブがあるときの確認。何をしようとして止まったかを覚えておく。 */
 export type Prompt =
@@ -498,6 +499,8 @@ export const useEditor = create<EditorState>((set, get) => {
 
     reloadTree: async (projectId) => {
       const open = sessionOf(projectId).expanded;
+      // git の印も同時に読み直す(作成・名前変更・削除・複製・移動・フォーカス復帰・再読み込みボタンは、すべてここを通る)
+      void useGit.getState().refresh(projectId);
       await Promise.all(["", ...open].map((p) => loadDir(projectId, p)));
     },
 
@@ -575,6 +578,7 @@ export const useEditor = create<EditorState>((set, get) => {
           saveError: null,
           external: null,
         }));
+        useGit.getState().refreshSoon(projectId);
         return true;
       } catch (e) {
         const msg = toMessage(e);

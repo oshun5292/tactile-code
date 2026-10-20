@@ -3,7 +3,7 @@
 import { MAX_SEARCH_RESULTS, searchText } from "../features/editor/searchLogic";
 import { duplicateName } from "../shared/duplicateName";
 import { MOCK_FILES } from "./mockFiles";
-import type { Api, BoardState, EditorSessionData, EditorSettings, EncodingName, Eol, FileKind, FsEntry, GitInfo, ProjectSummary, SearchMatch, Stroke } from "./types";
+import type { Api, BoardState, EditorSessionData, EditorSettings, EncodingName, Eol, FileKind, FsEntry, GitFileStatus, GitInfo, ProjectSummary, SearchMatch, Stroke } from "./types";
 
 const DAY = 86_400_000;
 const daysAgo = (n: number) => new Date(Date.now() - n * DAY).toISOString();
@@ -298,6 +298,22 @@ if (typeof window !== "undefined") {
 // 設定はアプリ全体で1つ(メモリのみ)。保存が無い状態は null
 let settingsDb: EditorSettings | null = null;
 
+// git の変更(モック)。1〜2 プロジェクトだけ変更あり、残りは git 管理外(isRepo:false)
+const MOCK_GIT: Record<string, GitFileStatus[]> = {
+  "mock-1": [
+    { relPath: "src/TaskList.tsx", state: "modified" },
+    { relPath: "src/store.ts", state: "added" },
+    { relPath: "src/styles/app.css", state: "modified" },
+    { relPath: "docs/design.md", state: "untracked" },
+    { relPath: "docs/old-notes.md", state: "deleted" },
+  ],
+  "mock-5": [
+    { relPath: "README.md", state: "modified" },
+    { relPath: "src-tauri/src/agent/mod.rs", state: "conflicted" },
+    { relPath: "scripts/build.sh", state: "renamed" },
+  ],
+};
+
 export const mockApi: Api = {
   async createFile(projectId, relPath) {
     await sleep(FS_DELAY);
@@ -445,6 +461,14 @@ export const mockApi: Api = {
     if (mode === "listfail") throw "一覧を読めません(モックの失敗)";
     const relPaths = [...filesOf(projectId).keys()].sort((a, b) => collator.compare(a, b));
     return { relPaths, truncated: mode === "truncated" };
+  },
+  async getGitStatus(projectId) {
+    await sleep(120);
+    find(projectId);
+    // ?mock=gitfail で取得失敗(印が出ないだけで画面は壊れない)を確認できる
+    if (mode === "gitfail") throw "git の状態を読めません(モックの失敗)";
+    const files = MOCK_GIT[projectId];
+    return files ? { isRepo: true, files, truncated: false } : { isRepo: false, files: [], truncated: false };
   },
   async searchInProject(projectId, query, options) {
     await sleep(200);
