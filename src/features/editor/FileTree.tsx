@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
 import type { FsEntry } from "../../api/types";
 import { languageColor } from "../../shared/languageColors";
 import { ContextMenu, type MenuItem } from "../../shared/ui/ContextMenu";
 import { InlineName } from "./InlineName";
-import { creationParent, iconForFile, joinPath, parentPath, visibleRows, type TreeDir, type TreeRow } from "./editorLogic";
+import { canDropInto, creationParent, iconForFile, joinPath, movedPath, parentPath, visibleRows, type TreeDir, type TreeRow } from "./editorLogic";
 
 type Props = {
   dirs: Record<string, TreeDir>;
@@ -15,6 +15,10 @@ type Props = {
   /** 作成・名前変更は、成功なら null、失敗なら理由を返す(行内の入力欄に出す) */
   onCreate: (kind: "file" | "dir", relPath: string) => Promise<string | null>;
   onRename: (from: string, to: string) => Promise<string | null>;
+  /** ドラッグ移動(destDir が "" ならルート)。通知は呼び出し側が出す */
+  onMove: (from: string, destDir: string) => Promise<boolean>;
+  /** 複製。成功なら新しいエントリ(そのまま名前変更に入る)、失敗なら null */
+  onDuplicate: (entry: FsEntry) => Promise<FsEntry | null>;
   onDelete: (entry: FsEntry) => void;
   onCopyPath: (entry: FsEntry, absolute: boolean) => void;
   /** relPath が "" ならプロジェクトのフォルダ */
@@ -27,7 +31,7 @@ type MenuState = { x: number; y: number; target: FsEntry | null };
 type EntryRow = Extract<TreeRow, { type: "entry" }>;
 
 /** ファイルツリー(36 の .tree)。flat な role="tree" で、↑↓ Enter ←→ F2 Delete で操作できる。 */
-export function FileTree({ dirs, expanded, activePath, onToggleDir, onOpenFile, onReload, onCreate, onRename, onDelete, onCopyPath, onOpenInVscode }: Props) {
+export function FileTree({ dirs, expanded, activePath, onToggleDir, onOpenFile, onReload, onCreate, onRename, onMove, onDuplicate, onDelete, onCopyPath, onOpenInVscode }: Props) {
   const rows = useMemo(() => visibleRows(dirs, expanded), [dirs, expanded]);
   const entries = useMemo(() => rows.filter((r): r is EntryRow => r.type === "entry"), [rows]);
   const treeRef = useRef<HTMLDivElement>(null);
@@ -61,6 +65,62 @@ export function FileTree({ dirs, expanded, activePath, onToggleDir, onOpenFile, 
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restore]);
+
+  // ドラッグ中の対象(dragover では dataTransfer を読めないので ref に持つ)と、いま強調している行き先("" はルート)
+  const dragFrom = useRef<string | null>(null);
+  const [dragging, setDragging] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
+  const [moving, setMoving] = useState(false);
+  const openTimer = useRef<{ path: string; id: ReturnType<typeof setTimeout> } | null>(null);
+
+  const clearOpenTimer = () => {
+    if (openTimer.current) clearTimeout(openTimer.current.id);
+    openTimer.current = null;
+  };
+  const endDrag = () => {
+    clearOpenTimer();
+    dragFrom.current = null;
+    setDragging(null);
+    setDropTarget(null);
+  };
+  // 閉じたフォルダの上に 700ms 留まったら開く(同じフォルダでは、タイマーを張り直さない)
+  const armAutoOpen = (dir: string) => {
+    if (openTimer.current?.path === dir) return;
+    clearOpenTimer();
+    openTimer.current = { path: dir, id: setTimeout(() => onToggleDir(dir), 700) };
+  };
+  useEffect(() => clearOpenTimer, []);
+
+  /** dragover の共通処理。ドロップできる行き先なら受け付けて強調する。 */
+  const dragOverDir = (e: DragEvent, dir: string, closedDir: boolean) => {
+    const from = dragFrom.current;
+    if (!from) return;
+    e.stopPropagation();
+    if (closedDir && !(dir === from)) armAutoOpen(dir);
+    else if (!closedDir) clearOpenTimer();
+    if (!canDropInto(from, dir)) {
+      setDropTarget((t) => (t === null ? t : null));
+      return;
+    }
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDropTarget(dir);
+  };
+
+  const dropOnDir = async (e: DragEvent, dir: string) => {
+    const from = dragFrom.current;
+    if (!from) return;
+    e.preventDefault();
+    e.stopPropagation();
+    endDrag();
+    if (!canDropInto(from, dir) || moving) return;
+    setMoving(true);
+    try {
+      if (await onMove(from, dir)) setFocusPath(movedPath(from, dir));
+    } finally {
+      setMoving(false);
+    }
+  };
 
   const closeEditing = () => {
     setEditing(null);
@@ -103,6 +163,14 @@ export function FileTree({ dirs, expanded, activePath, onToggleDir, onOpenFile, 
     setMenu({ x: e.clientX, y: e.clientY, target });
   };
 
+  const duplicate = async (entry: FsEntry) => {
+    const created = await onDuplicate(entry);
+    if (!created) return;
+    // 複製したものを選んで、すぐ名前を変えられるようにする(VSCode と同じ)
+    setFocusPath(created.relPath);
+    startRename(created);
+  };
+
   const menuItems = (target: FsEntry | null): MenuItem[] => {
     const parent = creationParent(target);
     const items: MenuItem[] = [
@@ -113,6 +181,7 @@ export function FileTree({ dirs, expanded, activePath, onToggleDir, onOpenFile, 
       items.push(
         { type: "separator" },
         { label: "名前を変更", hint: "F2", onClick: () => startRename(target) },
+        { label: "複製", onClick: () => void duplicate(target) },
         { label: "削除", hint: "Delete", danger: true, onClick: () => onDelete(target) },
         { type: "separator" },
         { label: "相対パスをコピー", onClick: () => onCopyPath(target, false) },
@@ -202,7 +271,21 @@ export function FileTree({ dirs, expanded, activePath, onToggleDir, onOpenFile, 
   );
 
   return (
-    <nav className="tree" aria-label="ファイルツリー" onContextMenu={(e) => openMenu(e, null)}>
+    <nav
+      className="tree"
+      aria-label="ファイルツリー"
+      data-drop-root={dropTarget === "" ? "" : undefined}
+      onContextMenu={(e) => openMenu(e, null)}
+      onDragOver={(e) => dragOverDir(e, "", false)}
+      onDrop={(e) => void dropOnDir(e, "")}
+      onDragLeave={(e) => {
+        // ツリーの外へ出たときだけ強調を消す(子要素の間の移動では消さない)
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+          clearOpenTimer();
+          setDropTarget(null);
+        }
+      }}
+    >
       <div className="tree-head">
         <h2 className="panel-title">FILES</h2>
         <div className="tree-tools">
@@ -265,6 +348,34 @@ export function FileTree({ dirs, expanded, activePath, onToggleDir, onOpenFile, 
                 aria-expanded={isDir ? open : undefined}
                 aria-selected={active}
                 tabIndex={current?.entry.relPath === entry.relPath ? 0 : -1}
+                // 入力中・移動の処理中はドラッグさせない
+                draggable={!editing && !moving}
+                data-dragging={dragging === entry.relPath ? "" : undefined}
+                data-drop={isDir && dropTarget === entry.relPath ? "" : undefined}
+                onDragStart={(e) => {
+                  dragFrom.current = entry.relPath;
+                  e.dataTransfer.effectAllowed = "move";
+                  e.dataTransfer.setData("text/plain", entry.relPath);
+                  // 同じ描画の中で見た目を変えるとドラッグが始まらないことがあるので、1拍おく
+                  setTimeout(() => dragFrom.current && setDragging(entry.relPath), 0);
+                }}
+                onDragEnd={endDrag}
+                onDragOver={(e) => {
+                  // 行き先はフォルダ行だけ。ファイル行の上では「置けない」を示す(ルートへの誤ドロップを防ぐ)
+                  if (isDir) dragOverDir(e, entry.relPath, !open);
+                  else if (dragFrom.current) {
+                    e.stopPropagation();
+                    clearOpenTimer();
+                    setDropTarget(null);
+                  }
+                }}
+                onDrop={(e) => {
+                  if (isDir) void dropOnDir(e, entry.relPath);
+                  else if (dragFrom.current) {
+                    e.stopPropagation();
+                    endDrag();
+                  }
+                }}
                 style={{ "--depth": depth } as CSSProperties}
                 onFocus={() => setFocusPath(entry.relPath)}
                 onContextMenu={(e) => openMenu(e, entry)}

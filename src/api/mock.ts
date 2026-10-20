@@ -1,6 +1,7 @@
 // ブラウザ(Tauri の外)用のモック。メモリ上だけで追加・削除・編集が動く。
 // URL に ?mock=empty / error / loading / missing を付けると、各状態を確認できる(撮影用)。
 import { MAX_SEARCH_RESULTS, searchText } from "../features/editor/searchLogic";
+import { duplicateName } from "../shared/duplicateName";
 import { MOCK_FILES } from "./mockFiles";
 import type { Api, BoardState, EditorSessionData, EncodingName, Eol, FileKind, FsEntry, GitInfo, ProjectSummary, SearchMatch, Stroke } from "./types";
 
@@ -344,6 +345,31 @@ export const mockApi: Api = {
     }
     const f = files.get(to);
     return { name: to.slice(to.lastIndexOf("/") + 1), relPath: to, kind: fromIsDir ? "dir" : "file", size: f?.size ?? 0, modified: f?.modified ?? null };
+  },
+  async duplicateEntry(projectId, relPath) {
+    await sleep(FS_DELAY);
+    find(projectId);
+    if (relPath === "") throw "プロジェクトのフォルダ自体は複製できません";
+    if (relPath.split("/").includes(".git")) throw ".git は操作できません";
+    const files = filesOf(projectId);
+    const srcIsDir = !files.has(relPath) && isDir(projectId, relPath);
+    if (!srcIsDir && !files.has(relPath)) throw "元のファイルが見つかりません";
+    materializeDirs(projectId);
+    const parent = parentOf(relPath);
+    const name = relPath.slice(parent ? parent.length + 1 : 0);
+    // 同じフォルダの中で最初に空いている名前にする(上書きしない)
+    const newName = duplicateName(name, listMockDir(projectId, parent).map((e) => e.name));
+    const to = parent ? `${parent}/${newName}` : newName;
+    const dirs = dirSetOf(projectId);
+    for (const [path, f] of [...files]) {
+      if (insideOf(path, relPath)) files.set(to + path.slice(relPath.length), { ...f });
+    }
+    if (srcIsDir) {
+      dirs.add(to);
+      for (const d of [...dirs]) if (insideOf(d, relPath)) dirs.add(to + d.slice(relPath.length));
+    }
+    const f = files.get(to);
+    return { name: newName, relPath: to, kind: srcIsDir ? "dir" : "file", size: f?.size ?? 0, modified: f?.modified ?? null };
   },
   async deleteEntry(projectId, relPath) {
     await sleep(FS_DELAY);

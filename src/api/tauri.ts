@@ -42,6 +42,7 @@ export const tauriApi: Api = {
   createFile: (projectId, relPath) => invoke<FsEntry>("create_file", { projectId, relPath }),
   createDir: (projectId, relPath) => invoke<FsEntry>("create_dir", { projectId, relPath }),
   renameEntry: (projectId, fromRelPath, toRelPath) => invoke<FsEntry>("rename_entry", { projectId, fromRelPath, toRelPath }),
+  duplicateEntry: (projectId, relPath) => invoke<FsEntry>("duplicate_entry", { projectId, relPath }),
   deleteEntry: async (projectId, relPath) => {
     await invoke("delete_entry", { projectId, relPath });
   },

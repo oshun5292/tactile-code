@@ -107,6 +107,8 @@ export interface Api {
   createDir(projectId: string, relPath: string): Promise<FsEntry>;
   /** 名前変更・移動(同じプロジェクトの内側)。行き先が既にあれば "既存:" で失敗。 */
   renameEntry(projectId: string, fromRelPath: string, toRelPath: string): Promise<FsEntry>;
+  /** 同じフォルダに複製(`foo.ts` → `foo copy.ts` → `foo copy 2.ts`)。フォルダは中身ごと。リンクの先はたどらない。 */
+  duplicateEntry(projectId: string, relPath: string): Promise<FsEntry>;
   /** 完全には消さず、ごみ箱へ移す。 */
   deleteEntry(projectId: string, relPath: string): Promise<void>;
   /** VSCode の `code` コマンドで開く。relPath が空ならプロジェクトのフォルダ。見つからなければ "VSCode:" で始まる文字列で失敗。 */

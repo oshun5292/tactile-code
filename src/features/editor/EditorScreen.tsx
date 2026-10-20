@@ -200,6 +200,8 @@ export function EditorScreen({ projectId }: { projectId: string }) {
             onReload={() => void ed.reloadTree(projectId)}
             onCreate={(kind, relPath) => ed.createEntry(projectId, kind, relPath)}
             onRename={(from, to) => ed.renameEntry(projectId, from, to)}
+            onMove={(from, destDir) => ed.moveEntry(projectId, from, destDir)}
+            onDuplicate={(entry) => ed.duplicateEntry(projectId, entry.relPath)}
             onDelete={(entry) => ed.requestDelete(projectId, entry.relPath, entry.kind)}
             onCopyPath={(entry, absolute) => {
               const text = absolute ? absolutePathOf(project.path, entry.relPath) : entry.relPath;
