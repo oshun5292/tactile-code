@@ -1,7 +1,7 @@
 // Tauri の invoke を包む薄いラッパー。React から直接 invoke を呼ばないための窓口。
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { Api, BoardState, ProjectSummary, Stroke } from "./types";
+import type { Api, BoardState, FileContent, FsEntry, ProjectSummary, SavedFile, Stroke } from "./types";
 
 export const tauriApi: Api = {
   listProjects: () => invoke<ProjectSummary[]>("list_projects"),
@@ -34,4 +34,8 @@ export const tauriApi: Api = {
   saveViewport: async (x, y, zoom) => {
     await invoke("save_viewport", { x, y, zoom });
   },
+  listDir: (projectId, relPath) => invoke<FsEntry[]>("list_dir", { projectId, relPath }),
+  readFile: (projectId, relPath) => invoke<FileContent>("read_file", { projectId, relPath }),
+  writeFile: (projectId, relPath, content, expectedModified, eol, hasBom, force) =>
+    invoke<SavedFile>("write_file", { projectId, relPath, content, expectedModified, eol, hasBom, force }),
 };

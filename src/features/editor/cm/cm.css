@@ -1,0 +1,4 @@
+/* CodeMirror の外枠。色は :root の変数から(--proj を変えるだけで追従する) */
+.cm-host { height: 100%; min-height: 0; background: var(--white); }
+.cm-host .cm-editor { height: 100%; }
+.cm-host .cm-scroller { overflow: auto; }

@@ -114,3 +114,57 @@ impl Default for StoreFile {
         }
     }
 }
+
+// ---- 段階3: エディタのファイル操作(契約書 docs/stage3-contract.md §2) ----
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum EntryKind {
+    Dir,
+    File,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FsEntry {
+    pub name: String,
+    pub rel_path: String,
+    pub kind: EntryKind,
+    pub size: u64,
+    pub modified: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ContentKind {
+    Text,
+    Binary,
+    TooLarge,
+    UnsupportedEncoding,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Eol {
+    Lf,
+    Crlf,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileContent {
+    pub rel_path: String,
+    pub kind: ContentKind,
+    pub content: Option<String>,
+    pub size: u64,
+    pub modified: String,
+    pub eol: Eol,
+    pub has_bom: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavedFile {
+    pub modified: String,
+    pub size: u64,
+}

@@ -259,8 +259,8 @@ code{font:12.5px Consolas,"Cascadia Mono",monospace;background:var(--bg2);paddin
   <tr><th>#</th><th>内容</th><th>私の提案(判断)</th></tr>
   <tr><td class="id">Q1</td><td><b>コードレビュー(差分・行コメント)をいつ入れるか</b></td><td><span class="tag t-dec">決定</span>Phase 2。ローカルgitの差分表示から始める</td></tr>
   <tr><td class="id">Q2</td><td><b>エディタ上部の「REVIEW」チップ</b></td><td><span class="tag t-dec">決定</span>消す(見本 <code>36-gentle-bento.html</code> は反映済み)</td></tr>
-  <tr><td class="id">Q3</td><td><b>コードエディタ部品の選定</b>(Monaco / CodeMirror 6)</td><td><span class="tag t-dec">決定</span>調査を実施済み。<span class="tag t-opn">判断</span><b>CodeMirror 6 を採用</b>(<span class="tag t-dec">決定</span>。理由: 軽い/テーマをCSS変数で調整しやすい/Jinja対応/差分部品あり)。次点Monaco。要試作確認: Tauri上の日本語入力、Jinja入りSQL、100KB級ファイル、アクセント色の切替、差分+行コメント内の日本語入力。<span class="tag t-unk">未確認</span>調査報告ベース</td></tr>
-  <tr><td class="id">Q4</td><td><b>右側のAI会話の領域</b>を、MVPでどう扱うか</td><td>空の領域として残さず、畳める形にする</td></tr>
+  <tr><td class="id">Q3</td><td><b>コードエディタ部品の選定</b>(Monaco / CodeMirror 6)</td><td><span class="tag t-dec">決定</span>調査を実施済み。<span class="tag t-opn">判断</span><b>CodeMirror 6 を採用</b>(<span class="tag t-dec">決定</span>。理由: 軽い/テーマをCSS変数で調整しやすい/Jinja対応/差分部品あり)。次点Monaco。要試作確認: Tauri上の日本語入力、Jinja入りSQL、100KB級ファイル、アクセント色の切替、差分+行コメント内の日本語入力。<span class="tag t-unk">未確認</span>調査報告ベース。<br><span class="tag t-fact">事実</span>2026-10-21 時点: 実装済み。Jinja入りSQLの色分け(<code>jinja({ base: sql() })</code>)とプロジェクト色の切替は、ブラウザ上で確認。<span class="tag t-unk">未確認</span>日本語入力(IME)・100KB級ファイル・Tauri実機は、ユーザーの確認待ち</td></tr>
+  <tr><td class="id">Q4</td><td><b>右側のAI会話の領域</b>を、MVPでどう扱うか</td><td><span class="tag t-dec">決定</span>畳んだ状態を既定にし、細い縦のタブ「AI会話(準備中)」から開く形にする(段階3で実装)</td></tr>
   <tr><td class="id">Q5</td><td><b>アプリの名前</b></td><td><span class="tag t-dec">決定</span>「tactile code」</td></tr>
   <tr><td class="id">Q6</td><td><b>言語の検知ルール</b>(除外フォルダ、複数言語の扱い、.ipynbやYAMLなどの分類)</td><td>GitHubの言語判定(linguist)に近い、拡張子ベースの簡易方式から始める</td></tr>
   <tr><td class="id">Q7</td><td><b>簡易アイコンの種類と選び方</b>(優先度は低い)</td><td>Phase 2以降に、10〜20種から選ぶ形で検討</td></tr>
