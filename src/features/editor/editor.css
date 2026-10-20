@@ -303,3 +303,11 @@
 .setting-switch { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; cursor: pointer; }
 .setting-switch input { accent-color: var(--proj-d, var(--ink)); width: 16px; height: 16px; cursor: pointer; }
 .setting-note { margin: 4px 0 0; font-size: 11.5px; color: var(--soft); line-height: 1.5; }
+
+/* 設定メニューの選択欄(自動保存)。プロジェクト色は var(--proj) で継承 */
+.setting-select {
+  appearance: auto; font: inherit; font-size: 12.5px; color: var(--ink); background: var(--white);
+  border: 1px solid var(--line); border-radius: 9px; padding: 5px 8px; max-width: 170px; cursor: pointer;
+}
+.setting-select:hover { background: var(--proj, var(--bg2)); }
+.setting-select:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }

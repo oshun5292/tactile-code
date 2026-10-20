@@ -10,6 +10,8 @@ import { EditorHeader } from "./EditorHeader";
 import { FileTree } from "./FileTree";
 import { GotoLine } from "./GotoLine";
 import { useSettings } from "./settingsStore";
+import { startAutoSave } from "./autoSave";
+import { stepChord } from "./autoSaveLogic";
 import { absolutePathOf, baseName, emptySession, isMarkdownFile, encodingLabel, isDirty, neighborTab, type Session } from "./editorLogic";
 import { useEditor } from "./editorStore";
 import { QuickOpen } from "./QuickOpen";
@@ -145,6 +147,53 @@ export function EditorScreen({ projectId }: { projectId: string }) {
     void useSettings.getState().load();
   }, []);
 
+  // 自動保存(設定に従う)。エディタ画面が出ている間だけ動かす
+  useEffect(() => startAutoSave(), []);
+
+  // すべて保存: Ctrl+K のあと S(コード)。待ち時間内に S が来なければ、何も起きなかったことにする。
+  // CodeMirror に先に食われないよう capture で受ける
+  useEffect(() => {
+    let pendingAt: number | null = null;
+    let hideTimer: ReturnType<typeof setTimeout> | null = null;
+    const HINT = "Ctrl+K: S ですべて保存";
+    const clearHint = () => {
+      if (hideTimer) clearTimeout(hideTimer);
+      hideTimer = null;
+      const st = useEditor.getState();
+      if (st.notice?.text === HINT) st.dismissNotice();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.isComposing || e.keyCode === 229) return;
+      if (document.querySelector("dialog[open]") || document.querySelector(".quickopen")) {
+        pendingAt = null;
+        return;
+      }
+      const r = stepChord(pendingAt, Date.now(), { key: e.key, ctrl: e.ctrlKey, meta: e.metaKey, alt: e.altKey, shift: e.shiftKey });
+      const started = r.pendingAt !== null && r.pendingAt !== pendingAt;
+      pendingAt = r.pendingAt;
+      if (r.consume) {
+        e.preventDefault(); // ブラウザの Ctrl+K(検索欄)や、S の文字入力を出さない
+        e.stopPropagation();
+      }
+      if (started) {
+        useEditor.getState().notify("info", HINT);
+        if (hideTimer) clearTimeout(hideTimer);
+        hideTimer = setTimeout(() => {
+          pendingAt = null;
+          clearHint();
+        }, 1500);
+      } else if (r.pendingAt === null && hideTimer) {
+        clearHint();
+      }
+      if (r.fire) void useEditor.getState().saveAllOpen(projectId);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => {
+      window.removeEventListener("keydown", onKey, true);
+      clearHint();
+    };
+  }, [projectId]);
+
   // 文字サイズ(Ctrl+= / Ctrl++ / Ctrl+- / Ctrl+0)、折り返し(Alt+Z)、行へ移動(Ctrl+G)。
   // WebView のページ拡大や CodeMirror の「次を検索(Ctrl+G)」に先に食われないよう capture で受ける
   useEffect(() => {
@@ -242,6 +291,8 @@ export function EditorScreen({ projectId }: { projectId: string }) {
         activeTab={activeTab}
         onBack={() => ed.requestBack()}
         onSave={() => activeTab && void ed.save(projectId, activeTab.relPath)}
+        dirtyCount={dirtyCount}
+        onSaveAll={() => void ed.saveAllOpen(projectId)}
         onOpenInVscode={() => void ed.openInVscode(projectId, "")}
         onQuickOpen={() => setQuickOpen(true)}
         onNoteChange={(note) => void useBoard.getState().setNote(project.id, note)}
