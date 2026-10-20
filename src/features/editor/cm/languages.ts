@@ -1,5 +1,5 @@
 import type { Extension } from "@codemirror/state";
-import { StreamLanguage } from "@codemirror/language";
+import { Language, LanguageDescription, LanguageSupport, StreamLanguage } from "@codemirror/language";
 import { javascript } from "@codemirror/lang-javascript";
 import { python } from "@codemirror/lang-python";
 import { sql } from "@codemirror/lang-sql";
@@ -8,7 +8,8 @@ import { yaml } from "@codemirror/lang-yaml";
 import { json } from "@codemirror/lang-json";
 import { css } from "@codemirror/lang-css";
 import { html } from "@codemirror/lang-html";
-import { markdown } from "@codemirror/lang-markdown";
+import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
+import { markdownTagStyles } from "./markdownTags";
 import { rust } from "@codemirror/lang-rust";
 import { shell } from "@codemirror/legacy-modes/mode/shell";
 import { toml } from "@codemirror/legacy-modes/mode/toml";
@@ -51,7 +52,7 @@ const D = {
   json: { id: "json", label: "JSON", tabSize: 2, make: () => json() },
   css: { id: "css", label: "CSS", tabSize: 2, make: () => css() },
   html: { id: "html", label: "HTML", tabSize: 2, make: () => html() },
-  md: { id: "markdown", label: "Markdown", tabSize: 2, make: () => markdown() },
+  md: { id: "markdown", label: "Markdown", tabSize: 2, make: () => markdown({ base: markdownLanguage, codeLanguages: codeLanguageFor, extensions: [markdownTagStyles] }) },
   rs: { id: "rust", label: "Rust", tabSize: 4, make: () => rust() },
   sh: { id: "shell", label: "Shell", tabSize: 2, make: () => StreamLanguage.define(shell) },
   toml: { id: "toml", label: "TOML", tabSize: 2, make: () => StreamLanguage.define(toml) },
@@ -106,4 +107,32 @@ function toInfo(d: Def): LanguageInfo {
       return d.make();
     },
   };
+}
+
+// マークダウンのコードブロック(```py など)用。既存の拡張子表を再利用し、言語名/別名から引く。
+// 使われたときだけ読み込む(LanguageDescription の load)。見つからなければ null で色なし。
+const FENCE_ALIAS: Record<string, string> = {
+  typescript: "ts", javascript: "js", python: "py", python3: "py", rust: "rs",
+  shell: "sh", console: "sh", markdown: "md", yml: "yaml", jinja: "sql", dbt: "sql",
+};
+const fenceCache = new Map<string, LanguageDescription | null>();
+
+function codeLanguageFor(info: string): Language | LanguageDescription | null {
+  const key = info.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
+  if (!key) return null;
+  if (fenceCache.has(key)) return fenceCache.get(key)!;
+  const def = BY_EXT[FENCE_ALIAS[key] ?? key] ?? Object.values(D).find((d) => d.id === key);
+  const desc = def
+    ? LanguageDescription.of({
+        name: def.id,
+        load: async () => {
+          const ext = def.make();
+          if (ext instanceof LanguageSupport) return ext;
+          if (ext instanceof Language) return new LanguageSupport(ext);
+          throw new Error("unsupported language");
+        },
+      })
+    : null;
+  fenceCache.set(key, desc);
+  return desc;
 }
