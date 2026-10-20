@@ -187,3 +187,31 @@
 }
 .enc-btn:hover { border-color: var(--proj-d, var(--ink2)); color: var(--ink); }
 .enc-btn:focus-visible { outline: 2px solid var(--proj-d, var(--ink2)); outline-offset: 1px; }
+
+/* ===== クイックオープン(Ctrl+P)。色は --proj(プロジェクト色)から取る ===== */
+.find-btn { display: inline-flex; align-items: center; gap: 8px; }
+.find-btn kbd { font-family: var(--mono); font-size: 11px; color: var(--soft); }
+.quickopen-backdrop {
+  position: fixed; inset: 0; z-index: 250; display: flex; justify-content: center; align-items: flex-start;
+  padding: 12vh 16px 16px; background: rgba(52, 48, 43, 0.25);
+}
+.quickopen {
+  width: min(640px, 100%); max-height: 70vh; display: flex; flex-direction: column; overflow: hidden;
+  border-radius: 16px; background: var(--white); border: 1px solid var(--line); box-shadow: var(--sh-up);
+}
+.quickopen-input {
+  appearance: none; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--ink);
+  font: inherit; font-size: 15px; padding: 14px 18px; outline: none;
+}
+.quickopen-input:focus-visible { box-shadow: inset 0 -2px 0 var(--proj-d, var(--ink)); }
+.quickopen-list { list-style: none; margin: 0; padding: 6px; overflow-y: auto; min-height: 0; }
+.quickopen-item { display: flex; align-items: baseline; gap: 10px; padding: 7px 12px; border-radius: 10px; cursor: pointer; font-size: 13.5px; }
+.quickopen-item[aria-selected="true"] { background: var(--proj, var(--bg2)); }
+.quickopen-name { flex: none; font-weight: 600; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.quickopen-dir { min-width: 0; color: var(--soft); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.quickopen mark { background: transparent; color: inherit; font-weight: 800; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; text-decoration-color: var(--proj-d, var(--ink)); }
+.quickopen-note { margin: 0; padding: 14px 18px; font-size: 13px; color: var(--ink2); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.quickopen-note[data-kind="error"] { color: var(--danger); }
+.quickopen-foot { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 8px 18px; border-top: 1px solid var(--line); font-size: 11.5px; color: var(--soft); }
+.quickopen-foot [data-kind="warn"] { color: var(--warn); }
+.quickopen-keys { margin-left: auto; }

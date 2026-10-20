@@ -11,6 +11,7 @@ type Props = {
   onBack: () => void;
   onSave: () => void;
   onOpenInVscode: () => void;
+  onQuickOpen: () => void;
   onNoteChange: (note: string) => void;
 };
 
@@ -25,7 +26,7 @@ function saveStatus(tab: Tab | null): { kind: "none" | "dirty" | "saving" | "sav
 }
 
 /** エディタ上部(36 の .ehead)。ボードのカードと同じ部品(言語バー・GitHubチップ・メモ)を使う。 */
-export function EditorHeader({ project: p, activeTab, onBack, onSave, onOpenInVscode, onNoteChange }: Props) {
+export function EditorHeader({ project: p, activeTab, onBack, onSave, onOpenInVscode, onQuickOpen, onNoteChange }: Props) {
   const status = saveStatus(activeTab);
   const canSave = !!activeTab && activeTab.kind === "text" && isDirty(activeTab) && activeTab.save !== "saving";
   const branch = p.git?.branch;
@@ -64,6 +65,10 @@ export function EditorHeader({ project: p, activeTab, onBack, onSave, onOpenInVs
           {status.kind !== "none" && <i className="save-dot" aria-hidden="true" />}
           <span>{status.text}</span>
         </span>
+        <button type="button" className="btn btn-ghost find-btn" onClick={onQuickOpen} title="ファイルを探す(Ctrl+P)">
+          ファイルを探す
+          <kbd>Ctrl+P</kbd>
+        </button>
         <button type="button" className="btn btn-ghost" onClick={onOpenInVscode} title="このプロジェクトのフォルダを VSCode で開く">
           VSCodeで開く
         </button>
