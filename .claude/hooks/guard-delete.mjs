@@ -1,6 +1,7 @@
-// 削除ガード(PreToolUse フック): 削除系のコマンドを、実行の直前に検査する。
+// 安全ガード(PreToolUse フック): 削除系・push系のコマンドを、実行の直前に検査する。
 //
 // 方針(ユーザー決定):
+//   - 機能ブランチ(feat/ など)の commit・push・PR作成は許可。main への push、強制push、PRのマージはブロック
 //   - プロジェクトの内側の削除は許可する(ビルド成果物などの片付けのため)
 //   - 次は禁止する: .git の削除 / プロジェクトの外の削除 / 変数や曖昧な場所の削除
 //   - 安全装置自体(.claude)の削除も禁止する
@@ -8,6 +9,7 @@
 // 限界: コマンド「文字」の解析なので、うっかり事故の防止が目的。意図的に紛らわしく書かれた削除は防げない。
 // 判断がつかないときは、安全側でブロックする(exit 2。理由は stderr に出し、モデルに返る)。
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 // このファイルは <project>/.claude/hooks/ にある。プロジェクトのルートは2つ上。
@@ -43,6 +45,18 @@ if (/\[\s*(system\.)?io\.(directory|file)\s*\]\s*::\s*delete/i.test(cmd) || /\b(
 }
 if (/\bgit\s+clean\b/i.test(cmd)) block('git clean は、追跡外のファイルを消すため、ユーザーに確認してください');
 if (/\brobocopy\b[^\n;|&]*\s\/(mir|purge)\b/i.test(cmd)) block('robocopy の /MIR・/PURGE は削除を伴うため使えません');
+
+// --- main への push・PRのマージは、ユーザーだけが行う(機能ブランチの push は許可) ---
+if (/\bgh\s+pr\s+merge\b/i.test(cmd)) block('PRのマージは、ユーザーが GitHub 上で行います');
+if (/\bgit\s+push\b/i.test(cmd)) {
+  const pushPart = cmd.split(/\bgit\s+push\b/i)[1].split(/;|&&|\|\||\||\r?\n/)[0];
+  if (/(^|[\s:])(main|master)(\s|$)/i.test(pushPart)) block('main への push は、ユーザーが行います(機能ブランチへ push して、PRにしてください)');
+  if (/(^|\s)(--force\b|-f\b|--force-with-lease\b|--delete\b|-d\b|--mirror\b|--all\b)/i.test(pushPart)) block('強制 push・ブランチ削除・全ブランチ push は禁止です');
+  try {
+    const cur = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).trim();
+    if (/^(main|master)$/i.test(cur)) block('いまのブランチが main です。機能ブランチに切り替えてから push してください');
+  } catch { block('現在のブランチを確認できませんでした'); }
+}
 
 // --- 削除コマンドの検出 ---
 const DEL_VERB = /(^|[\s;&|({])(remove-item|ri|rm|del|erase|rd|rmdir|rimraf)(?=[\s;&|)}]|$)/i;
