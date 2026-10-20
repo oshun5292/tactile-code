@@ -31,6 +31,21 @@ export type Stroke = { id: string; color: string; width: number; points: [number
 export type Viewport = { x: number; y: number; zoom: number };
 export type BoardState = { strokes: Stroke[]; viewport: Viewport | null };
 
+// 段階3(docs/stage3-contract.md §2)。パスはプロジェクトのルートからの相対パス("/" 区切り、ルートは空文字)。
+export type FsEntry = { name: string; relPath: string; kind: "dir" | "file"; size: number; modified: string | null };
+export type FileKind = "text" | "binary" | "tooLarge" | "unsupportedEncoding";
+export type Eol = "lf" | "crlf";
+export type FileContent = {
+  relPath: string;
+  kind: FileKind;
+  content: string | null; // kind が "text" のときだけ文字列(改行は "\n"、BOM なし)
+  size: number;
+  modified: string; // 保存時の競合検出に使う
+  eol: Eol;
+  hasBom: boolean;
+};
+export type SavedFile = { modified: string; size: number };
+
 /** フロントが使う窓口。Tauri 版とモック版が同じ形を満たす。 */
 export interface Api {
   listProjects(): Promise<ProjectSummary[]>;
@@ -48,4 +63,18 @@ export interface Api {
   removeStroke(id: string): Promise<void>;
   clearStrokes(): Promise<void>;
   saveViewport(x: number, y: number, zoom: number): Promise<void>;
+
+  /** 1階層だけ返す。フォルダが先、あとにファイル。 */
+  listDir(projectId: string, relPath: string): Promise<FsEntry[]>;
+  readFile(projectId: string, relPath: string): Promise<FileContent>;
+  /** 既存ファイルの上書き。競合のときは "競合:" で始まる文字列で失敗する(force: true で無視して保存)。 */
+  writeFile(
+    projectId: string,
+    relPath: string,
+    content: string,
+    expectedModified: string | null,
+    eol: Eol,
+    hasBom: boolean,
+    force: boolean,
+  ): Promise<SavedFile>;
 }

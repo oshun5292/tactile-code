@@ -1,6 +1,7 @@
 // ブラウザ(Tauri の外)用のモック。メモリ上だけで追加・削除・編集が動く。
 // URL に ?mock=empty / error / loading / missing を付けると、各状態を確認できる(撮影用)。
-import type { Api, BoardState, GitInfo, ProjectSummary, Stroke } from "./types";
+import { MOCK_FILES } from "./mockFiles";
+import type { Api, BoardState, Eol, FileKind, FsEntry, GitInfo, ProjectSummary, Stroke } from "./types";
 
 const DAY = 86_400_000;
 const daysAgo = (n: number) => new Date(Date.now() - n * DAY).toISOString();
@@ -159,7 +160,86 @@ const find = (id: string) => {
   return p;
 };
 
+// --- ファイル(メモリ上)。書き込むと modified が更新される ---
+type MockFile = { kind: FileKind; content: string | null; size: number; eol: Eol; hasBom: boolean; modified: string };
+const fsDb = new Map<string, Map<string, MockFile>>();
+let conflictPending = mode === "conflict"; // ?mock=conflict のとき、最初の保存を1回だけ競合にする
+
+function filesOf(projectId: string): Map<string, MockFile> {
+  let files = fsDb.get(projectId);
+  if (!files) {
+    files = new Map();
+    const seeds = MOCK_FILES[projectId] ?? { "README.md": { content: "# 新しいプロジェクト\n" } };
+    const base = Date.now() - 3 * DAY;
+    Object.entries(seeds).forEach(([path, s], i) => {
+      const kind = s.kind ?? "text";
+      const content = kind === "text" ? (s.content ?? "") : null;
+      files!.set(path, {
+        kind,
+        content,
+        size: content !== null ? new TextEncoder().encode(content).length : (s.size ?? 0),
+        eol: s.eol ?? "lf",
+        hasBom: s.hasBom ?? false,
+        modified: new Date(base + i * 60_000).toISOString(),
+      });
+    });
+    fsDb.set(projectId, files);
+  }
+  return files;
+}
+
+const collator = new Intl.Collator("ja", { numeric: true, sensitivity: "base" });
+
+function listMockDir(projectId: string, relPath: string): FsEntry[] {
+  const prefix = relPath === "" ? "" : `${relPath}/`;
+  const dirs = new Map<string, FsEntry>();
+  const out: FsEntry[] = [];
+  for (const [path, f] of filesOf(projectId)) {
+    if (!path.startsWith(prefix)) continue;
+    const rest = path.slice(prefix.length);
+    const slash = rest.indexOf("/");
+    if (slash === -1) {
+      out.push({ name: rest, relPath: path, kind: "file", size: f.size, modified: f.modified });
+    } else {
+      const name = rest.slice(0, slash);
+      if (!dirs.has(name)) dirs.set(name, { name, relPath: prefix + name, kind: "dir", size: 0, modified: null });
+    }
+  }
+  // フォルダが先、名前は大文字小文字を区別せず自然順
+  const byName = (a: FsEntry, b: FsEntry) => collator.compare(a.name, b.name);
+  return [...[...dirs.values()].sort(byName), ...out.sort(byName)];
+}
+
 export const mockApi: Api = {
+  async listDir(projectId, relPath) {
+    await sleep(120);
+    find(projectId);
+    return listMockDir(projectId, relPath);
+  },
+  async readFile(projectId, relPath) {
+    await sleep(120);
+    find(projectId);
+    const f = filesOf(projectId).get(relPath);
+    if (!f) throw "ファイルが見つかりません";
+    return { relPath, kind: f.kind, content: f.content, size: f.size, modified: f.modified, eol: f.eol, hasBom: f.hasBom };
+  },
+  async writeFile(projectId, relPath, content, expectedModified, eol, hasBom, force) {
+    await sleep(200);
+    find(projectId);
+    const f = filesOf(projectId).get(relPath);
+    if (!f) throw "ファイルが見つかりません";
+    if (f.kind !== "text") throw "このファイルは書き込めません";
+    if (!force && conflictPending) {
+      conflictPending = false;
+      throw "競合: ほかのアプリでファイルが変更されています";
+    }
+    if (!force && expectedModified !== null && expectedModified !== f.modified) {
+      throw "競合: ほかのアプリでファイルが変更されています";
+    }
+    const modified = new Date().toISOString();
+    Object.assign(f, { content, size: new TextEncoder().encode(content).length, eol, hasBom, modified });
+    return { modified, size: f.size };
+  },
   async listProjects() {
     await sleep(mode === "loading" ? 60_000 : 250);
     if (mode === "error") throw "保存ファイルを読み込めませんでした(モック)";

@@ -1,0 +1,155 @@
+/* エディタ画面の見た目(samples/36-gentle-bento.html の EDITOR 部分に準拠)。
+   色は、画面のルートに付く --proj / --proj-d(プロジェクトのメイン言語の色)から取る。 */
+
+/* エディタ表示中のボード: 描画も操作も止めるが、マウントは残す */
+.board-layer[data-hidden] { visibility: hidden; pointer-events: none; }
+
+.editor {
+  position: fixed; inset: 0; z-index: 100; overflow: hidden;
+  display: grid; grid-template-columns: 272px minmax(0, 1fr) auto; grid-template-rows: auto minmax(0, 1fr);
+  background: var(--bg); color: var(--ink);
+}
+
+/* ===== ヘッダー ===== */
+.ehead {
+  grid-column: 1 / -1; display: flex; align-items: center; flex-wrap: wrap; gap: 10px 18px;
+  min-height: 84px; padding: 12px 28px 12px 24px; border-bottom: 1px solid var(--line); background: var(--bg);
+}
+.back {
+  appearance: none; width: 42px; height: 42px; border-radius: 14px; border: 1px solid var(--line); background: var(--white); color: var(--ink);
+  cursor: pointer; display: grid; place-items: center; box-shadow: var(--sh); flex: none; transition: transform 0.15s, background 0.15s;
+}
+.back:hover { background: var(--proj); transform: translateX(-2px); }
+.ehead-title { min-width: 0; flex: 0 1 260px; }
+.ehead h1 { margin: 0; font-size: 21px; font-weight: 700; letter-spacing: 0.03em; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ehead .x-path { margin-top: 1px; flex-wrap: nowrap; min-width: 0; }
+.ehead .x-path > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.ehead .x-path .br { flex: none; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ehead-lang { flex: 0 0 168px; }
+.ehead-lang .x-lang .auto { display: none; }
+.ehead-gh { flex: 0 1 auto; min-width: 0; }
+.ehead-note {
+  flex: 1 1 180px; min-width: 150px; max-width: 460px; margin: 0; padding: 5px 12px 5px 12px;
+  background: var(--white); border: 1px solid var(--line); border-radius: 12px;
+}
+.ehead-note .editable { padding-top: 0; padding-bottom: 0; }
+.ehead-note .editable-view { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ehead-save { margin-left: auto; display: flex; align-items: center; gap: 12px; min-width: 0; }
+.save-status {
+  display: inline-flex; align-items: center; gap: 7px; min-width: 0; max-width: 300px;
+  font-size: 12px; color: var(--ink2); white-space: nowrap;
+}
+.save-status > span:last-child { overflow: hidden; text-overflow: ellipsis; }
+.save-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--soft); }
+.save-status[data-kind="dirty"] .save-dot { background: var(--warn); }
+.save-status[data-kind="saving"] .save-dot { background: var(--sky-d); animation: pulse 1s ease-in-out infinite; }
+.save-status[data-kind="saved"] .save-dot { background: var(--ok); }
+.save-status[data-kind="failed"] { color: var(--danger); }
+.save-status[data-kind="failed"] .save-dot { background: var(--danger); }
+@keyframes pulse { 50% { opacity: 0.35; } }
+
+/* ===== ツリー ===== */
+.tree { grid-column: 1; grid-row: 2; background: var(--bg2); padding: 16px 10px 48px 12px; overflow: auto; min-height: 0; }
+.tree-head { display: flex; align-items: center; justify-content: space-between; margin: 0 0 8px 6px; }
+.panel-title { margin: 0; font-size: 11px; font-weight: 700; letter-spacing: 0.16em; color: var(--soft); text-transform: uppercase; }
+.tree-reload {
+  appearance: none; border: 0; background: transparent; display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px;
+  border-radius: 99px; font-size: 11px; color: var(--ink2); cursor: pointer; transition: background 0.12s;
+}
+.tree-reload:hover { background: var(--white); color: var(--ink); }
+.tree [role="tree"] { font-size: 13px; }
+.tree-row {
+  display: flex; align-items: center; gap: 8px; padding: 5px 10px 5px calc(8px + var(--depth, 0) * 16px); margin: 1px 0;
+  border-radius: 10px; cursor: pointer; user-select: none; transition: background 0.12s;
+}
+.tree-row:hover { background: rgba(255, 255, 255, 0.7); }
+.tree-row[data-kind="dir"] { font-weight: 700; }
+.tree-row[data-active] { background: var(--white); font-weight: 700; box-shadow: inset 4px 0 0 var(--proj-d), var(--sh); }
+.tree-row:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; box-shadow: none; }
+.tree-row[data-active]:focus-visible { box-shadow: inset 4px 0 0 var(--proj-d), var(--sh); }
+.tree-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ico {
+  width: 26px; height: 18px; border-radius: 6px; flex: none; text-align: center; background: var(--c, var(--stone-d)); color: var(--ink);
+  font-family: var(--mono); font-size: 11px; font-weight: 700; line-height: 18px; letter-spacing: -0.06em;
+}
+.ico-dir { background: none; display: grid; place-items: center; }
+.ico-dir::before {
+  content: ""; border: 4.5px solid transparent; border-left: 7px solid var(--soft); border-right: 0; transition: transform 0.15s;
+}
+.tree-row[aria-expanded="true"] .ico-dir::before { transform: rotate(90deg); }
+.tree-status {
+  display: flex; align-items: center; gap: 8px; padding: 5px 10px 5px calc(8px + 34px + var(--depth, 0) * 16px);
+  font-size: 12px; color: var(--soft);
+}
+.tree-status[data-status="error"] { color: var(--danger); }
+.tree .spinner { width: 12px; height: 12px; }
+
+/* ===== タブ・本文 ===== */
+.pagemain { grid-column: 2; grid-row: 2; display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--white); position: relative; }
+.tabs {
+  display: flex; gap: 4px; padding: 10px 14px 0; min-height: 46px; overflow-x: auto; overflow-y: hidden; flex: none; background: var(--bg);
+  scrollbar-width: thin;
+}
+.tab { display: flex; align-items: center; flex: none; max-width: 240px; border-radius: 12px 12px 0 0; color: var(--soft); font-size: 12.5px; }
+.tab:hover { background: rgba(255, 255, 255, 0.7); color: var(--ink); }
+.tab[data-active] { background: var(--white); color: var(--ink); font-weight: 700; box-shadow: inset 0 3px 0 var(--proj-d); }
+.tab-main {
+  appearance: none; border: 0; background: transparent; font: inherit; color: inherit; cursor: pointer; min-width: 0;
+  display: flex; align-items: center; gap: 8px; padding: 7px 4px 7px 14px; white-space: nowrap; border-radius: 12px 0 0 0;
+}
+.tab-name { overflow: hidden; text-overflow: ellipsis; }
+.tab-dirty { color: var(--warn); font-size: 11px; line-height: 1; flex: none; }
+.tab-close {
+  appearance: none; border: 0; background: transparent; color: inherit; cursor: pointer; width: 24px; height: 24px; margin: 0 8px 0 2px;
+  border-radius: 50%; display: grid; place-items: center; opacity: 0.55; flex: none;
+}
+.tab-close:hover { opacity: 1; background: var(--bg2); color: var(--danger); }
+.tab:focus-within .tab-close, .tab[data-active] .tab-close { opacity: 0.8; }
+.tab-main:focus-visible, .tab-close:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; box-shadow: none; }
+
+.doc { flex: 1; display: flex; flex-direction: column; min-height: 0; background: var(--white); }
+.doc-bar {
+  padding: 6px 20px; min-height: 40px; border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 11.5px; color: var(--soft);
+  flex: none; display: flex; align-items: center; gap: 10px;
+}
+.doc-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.doc-lang {
+  flex: none; font-family: var(--round); font-size: 11px; font-weight: 700; padding: 1px 10px; border-radius: 99px;
+  background: var(--proj); color: var(--ink); letter-spacing: 0.05em;
+}
+.mode { margin-left: auto; display: flex; gap: 4px; flex: none; }
+.mode-btn {
+  appearance: none; border: 0; background: var(--bg2); color: var(--ink); padding: 2px 13px; border-radius: 99px; font-size: 11.5px;
+  cursor: pointer; font-weight: 500; font-family: var(--round); height: 24px;
+}
+.mode-btn:hover { background: var(--proj); }
+.mode-btn[aria-pressed="true"] { background: var(--ink); color: #fff; font-weight: 700; }
+.doc-body { flex: 1; min-height: 0; position: relative; }
+.doc-panel { position: absolute; inset: 0; min-height: 0; background: var(--white); }
+.doc-panel[hidden] { display: none; }
+.doc-empty { padding: 48px; color: var(--soft); }
+.doc-empty p { margin: 0; }
+.doc-state { display: flex; align-items: center; gap: 12px; padding: 40px; margin: 0; color: var(--ink2); }
+.doc-unopenable { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 72px 40px; text-align: center; color: var(--ink2); }
+.doc-unopenable b { font-size: 16px; color: var(--ink); }
+.doc-unopenable p { margin: 0; max-width: 420px; font-size: 13.5px; line-height: 1.8; }
+.doc-lock { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; background: var(--proj); color: var(--ink2); }
+
+/* ===== 右のAI枠(MVPでは中身なし。畳んだ状態が既定) ===== */
+.ai { grid-column: 3; grid-row: 2; min-height: 0; border-left: 1px solid var(--line); background: var(--bg2); }
+.ai-closed { width: 44px; display: flex; justify-content: center; padding-top: 14px; }
+.ai-tab {
+  appearance: none; border: 0; background: transparent; color: var(--ink2); cursor: pointer; writing-mode: vertical-rl;
+  padding: 16px 8px; border-radius: 12px; font-size: 12px; font-weight: 700; letter-spacing: 0.12em; height: fit-content;
+}
+.ai-tab:hover { background: var(--white); color: var(--ink); }
+.ai-open { width: 344px; padding: 16px 18px; }
+.ai-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.ai-fold { appearance: none; border: 0; background: var(--white); border-radius: 99px; padding: 3px 12px; font-size: 11.5px; cursor: pointer; color: var(--ink2); }
+.ai-fold:hover { color: var(--ink); }
+.ai-soon { margin: 0; padding: 18px; border: 1px dashed #bfb6a5; border-radius: 14px; font-size: 13px; line-height: 1.8; color: var(--ink2); }
+
+/* ===== 3択のダイアログ ===== */
+.confirm-actions-wrap { flex-wrap: wrap; }
+.confirm-actions-wrap .btn { padding: 0 14px; }
+.btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; box-shadow: none; }

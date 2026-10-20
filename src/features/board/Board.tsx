@@ -13,6 +13,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ProjectSummary } from "../../api/types";
 import { ConfirmDialog } from "../../shared/ui/ConfirmDialog";
 import { EmptyState } from "../../shared/ui/EmptyState";
+import { useEditor } from "../editor/editorStore";
 import { clearAll } from "../pen/penActions";
 import { PenLayer } from "../pen/PenLayer";
 import { PenToolbar } from "../pen/PenToolbar";
@@ -75,6 +76,18 @@ export function Board() {
       }),
     );
   }, [projects, onRemoveRequest]);
+  // カードのクリックでエディタを開く。メモ・説明の編集欄、×ボタン、リンクなどのクリックでは開かない。
+  // ペンON中は、ボードへの書き込みに専念するので開かない。
+  const onNodeClick = useCallback(
+    (event: React.MouseEvent, node: ProjectFlowNode) => {
+      if (penOn) return;
+      const target = event.target as HTMLElement;
+      if (target.closest("button, input, textarea, a, select, [contenteditable='true'], .nodrag")) return;
+      if (!node.data.project.exists) return; // フォルダが無いカードは開けない
+      useEditor.getState().requestOpenProject(node.id);
+    },
+    [penOn],
+  );
   const onNodesChange = useCallback((changes: NodeChange<ProjectFlowNode>[]) => {
     setNodes((ns) => applyNodeChanges(changes, ns));
   }, []);
@@ -131,6 +144,8 @@ export function Board() {
           nodes={nodes}
           nodeTypes={nodeTypes}
           onNodesChange={onNodesChange}
+          onNodeClick={onNodeClick}
+          nodeClickDistance={3}
           onNodeDragStart={onNodeDragStart}
           onNodeDragStop={onNodeDragStop}
           onMoveStart={onMoveStart}
