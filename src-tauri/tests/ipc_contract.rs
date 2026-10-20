@@ -36,7 +36,12 @@ fn harness() -> Harness {
             write_file,
             stat_files,
             get_editor_session,
-            save_editor_session
+            save_editor_session,
+            create_file,
+            create_dir,
+            rename_entry,
+            delete_entry,
+            open_in_vscode
         ])
         .build(mock_context(noop_assets()))
         .unwrap();
@@ -559,4 +564,147 @@ fn stage3b1_session_and_stat_contract() {
     // 一覧用の要約には editorSession を含めない(既存の形を変えない)
     let p = call(&h, "refresh_project", json!({ "id": id })).unwrap();
     assert!(p.get("editorSession").is_none());
+}
+
+/// 段階3b-2契約 §2: create_file / create_dir / rename_entry / delete_entry / open_in_vscode。
+#[test]
+fn stage3b2_file_ops_contract() {
+    let h = harness();
+    let d = tempfile::tempdir().unwrap();
+    std::fs::create_dir(d.path().join("sub")).unwrap();
+    let id = add_dir(&h, &d);
+
+    // create_file: FsEntry の形(camelCase)
+    let f = call(
+        &h,
+        "create_file",
+        json!({ "projectId": id, "relPath": "sub/new.md" }),
+    )
+    .unwrap();
+    let mut keys: Vec<&str> = f.as_object().unwrap().keys().map(|k| k.as_str()).collect();
+    keys.sort();
+    assert_eq!(keys, ["kind", "modified", "name", "relPath", "size"]);
+    assert_eq!(f["relPath"], json!("sub/new.md"));
+    assert_eq!(f["name"], json!("new.md"));
+    assert_eq!(f["kind"], json!("file"));
+    assert_eq!(f["size"], json!(0));
+    assert!(f["modified"].is_string());
+    assert!(d.path().join("sub").join("new.md").is_file());
+
+    // 既存は「既存:」、親なしはエラー
+    let err = call(
+        &h,
+        "create_file",
+        json!({ "projectId": id, "relPath": "sub/new.md" }),
+    )
+    .unwrap_err();
+    assert!(err.as_str().unwrap().starts_with("既存:"), "{err}");
+    assert!(
+        call(
+            &h,
+            "create_dir",
+            json!({ "projectId": id, "relPath": "nope/x" })
+        )
+        .is_err()
+    );
+
+    // create_dir
+    let dir = call(
+        &h,
+        "create_dir",
+        json!({ "projectId": id, "relPath": "sub/inner" }),
+    )
+    .unwrap();
+    assert_eq!(dir["kind"], json!("dir"));
+    let err = call(
+        &h,
+        "create_dir",
+        json!({ "projectId": id, "relPath": "sub/inner" }),
+    )
+    .unwrap_err();
+    assert!(err.as_str().unwrap().starts_with("既存:"), "{err}");
+
+    // rename_entry: 引数名は fromRelPath / toRelPath(src/api/tauri.ts と一致)
+    let r = call(
+        &h,
+        "rename_entry",
+        json!({ "projectId": id, "fromRelPath": "sub/new.md", "toRelPath": "moved.md" }),
+    )
+    .unwrap();
+    assert_eq!(r["relPath"], json!("moved.md"));
+    assert!(d.path().join("moved.md").is_file());
+    let err = call(
+        &h,
+        "rename_entry",
+        json!({ "projectId": id, "fromRelPath": "moved.md", "toRelPath": "sub" }),
+    )
+    .unwrap_err();
+    assert!(err.as_str().unwrap().starts_with("既存:"), "{err}");
+    assert!(
+        call(
+            &h,
+            "rename_entry",
+            json!({ "projectId": id, "fromRelPath": "sub", "toRelPath": "sub/inner/sub" }),
+        )
+        .is_err()
+    );
+    assert!(
+        call(
+            &h,
+            "rename_entry",
+            json!({ "projectId": id, "fromRelPath": "", "toRelPath": "x" }),
+        )
+        .is_err()
+    );
+
+    // delete_entry: 拒否系(ルート・不在・外・.git)。成功は単体テストのごみ箱で確認
+    for bad in ["", "nope.txt", "../x", ".git"] {
+        assert!(
+            call(
+                &h,
+                "delete_entry",
+                json!({ "projectId": id, "relPath": bad })
+            )
+            .is_err(),
+            "{bad}"
+        );
+    }
+    assert!(d.path().exists() && d.path().join("moved.md").exists());
+
+    // open_in_vscode: 起動しない拒否系だけ(不正なパス)
+    for bad in ["../x", "nope"] {
+        assert!(
+            call(
+                &h,
+                "open_in_vscode",
+                json!({ "projectId": id, "relPath": bad })
+            )
+            .is_err(),
+            "{bad}"
+        );
+    }
+
+    // 未登録のプロジェクトは、どれもファイルに触れず日本語エラー
+    let nope = json!("プロジェクトが見つかりません");
+    for (cmd, body) in [
+        (
+            "create_file",
+            json!({ "projectId": "nope", "relPath": "a" }),
+        ),
+        ("create_dir", json!({ "projectId": "nope", "relPath": "a" })),
+        (
+            "rename_entry",
+            json!({ "projectId": "nope", "fromRelPath": "a", "toRelPath": "b" }),
+        ),
+        (
+            "delete_entry",
+            json!({ "projectId": "nope", "relPath": "a" }),
+        ),
+        (
+            "open_in_vscode",
+            json!({ "projectId": "nope", "relPath": "" }),
+        ),
+    ] {
+        assert_eq!(call(&h, cmd, body).unwrap_err(), nope, "{cmd}");
+    }
 }

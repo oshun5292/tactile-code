@@ -29,6 +29,7 @@ ignore = "0.4"
 uuid = { version = "1", features = ["v4"] }
 # 日時を ISO 8601 の文字列にする
 time = { version = "0.3", features = ["formatting"] }
+trash = "5.2.9"
 
 [dev-dependencies]
 # テスト用の一時フォルダ
