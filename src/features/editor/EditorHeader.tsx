@@ -11,6 +11,9 @@ type Props = {
   activeTab: Tab | null;
   onBack: () => void;
   onSave: () => void;
+  /** 未保存のタブ数と、すべて保存(2件以上のときだけボタンを出す) */
+  dirtyCount: number;
+  onSaveAll: () => void;
   onOpenInVscode: () => void;
   onQuickOpen: () => void;
   onNoteChange: (note: string) => void;
@@ -27,7 +30,7 @@ function saveStatus(tab: Tab | null): { kind: "none" | "dirty" | "saving" | "sav
 }
 
 /** エディタ上部(36 の .ehead)。ボードのカードと同じ部品(言語バー・GitHubチップ・メモ)を使う。 */
-export function EditorHeader({ project: p, activeTab, onBack, onSave, onOpenInVscode, onQuickOpen, onNoteChange }: Props) {
+export function EditorHeader({ project: p, activeTab, onBack, onSave, dirtyCount, onSaveAll, onOpenInVscode, onQuickOpen, onNoteChange }: Props) {
   const status = saveStatus(activeTab);
   const canSave = !!activeTab && activeTab.kind === "text" && isDirty(activeTab) && activeTab.save !== "saving";
   const branch = p.git?.branch;
@@ -66,6 +69,11 @@ export function EditorHeader({ project: p, activeTab, onBack, onSave, onOpenInVs
           {status.kind !== "none" && <i className="save-dot" aria-hidden="true" />}
           <span>{status.text}</span>
         </span>
+        {dirtyCount >= 2 && (
+          <button type="button" className="btn btn-ghost" onClick={onSaveAll} title="未保存のタブをすべて保存(Ctrl+K S)">
+            すべて保存 ({dirtyCount})
+          </button>
+        )}
         <button type="button" className="btn btn-ghost find-btn" onClick={onQuickOpen} title="ファイルを探す(Ctrl+P)">
           ファイルを探す
           <kbd>Ctrl+P</kbd>

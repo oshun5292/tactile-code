@@ -1,4 +1,6 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import type { AutoSaveMode } from "../../api/types";
+import { AUTO_SAVE_DELAY_CHOICES } from "./autoSaveLogic";
 import { FONT_DEFAULT, FONT_MAX, FONT_MIN } from "./settingsLogic";
 import { useSettings } from "./settingsStore";
 
@@ -20,8 +22,8 @@ export function SettingsMenu() {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const popId = useId();
-  const { fontSize, wordWrap } = useSettings((s) => s.settings);
-  const { zoom, resetFont, toggleWrap } = useSettings.getState();
+  const { fontSize, wordWrap, autoSave, autoSaveDelayMs } = useSettings((s) => s.settings);
+  const { zoom, resetFont, toggleWrap, update } = useSettings.getState();
 
   // 外側のクリックで閉じる
   useEffect(() => {
@@ -79,7 +81,38 @@ export function SettingsMenu() {
             </label>
           </SettingRow>
           <p className="setting-note">マークダウンの「書く」側は、読みやすさのため常に折り返します。</p>
-          {/* N10: 自動保存の項目は、ここへ SettingRow を足す */}
+          <SettingRow label="自動保存">
+            <select
+              className="setting-select"
+              value={autoSave}
+              aria-label="自動保存"
+              onChange={(e) => update({ autoSave: e.target.value as AutoSaveMode })}
+            >
+              <option value="off">オフ</option>
+              <option value="afterDelay">一定時間後</option>
+              <option value="onFocusChange">フォーカスが外れたとき</option>
+            </select>
+          </SettingRow>
+          {autoSave === "afterDelay" && (
+            <SettingRow label="待ち時間" hint="最後の入力から">
+              <select
+                className="setting-select"
+                value={autoSaveDelayMs}
+                aria-label="自動保存の待ち時間"
+                onChange={(e) => update({ autoSaveDelayMs: Number(e.target.value) })}
+              >
+                {/* 設定ファイルに一覧外の値があっても、そのまま選択肢に出して表示がずれないようにする */}
+                {(AUTO_SAVE_DELAY_CHOICES as readonly number[]).includes(autoSaveDelayMs) ? null : (
+                  <option value={autoSaveDelayMs}>{autoSaveDelayMs / 1000} 秒</option>
+                )}
+                {AUTO_SAVE_DELAY_CHOICES.map((ms) => (
+                  <option key={ms} value={ms}>
+                    {ms / 1000} 秒
+                  </option>
+                ))}
+              </select>
+            </SettingRow>
+          )}
         </div>
       )}
     </div>

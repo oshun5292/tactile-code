@@ -128,6 +128,8 @@ type EditorState = {
   setIndent: (projectId: string, relPath: string, indent: IndentSetting | null) => void;
   /** encoding を渡すと、その文字コードで保存する(内容が同じでも書く)。成功したらタブの文字コードを更新。 */
   save: (projectId: string, relPath: string, force?: boolean, encoding?: EncodingName) => Promise<boolean>;
+  /** いま開いているプロジェクトの未保存タブをすべて保存する(Ctrl+K S)。結果はお知らせで伝える。 */
+  saveAllOpen: (projectId: string) => Promise<void>;
   /** 指定の文字コードで読み直す。未保存の変更があれば、破棄の確認を挟む。 */
   requestReopenWithEncoding: (projectId: string, relPath: string, encoding: EncodingName) => void;
   reloadTab: (projectId: string, relPath: string) => Promise<void>;
@@ -584,6 +586,25 @@ export const useEditor = create<EditorState>((set, get) => {
         }
         return false;
       }
+    },
+
+    saveAllOpen: async (projectId) => {
+      const targets = dirtyTabs(sessionOf(projectId)).filter((t) => t.kind === "text" && t.save !== "saving");
+      if (targets.length === 0) {
+        get().notify("info", "未保存の変更はありません");
+        return;
+      }
+      let ok = 0;
+      let failed = 0;
+      for (const t of targets) {
+        if (await get().save(projectId, t.relPath)) ok++;
+        else failed++;
+        // 競合ダイアログは一度に1件しか出せない。残りは未保存のまま、解決後にもう一度保存してもらう
+        if (get().conflict) break;
+      }
+      const rest = targets.length - ok - failed;
+      if (failed === 0) get().notify("info", `${ok} 件を保存しました`);
+      else get().notify("error", `${failed} 件を保存できませんでした(各タブの表示を確認してください)${rest > 0 ? `。残り ${rest} 件は未保存のままです` : ""}`);
     },
 
     reloadTab: async (projectId, relPath) => {
