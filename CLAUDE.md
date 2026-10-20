@@ -11,7 +11,7 @@
 ## 技術構成
 - Tauri v2(Rust)+ React 19 + TypeScript + Vite。パッケージ管理は **pnpm**。
 - ボードは React Flow、状態は Zustand、コードエディタは **CodeMirror 6**、マークダウン表示は react-markdown(いずれも導入はこれから)。
-- 環境: Windows 11 + PowerShell。Rust は `%USERPROFILE%\.cargo\bin`(新しいシェルではPATH済み。このセッションのシェルでは `$env:Path += ";$env:USERPROFILE\.cargo\bin"` が要ることがある)。
+- 環境: Windows 11 + PowerShell。Rust は `%USERPROFILE%\.cargo\bin`。**Rust をインストールした後に起動した VSCode/ターミナルだけ**が PATH を知っている。古い VSCode から `cargo` が見つからないと言われたら、VSCode を完全に終了して起動し直す(一時的には `$env:Path += ";$env:USERPROFILE\.cargo\bin"`)。
 
 ## ディレクトリ
 - `src/`: フロントエンド(React)。機能ごとに `src/features/<名前>/`(例: board, editor, projects)、共通部品は `src/shared/`、Tauri呼び出しの薄いラッパーは `src/api/`。
@@ -37,7 +37,7 @@
 - **機能ブランチ(`feat/` `fix/` `chore/`)での commit・push・PR作成は、確認なしで進めてよい**(ユーザーの包括的な許可、2026-10-20)。**main への push、PRのマージ、強制push、履歴の書き換えは、ユーザーだけが行う**(フック `.claude/hooks/guard-delete.mjs` が main への push・強制push・マージをブロックする)。
 - リポジトリは**公開**。コミット前に秘密情報(.env、トークン、鍵)を検索し、他人の著作物(参考画像)・大きな生成物を入れない(`.gitignore` 参照)。PRの説明には、確認したこと・未確認のこと・既知の課題を書く。コミットは小さく分ける。
 - コミットメッセージは日本語、末尾に共同作成者の行を付ける。
-- 許可リストは `.claude/settings.json`。`git add/commit/push`、`pnpm add`、ファイル削除は、毎回ユーザーに確認する。
+- 許可リストは `.claude/settings.json`(機能ブランチの `git add/commit/push`、PR作成は許可済み)。**`pnpm add`(依存の追加)は毎回ユーザーに確認する**。削除は、上の「削除のルール」に従い、安全フックが検査する。
 
 ## 削除のルール(ユーザー決定。安全装置は `.claude/hooks/guard-delete.mjs`)
 - 削除してよいのは、**プロジェクトの内側**のファイル・フォルダ。**絶対パスで明示**して消す(変数・ワイルドカードだけの指定、`..` で外へ出る指定は不可)。
