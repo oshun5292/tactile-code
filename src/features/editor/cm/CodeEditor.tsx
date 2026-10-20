@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, type CSSProperties } from "react";
 import { Annotation, Compartment, EditorState } from "@codemirror/state";
 import {
   EditorView,
@@ -24,6 +24,7 @@ export type CodeEditorProps = {
   onSave: () => void; // Ctrl+S(preventDefault する)
   readOnly?: boolean;
   wrap?: boolean; // 折り返し(既定 false)
+  fontSize?: number; // px。未指定ならテーマの既定(13px)
   autoFocus?: boolean;
   ariaLabel?: string;
   /** この行・桁(行は1始まり、桁は0始まりの文字数)を選択して表示する。tick が変わるたびに動く(同じ位置への2回目も効く) */
@@ -204,5 +205,12 @@ export function CodeEditor(props: CodeEditorProps) {
     });
   }, [lang, readOnly, wrap, ariaLabel, filename, indentKey]);
 
-  return <div ref={host} className="cm-host" data-language={lang.id} />;
+  // 文字サイズが変わると文字幅が変わるので、CodeMirror に測り直させる(行番号の幅・折り返し位置のずれ防止)
+  const { fontSize } = props;
+  useEffect(() => {
+    viewRef.current?.requestMeasure();
+  }, [fontSize]);
+
+  const style = fontSize ? ({ "--cm-font-size": `${fontSize}px` } as CSSProperties) : undefined;
+  return <div ref={host} className="cm-host" data-language={lang.id} style={style} />;
 }

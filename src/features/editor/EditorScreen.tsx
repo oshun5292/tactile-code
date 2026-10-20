@@ -8,7 +8,9 @@ import { AiPanel } from "./AiPanel";
 import { DocView } from "./DocView";
 import { EditorHeader } from "./EditorHeader";
 import { FileTree } from "./FileTree";
-import { absolutePathOf, baseName, emptySession, encodingLabel, isDirty, neighborTab, type Session } from "./editorLogic";
+import { GotoLine } from "./GotoLine";
+import { useSettings } from "./settingsStore";
+import { absolutePathOf, baseName, emptySession, isMarkdownFile, encodingLabel, isDirty, neighborTab, type Session } from "./editorLogic";
 import { useEditor } from "./editorStore";
 import { QuickOpen } from "./QuickOpen";
 import { SearchPanel } from "./SearchPanel";
@@ -34,6 +36,7 @@ export function EditorScreen({ projectId }: { projectId: string }) {
   const dirtyAll = useEditor((s) => s.sessions);
   const ed = useEditor.getState();
   const [quickOpen, setQuickOpen] = useState(false);
+  const [gotoOpen, setGotoOpen] = useState(false);
   const reveal = useEditor((s) => s.reveal);
   // サイドバーの「ファイル / 検索」。検索の入力内容は、切り替えても残す(パネルはマウントしたまま隠す)
   const [side, setSide] = useState<"files" | "search">("files");
@@ -87,7 +90,7 @@ export function EditorScreen({ projectId }: { projectId: string }) {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         if (e.defaultPrevented || e.isComposing) return;
-        if (document.querySelector("dialog[open]") || document.querySelector(".cm-search") || document.querySelector(".quickopen")) return;
+        if (document.querySelector("dialog[open]") || document.querySelector(".cm-search") || document.querySelector(".quickopen") || document.querySelector(".settings-pop")) return;
         const tag = (e.target as HTMLElement | null)?.tagName;
         if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
         e.preventDefault();
@@ -132,6 +135,47 @@ export function EditorScreen({ projectId }: { projectId: string }) {
       const st = useEditor.getState();
       const next = neighborTab(st.sessions[projectId] ?? EMPTY, delta);
       if (next) st.activateTab(projectId, next);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [projectId]);
+
+  // 設定を読む(エディタを開くとき)。読み込み済みなら何もしない
+  useEffect(() => {
+    void useSettings.getState().load();
+  }, []);
+
+  // 文字サイズ(Ctrl+= / Ctrl++ / Ctrl+- / Ctrl+0)、折り返し(Alt+Z)、行へ移動(Ctrl+G)。
+  // WebView のページ拡大や CodeMirror の「次を検索(Ctrl+G)」に先に食われないよう capture で受ける
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.isComposing || e.keyCode === 229) return;
+      const mod = e.ctrlKey || e.metaKey;
+      const s = useSettings.getState();
+      if (mod && !e.altKey) {
+        if (e.key === "=" || e.key === "+") s.zoom(1);
+        else if (e.key === "-") s.zoom(-1);
+        else if (e.key === "0") s.resetFont();
+        else if (e.key.toLowerCase() === "g" && !e.shiftKey) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (document.querySelector("dialog[open]") || document.querySelector(".quickopen")) return;
+          const st = useEditor.getState();
+          const ses = st.sessions[projectId];
+          const t = ses?.tabs.find((x) => x.relPath === ses.active);
+          if (!t || t.kind !== "text" || t.draft === null) return;
+          if (isMarkdownFile(t.relPath) && t.mdMode === "preview") {
+            st.notify("info", "「読む」表示では行へ移動できません。「書く」か「半分」に切り替えてください");
+            return;
+          }
+          setGotoOpen(true);
+          return;
+        } else return;
+        e.preventDefault(); // WebView のページ拡大を出さない
+      } else if (e.altKey && !mod && !e.shiftKey && e.code === "KeyZ") {
+        e.preventDefault();
+        s.toggleWrap();
+      }
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
@@ -292,6 +336,14 @@ export function EditorScreen({ projectId }: { projectId: string }) {
           recent={recent}
           onClose={() => setQuickOpen(false)}
           onOpen={(p) => void ed.openFile(projectId, p)}
+        />
+      )}
+
+      {gotoOpen && activeTab && (
+        <GotoLine
+          onClose={() => setGotoOpen(false)}
+          // 桁は 0 始まりの文字数で渡す。範囲外は reveal 側(revealRange)が端に丸める
+          onGo={(line, col) => void ed.openAt(projectId, activeTab.relPath, line, col - 1, 0)}
         />
       )}
 

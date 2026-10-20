@@ -4,6 +4,7 @@ import { EditableText } from "../../shared/ui/EditableText";
 import { GithubChip } from "../../shared/ui/GithubChip";
 import { LanguageBar, LanguageLabel } from "../../shared/ui/LanguageParts";
 import { isDirty, type Tab } from "./editorLogic";
+import { SettingsMenu } from "./SettingsMenu";
 
 type Props = {
   project: ProjectSummary;
@@ -69,6 +70,7 @@ export function EditorHeader({ project: p, activeTab, onBack, onSave, onOpenInVs
           ファイルを探す
           <kbd>Ctrl+P</kbd>
         </button>
+        <SettingsMenu />
         <button type="button" className="btn btn-ghost" onClick={onOpenInVscode} title="このプロジェクトのフォルダを VSCode で開く">
           VSCodeで開く
         </button>
