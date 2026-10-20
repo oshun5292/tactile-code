@@ -1,6 +1,6 @@
 // モック用のサンプルファイル群(ブラウザで pnpm dev したときの、5つのプロジェクトの中身)。
 // 中身は samples/assets/common.js のデータをもとにしている。
-import type { Eol, FileKind } from "./types";
+import type { EncodingName, Eol, FileKind } from "./types";
 
 export type MockFileSeed = {
   content?: string; // kind が "text" のとき
@@ -8,6 +8,8 @@ export type MockFileSeed = {
   size?: number; // text 以外で見せるバイト数
   eol?: Eol;
   hasBom?: boolean;
+  encoding?: EncodingName; // 省略は "utf-8"
+  asShiftJis?: string; // kind が "unsupportedEncoding" のとき、shift_jis で開いた場合の本文
 };
 
 const lines = (...l: string[]) => l.join("\n") + "\n";
@@ -81,7 +83,12 @@ const sales: Record<string, MockFileSeed> = {
     content: lines("select date_trunc('month', order_date) as month,", "       sum(amount)                    as sales", "from orders", "group by 1", "order by 1"),
   },
   "data/sales.csv": { kind: "tooLarge", size: 48_300_000 },
-  "data/legacy_shiftjis.txt": { kind: "unsupportedEncoding", size: 2_048 },
+  "data/legacy_shiftjis.txt": {
+    kind: "unsupportedEncoding",
+    size: 2_048,
+    asShiftJis: lines("売上メモ(旧システムの出力)", "2024年12月は前年比 +8%。"),
+  },
+  "data/jp_euc.txt": { content: lines("EUC-JP 判定済みのサンプル", "日本語の本文です。"), encoding: "euc-jp" },
 };
 
 const dbt: Record<string, MockFileSeed> = {

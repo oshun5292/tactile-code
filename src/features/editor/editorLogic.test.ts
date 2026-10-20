@@ -5,6 +5,13 @@ import {
   ancestorsOf,
   applyLoaded,
   baseName,
+  bomForEncoding,
+  canReopenWithEncoding,
+  canSaveWithEncoding,
+  encodingChoices,
+  encodingLabel,
+  needsWriteForEncoding,
+  newTab,
   closeTabIn,
   creationParent,
   dirtyTabs,
@@ -46,6 +53,7 @@ const file = (relPath: string, content = "a"): FileContent => ({
   modified: "2026-10-20T00:00:00.000000000+09:00",
   eol: "lf",
   hasBom: false,
+  encoding: "utf-8",
 });
 
 describe("パス", () => {
@@ -94,7 +102,7 @@ describe("表示用", () => {
   it("開けない理由", () => {
     expect(unopenableReason({ kind: "binary", size: 1 })).toContain("文字ではない");
     expect(unopenableReason({ kind: "tooLarge", size: 3_000_000 })).toContain("2 MB");
-    expect(unopenableReason({ kind: "unsupportedEncoding", size: 1 })).toContain("UTF-8");
+    expect(unopenableReason({ kind: "unsupportedEncoding", size: 1 })).toContain("判別できません");
     expect(unopenableReason({ kind: "text", size: 1 })).toBe("");
   });
 });
@@ -406,5 +414,52 @@ describe("フォルダ一覧のキャッシュ", () => {
     const m = dropFromDirsCache(dirs, "src");
     expect(Object.keys(m)).toEqual([""]);
     expect(m[""].entries.map((e) => e.relPath)).toEqual(["a.md"]);
+  });
+});
+
+describe("文字コード(3b-3)", () => {
+  const ready = (over: Partial<FileContent> = {}) => applyLoaded(newTab("a.txt"), { ...file("a.txt"), ...over });
+
+  it("読み込み結果の文字コードをタブに持つ", () => {
+    expect(newTab("a.txt").encoding).toBe("utf-8");
+    expect(ready({ encoding: "shift_jis" }).encoding).toBe("shift_jis");
+  });
+  it("text 以外を読み直したら、前の文字コードを引きずらない", () => {
+    const t = ready({ encoding: "shift_jis" });
+    const u = applyLoaded(t, { ...file("a.txt"), kind: "unsupportedEncoding", content: null, encoding: "utf-8" });
+    expect(u.encoding).toBe("utf-8");
+    expect(u.draft).toBeNull();
+  });
+  it("表示名は大文字", () => {
+    expect(encodingLabel("utf-8")).toBe("UTF-8");
+    expect(encodingLabel("shift_jis")).toBe("SHIFT_JIS");
+  });
+  it("一覧は9種で、現在のものに印が付く", () => {
+    const list = encodingChoices("euc-jp");
+    expect(list).toHaveLength(9);
+    expect(list.filter((c) => c.current).map((c) => c.encoding)).toEqual(["euc-jp"]);
+    expect(encodingChoices(null).some((c) => c.current)).toBe(false);
+  });
+  it("再度開く・保存できる条件", () => {
+    expect(canReopenWithEncoding(ready())).toBe(true);
+    expect(canReopenWithEncoding(newTab("a.txt"))).toBe(false); // 読み込み中
+    const unsupported = applyLoaded(newTab("a.txt"), { ...file("a.txt"), kind: "unsupportedEncoding", content: null });
+    expect(canReopenWithEncoding(unsupported)).toBe(true);
+    expect(canSaveWithEncoding(unsupported)).toBe(false);
+    const binary = applyLoaded(newTab("a.bin"), { ...file("a.bin"), kind: "binary", content: null });
+    expect(canReopenWithEncoding(binary)).toBe(false);
+    expect(canSaveWithEncoding(ready())).toBe(true);
+    expect(canSaveWithEncoding({ ...ready(), save: "saving" })).toBe(false);
+  });
+  it("BOM: UTF-16 へは必ず付け、UTF-16 から出るときは外す", () => {
+    expect(bomForEncoding("utf-8", "utf-16le", false)).toBe(true);
+    expect(bomForEncoding("utf-16be", "utf-16be", true)).toBe(true);
+    expect(bomForEncoding("utf-16le", "utf-8", true)).toBe(false);
+    expect(bomForEncoding("utf-8", "shift_jis", true)).toBe(true);
+    expect(bomForEncoding("utf-8", "utf-8", false)).toBe(false);
+  });
+  it("内容が同じでも、文字コードが違えば書き直しが要る", () => {
+    expect(needsWriteForEncoding(ready(), "utf-8")).toBe(false);
+    expect(needsWriteForEncoding(ready(), "shift_jis")).toBe(true);
   });
 });

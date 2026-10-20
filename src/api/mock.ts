@@ -1,7 +1,7 @@
 // ブラウザ(Tauri の外)用のモック。メモリ上だけで追加・削除・編集が動く。
 // URL に ?mock=empty / error / loading / missing を付けると、各状態を確認できる(撮影用)。
 import { MOCK_FILES } from "./mockFiles";
-import type { Api, BoardState, EditorSessionData, Eol, FileKind, FsEntry, GitInfo, ProjectSummary, Stroke } from "./types";
+import type { Api, BoardState, EditorSessionData, EncodingName, Eol, FileKind, FsEntry, GitInfo, ProjectSummary, Stroke } from "./types";
 
 const DAY = 86_400_000;
 const daysAgo = (n: number) => new Date(Date.now() - n * DAY).toISOString();
@@ -161,7 +161,17 @@ const find = (id: string) => {
 };
 
 // --- ファイル(メモリ上)。書き込むと modified が更新される ---
-type MockFile = { kind: FileKind; content: string | null; size: number; eol: Eol; hasBom: boolean; modified: string };
+type MockFile = {
+  kind: FileKind;
+  content: string | null;
+  size: number;
+  eol: Eol;
+  hasBom: boolean;
+  encoding: EncodingName;
+  /** 文字コード不明(unsupportedEncoding)のファイルを shift_jis で開いたときに見える本文 */
+  asShiftJis?: string;
+  modified: string;
+};
 const fsDb = new Map<string, Map<string, MockFile>>();
 let conflictPending = mode === "conflict"; // ?mock=conflict のとき、最初の保存を1回だけ競合にする
 
@@ -180,6 +190,8 @@ function filesOf(projectId: string): Map<string, MockFile> {
         size: content !== null ? new TextEncoder().encode(content).length : (s.size ?? 0),
         eol: s.eol ?? "lf",
         hasBom: s.hasBom ?? false,
+        encoding: s.encoding ?? "utf-8",
+        asShiftJis: s.asShiftJis,
         modified: new Date(base + i * 60_000).toISOString(),
       });
     });
@@ -290,7 +302,7 @@ export const mockApi: Api = {
     if (findExisting(projectId, relPath)) throw `既存: ${relPath}`;
     materializeDirs(projectId);
     const modified = new Date().toISOString();
-    filesOf(projectId).set(relPath, { kind: "text", content: "", size: 0, eol: "lf", hasBom: false, modified });
+    filesOf(projectId).set(relPath, { kind: "text", content: "", size: 0, eol: "lf", hasBom: false, encoding: "utf-8", modified });
     return { name: relPath.slice(relPath.lastIndexOf("/") + 1), relPath, kind: "file", size: 0, modified };
   },
   async createDir(projectId, relPath) {
@@ -388,19 +400,32 @@ export const mockApi: Api = {
     find(projectId);
     return listMockDir(projectId, relPath);
   },
-  async readFile(projectId, relPath) {
+  async readFile(projectId, relPath, encoding) {
     await sleep(120);
     find(projectId);
     const f = filesOf(projectId).get(relPath);
     if (!f) throw "ファイルが見つかりません";
-    return { relPath, kind: f.kind, content: f.content, size: f.size, modified: f.modified, eol: f.eol, hasBom: f.hasBom };
+    const base = { relPath, size: f.size, modified: f.modified, eol: f.eol, hasBom: f.hasBom };
+    // 判別できないファイル: shift_jis を指定したときだけ読める(モックの固定の挙動)
+    if (f.kind === "unsupportedEncoding") {
+      if (encoding === "shift_jis" && f.asShiftJis !== undefined) {
+        return { ...base, kind: "text", content: f.asShiftJis, encoding: "shift_jis" };
+      }
+      return { ...base, kind: f.kind, content: null, encoding: "utf-8" };
+    }
+    return { ...base, kind: f.kind, content: f.content, encoding: encoding ?? f.encoding };
   },
-  async writeFile(projectId, relPath, content, expectedModified, eol, hasBom, force) {
+  async writeFile(projectId, relPath, content, expectedModified, eol, hasBom, encoding, force) {
     await sleep(200);
     find(projectId);
     const f = filesOf(projectId).get(relPath);
     if (!f) throw "ファイルが見つかりません";
-    if (f.kind !== "text") throw "このファイルは書き込めません";
+    const converted = f.kind === "unsupportedEncoding" && f.asShiftJis !== undefined; // 指定して開いたあとの保存
+    if (f.kind !== "text" && !converted) throw "このファイルは書き込めません";
+    // UTF-8 / UTF-16 以外は、絵文字などの範囲外の文字を表せない(実機の「変換:」エラーの再現)
+    if (!encoding.startsWith("utf-") && [...content].length !== content.length) {
+      throw `変換: 一部の文字が ${encoding} で表せません`;
+    }
     if (!force && conflictPending) {
       conflictPending = false;
       throw "競合: ほかのアプリでファイルが変更されています";
@@ -409,7 +434,7 @@ export const mockApi: Api = {
       throw "競合: ほかのアプリでファイルが変更されています";
     }
     const modified = new Date().toISOString();
-    Object.assign(f, { content, size: new TextEncoder().encode(content).length, eol, hasBom, modified });
+    Object.assign(f, { kind: "text", content, size: new TextEncoder().encode(content).length, eol, hasBom, encoding, modified });
     return { modified, size: f.size };
   },
   async listProjects() {
