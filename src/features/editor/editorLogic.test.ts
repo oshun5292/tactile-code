@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { FileContent, FsEntry } from "../../api/types";
 import {
+  closeTabsIn,
+  moveTabIn,
+  tabsToClose,
   absolutePathOf,
   ancestorsOf,
   applyLoaded,
@@ -501,5 +504,71 @@ describe("ドラッグ移動の純粋関数", () => {
   it("hasSameName: 大文字小文字を区別しない", () => {
     expect(hasSameName([{ name: "Readme.md" }], "README.MD")).toBe(true);
     expect(hasSameName([{ name: "a.ts" }], "b.ts")).toBe(false);
+  });
+});
+
+describe("タブ操作(N7)", () => {
+  const sess = (paths: string[], active: string | null = paths[0] ?? null) => ({
+    tabs: paths.map((p) => newTab(p)),
+    active,
+    expanded: [],
+  });
+  const names = (s: { tabs: { relPath: string }[] }) => s.tabs.map((t) => t.relPath);
+
+  it("tabsToClose: 各モードの対象", () => {
+    const s = sess(["a", "b", "c", "d"]);
+    expect(tabsToClose(s, "b", "self")).toEqual(["b"]);
+    expect(tabsToClose(s, "b", "others")).toEqual(["a", "c", "d"]);
+    expect(tabsToClose(s, "b", "right")).toEqual(["c", "d"]);
+    expect(tabsToClose(s, "d", "right")).toEqual([]);
+    expect(tabsToClose(s, "b", "all")).toEqual(["a", "b", "c", "d"]);
+    expect(tabsToClose(s, "zzz", "all")).toEqual([]);
+  });
+
+  it("closeTabsIn: アクティブが残れば変わらない", () => {
+    const r = closeTabsIn(sess(["a", "b", "c"], "a"), ["b", "c"]);
+    expect(names(r)).toEqual(["a"]);
+    expect(r.active).toBe("a");
+  });
+
+  it("closeTabsIn: アクティブが閉じたら右の残りタブ、なければ左", () => {
+    expect(closeTabsIn(sess(["a", "b", "c", "d"], "b"), ["b", "c"]).active).toBe("d");
+    expect(closeTabsIn(sess(["a", "b", "c", "d"], "d"), ["c", "d"]).active).toBe("b");
+  });
+
+  it("closeTabsIn: 全部閉じると active は null、対象なしなら同じ参照", () => {
+    const s = sess(["a", "b"]);
+    const r = closeTabsIn(s, ["a", "b"]);
+    expect(r.tabs).toEqual([]);
+    expect(r.active).toBeNull();
+    expect(closeTabsIn(s, ["x"])).toBe(s);
+  });
+
+  it("moveTabIn: 前へ・後ろへ・末尾へ", () => {
+    const s = sess(["a", "b", "c", "d"]);
+    expect(names(moveTabIn(s, "d", 1))).toEqual(["a", "d", "b", "c"]);
+    expect(names(moveTabIn(s, "a", 3))).toEqual(["b", "c", "a", "d"]);
+    expect(names(moveTabIn(s, "a", 4))).toEqual(["b", "c", "d", "a"]);
+    expect(names(moveTabIn(s, "c", 0))).toEqual(["c", "a", "b", "d"]);
+  });
+
+  it("moveTabIn: 動かない位置・存在しないタブは同じ参照、範囲外は丸める", () => {
+    const s = sess(["a", "b", "c"]);
+    expect(moveTabIn(s, "b", 1)).toBe(s);
+    expect(moveTabIn(s, "b", 2)).toBe(s);
+    expect(moveTabIn(s, "x", 0)).toBe(s);
+    expect(names(moveTabIn(s, "a", 99))).toEqual(["b", "c", "a"]);
+  });
+
+  it("moveTabIn: アクティブは保たれる", () => {
+    expect(moveTabIn(sess(["a", "b", "c"], "b"), "c", 0).active).toBe("b");
+  });
+
+  it("neighborTab: 次・前、端で折り返し、空は null", () => {
+    const s = sess(["a", "b", "c"], "c");
+    expect(neighborTab(s, 1)).toBe("a");
+    expect(neighborTab(s, -1)).toBe("b");
+    expect(neighborTab(sess(["a", "b", "c"], "a"), -1)).toBe("c");
+    expect(neighborTab(sess([]), 1)).toBeNull();
   });
 });

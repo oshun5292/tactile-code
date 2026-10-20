@@ -10,6 +10,7 @@ import {
   buildSessionData,
   canReopenWithEncoding,
   closeTabIn,
+  closeTabsIn,
   dirtyTabs,
   discardDirtyTabs,
   dropFromDirsCache,
@@ -17,6 +18,7 @@ import {
   isDirty,
   hasSameName,
   isMarkdownFile,
+  moveTabIn,
   judgeExternal,
   movedPath,
   needsWriteForEncoding,
@@ -40,6 +42,8 @@ import type { RevealTarget } from "./cm/CodeEditor";
 /** 未保存のタブがあるときの確認。何をしようとして止まったかを覚えておく。 */
 export type Prompt =
   | { kind: "closeTab"; relPath: string }
+  // 複数のタブをまとめて閉じる(未保存を含むときだけ。確認は一度だけ)
+  | { kind: "closeTabs"; relPaths: string[] }
   | { kind: "back" }
   | { kind: "openProject"; projectId: string }
   // 未保存の変更を捨てて、指定の文字コードで読み直す確認
@@ -97,6 +101,9 @@ type EditorState = {
   requestOpenProject: (projectId: string) => void;
   requestBack: () => void;
   requestCloseTab: (relPath: string) => void;
+  /** 複数のタブを閉じる。未保存を含むなら確認を一度だけ出す。 */
+  requestCloseTabs: (relPaths: string[]) => void;
+  reorderTab: (projectId: string, relPath: string, insertIndex: number) => void;
   resolvePrompt: (choice: PromptChoice) => Promise<void>;
   /** ウィンドウを閉じてよいか。未保存が無ければ即 true、あれば確認ダイアログの結果。 */
   confirmQuit: () => Promise<boolean>;
@@ -353,6 +360,20 @@ export const useEditor = create<EditorState>((set, get) => {
       }
     },
 
+    requestCloseTabs: (relPaths) => {
+      const pid = get().editorProjectId;
+      if (!pid || relPaths.length === 0) return;
+      const targets = new Set(relPaths);
+      if (dirtyTabs(sessionOf(pid)).some((t) => targets.has(t.relPath))) {
+        set({ prompt: { kind: "closeTabs", relPaths } });
+      } else {
+        patchSession(pid, (s) => closeTabsIn(s, relPaths));
+        bumpFocus();
+      }
+    },
+
+    reorderTab: (projectId, relPath, insertIndex) => patchSession(projectId, (s) => moveTabIn(s, relPath, insertIndex)),
+
     resolvePrompt: async (choice) => {
       const p = get().prompt;
       const pid = get().editorProjectId;
@@ -367,6 +388,22 @@ export const useEditor = create<EditorState>((set, get) => {
           return;
         }
         patchSession(pid, (s) => closeTabIn(s, p.relPath));
+        set({ prompt: null });
+        bumpFocus();
+        return;
+      }
+      if (p.kind === "closeTabs") {
+        if (choice === "save") {
+          const targets = new Set(p.relPaths);
+          for (const t of dirtyTabs(sessionOf(pid))) {
+            // ひとつでも保存に失敗したら、何も閉じない(失敗の理由は各タブの表示・競合ダイアログに出る)
+            if (targets.has(t.relPath) && !(await get().save(pid, t.relPath))) {
+              set({ prompt: null });
+              return;
+            }
+          }
+        }
+        patchSession(pid, (s) => closeTabsIn(s, p.relPaths));
         set({ prompt: null });
         bumpFocus();
         return;

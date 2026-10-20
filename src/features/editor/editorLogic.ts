@@ -186,6 +186,56 @@ export function discardDirtyTabs(s: Session): Session {
   return dirtyTabs(s).reduce((acc, t) => closeTabIn(acc, t.relPath), s);
 }
 
+export type CloseMode = "self" | "others" | "right" | "all";
+
+/** 閉じるメニューの対象(並び順)。右クリックしたタブ anchor を基準にする。anchor が無ければ空。 */
+export function tabsToClose(s: Session, anchor: string, mode: CloseMode): string[] {
+  const i = s.tabs.findIndex((t) => t.relPath === anchor);
+  if (i === -1) return [];
+  const all = s.tabs.map((t) => t.relPath);
+  switch (mode) {
+    case "self":
+      return [anchor];
+    case "others":
+      return all.filter((p) => p !== anchor);
+    case "right":
+      return all.slice(i + 1);
+    case "all":
+      return all;
+  }
+}
+
+/**
+ * 複数のタブをまとめて閉じる。アクティブが閉じられたら、元の位置に最も近い残りのタブ(右優先)がアクティブになる。
+ * 1件ずつ closeTabIn を重ねると、途中のアクティブ移動が無駄になるため一度に計算する。
+ */
+export function closeTabsIn(s: Session, relPaths: readonly string[]): Session {
+  const gone = new Set(relPaths);
+  if (!s.tabs.some((t) => gone.has(t.relPath))) return s;
+  const tabs = s.tabs.filter((t) => !gone.has(t.relPath));
+  let active = s.active;
+  if (active !== null && gone.has(active)) {
+    const i = s.tabs.findIndex((t) => t.relPath === active);
+    active = (s.tabs.slice(i + 1).find((t) => !gone.has(t.relPath)) ?? [...s.tabs.slice(0, i)].reverse().find((t) => !gone.has(t.relPath)))?.relPath ?? null;
+  }
+  return { ...s, tabs, active };
+}
+
+/**
+ * タブを並べ替える。insertIndex は「移動前の並びで、何番目の隙間に入れるか」(0..tabs.length)。
+ * 自分の直前・直後の隙間は動かないので、同じ Session を返す(無駄な保存を避ける)。
+ */
+export function moveTabIn(s: Session, relPath: string, insertIndex: number): Session {
+  const from = s.tabs.findIndex((t) => t.relPath === relPath);
+  if (from === -1) return s;
+  const at = Math.max(0, Math.min(insertIndex, s.tabs.length));
+  if (at === from || at === from + 1) return s;
+  const tabs = [...s.tabs];
+  const [moved] = tabs.splice(from, 1);
+  tabs.splice(at > from ? at - 1 : at, 0, moved);
+  return { ...s, tabs };
+}
+
 /** 隣のタブ(左右キー用)。端では折り返す。 */
 export function neighborTab(s: Session, delta: 1 | -1): string | null {
   if (s.tabs.length === 0) return null;

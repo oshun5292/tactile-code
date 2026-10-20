@@ -141,6 +141,12 @@
 }
 .tab-close:hover { opacity: 1; background: var(--bg2); color: var(--danger); }
 .tab:focus-within .tab-close, .tab[data-active] .tab-close { opacity: 0.8; }
+.tab { position: relative; }
+.tab[data-dragging] { opacity: 0.45; }
+/* ドロップ位置の挿入線(プロジェクト色) */
+.tab[data-drop]::before { content: ""; position: absolute; top: 4px; bottom: 0; width: 3px; border-radius: 2px; background: var(--proj-d); pointer-events: none; }
+.tab[data-drop="before"]::before { left: -3px; }
+.tab[data-drop="after"]::before { right: -3px; }
 .tab-main:focus-visible, .tab-close:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; box-shadow: none; }
 
 .doc { flex: 1; display: flex; flex-direction: column; min-height: 0; background: var(--white); }
