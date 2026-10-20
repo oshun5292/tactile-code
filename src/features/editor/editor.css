@@ -155,10 +155,6 @@
   flex: none; display: flex; align-items: center; gap: 10px;
 }
 .doc-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.doc-lang {
-  flex: none; font-family: var(--round); font-size: 11px; font-weight: 700; padding: 1px 10px; border-radius: 99px;
-  background: var(--proj); color: var(--ink); letter-spacing: 0.05em;
-}
 .mode { margin-left: auto; display: flex; gap: 4px; flex: none; }
 .mode-btn {
   appearance: none; border: 0; background: var(--bg2); color: var(--ink); padding: 2px 13px; border-radius: 99px; font-size: 11.5px;
@@ -196,14 +192,6 @@
 .confirm-actions-wrap .btn { padding: 0 14px; }
 .btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; box-shadow: none; }
 .confirm-warn { color: var(--danger); }
-
-/* 文字コードのボタン(本文の上のバー)。言語ラベルに揃え、押せることだけ分かる程度に */
-.enc-btn {
-  font: inherit; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: var(--ink2);
-  background: var(--white); border: 1px solid var(--line); border-radius: 8px; padding: 2px 8px; cursor: pointer;
-}
-.enc-btn:hover { border-color: var(--proj-d, var(--ink2)); color: var(--ink); }
-.enc-btn:focus-visible { outline: 2px solid var(--proj-d, var(--ink2)); outline-offset: 1px; }
 
 /* ===== クイックオープン(Ctrl+P)。色は --proj(プロジェクト色)から取る ===== */
 .find-btn { display: inline-flex; align-items: center; gap: 8px; }
@@ -274,3 +262,20 @@
 .tree-row[data-dragging] { opacity: 0.45; }
 .tree-row[data-drop] { background: var(--white); outline: 2px dashed var(--proj-d); outline-offset: -2px; }
 .tree[data-drop-root] { outline: 2px dashed var(--proj-d); outline-offset: -4px; }
+
+/* ===== 状態バー(本文の最下段、24px)。色は --proj / --proj-d から取る ===== */
+.statusbar {
+  flex: none; height: 24px; display: flex; align-items: center; gap: 12px; padding: 0 12px 0 20px; box-sizing: border-box;
+  border-top: 1px solid var(--line); background: var(--bg); color: var(--ink2); font-size: 11.5px; white-space: nowrap;
+}
+.sb-right { margin-left: auto; display: flex; align-items: center; gap: 2px; min-width: 0; }
+.sb-pos { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.sb-btn {
+  appearance: none; border: 0; background: transparent; color: inherit; font: inherit; height: 20px; padding: 0 8px; border-radius: 6px; cursor: pointer;
+}
+.sb-btn:hover { background: var(--proj); color: var(--ink); }
+.sb-btn:focus-visible { outline: 2px solid var(--proj-d, var(--ink2)); outline-offset: -2px; }
+.sb-lang {
+  font-family: var(--round); font-size: 11px; font-weight: 700; padding: 1px 10px; margin-left: 6px; border-radius: 99px;
+  background: var(--proj); color: var(--ink); letter-spacing: 0.05em;
+}

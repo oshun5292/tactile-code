@@ -12,6 +12,7 @@ import { bracketMatching, indentUnit } from "@codemirror/language";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
 import { revealRange } from "../searchLogic";
+import { indentToCm, type CursorInfo, type IndentSetting } from "../statusBarLogic";
 import { languageForFilename } from "./languages";
 import { themeExtensions } from "./theme";
 import "./cm.css";
@@ -29,6 +30,10 @@ export type CodeEditorProps = {
   reveal?: RevealTarget | null;
   /** reveal を適用し終えたとき(古い要求が、タブの開き直しで再実行されないよう呼び出し側が消す) */
   onRevealed?: (tick: number) => void;
+  /** カーソル位置・選択の通知(描画1回につき最大1回に間引く) */
+  onCursorChange?: (c: CursorInfo) => void;
+  /** インデント(未指定なら言語の既定のスペース幅)。タブごとの一時設定を状態バーから渡す */
+  indent?: IndentSetting;
 };
 
 export type RevealTarget = { line: number; column: number; length: number; tick: number };
@@ -45,21 +50,24 @@ export function CodeEditor(props: CodeEditorProps) {
   cb.current = props;
   const pending = useRef<string | null>(null);
 
+  const indentKey = props.indent ? (props.indent.kind === "tab" ? "tab" : `s${props.indent.size}`) : "";
   const lang = useMemo(() => languageForFilename(filename), [filename]);
   const comps = useRef({
     lang: new Compartment(),
     editable: new Compartment(),
     wrap: new Compartment(),
     aria: new Compartment(),
+    indent: new Compartment(),
   });
+  const cursorFrame = useRef(0);
 
   // 変わりうる設定は Compartment に入れ、EditorView を作り直さずに差し替える
   const parts = () => ({
-    lang: [
-      lang.extension ?? [],
-      EditorState.tabSize.of(lang.tabSize),
-      indentUnit.of(" ".repeat(lang.tabSize)),
-    ],
+    lang: lang.extension ?? [],
+    indent: (() => {
+      const { unit, tabSize } = indentToCm(props.indent ?? { kind: "spaces", size: lang.tabSize });
+      return [EditorState.tabSize.of(tabSize), indentUnit.of(unit)];
+    })(),
     editable: [EditorState.readOnly.of(readOnly), EditorView.editable.of(!readOnly)],
     wrap: wrap ? EditorView.lineWrapping : [],
     aria: EditorView.contentAttributes.of({ "aria-label": ariaLabel ?? filename }),
@@ -98,10 +106,12 @@ export function CodeEditor(props: CodeEditorProps) {
           ]),
           themeExtensions,
           c.lang.of(d.lang),
+          c.indent.of(d.indent),
           c.editable.of(d.editable),
           c.wrap.of(d.wrap),
           c.aria.of(d.aria),
           EditorView.updateListener.of((u) => {
+            if (u.selectionSet || u.docChanged) scheduleCursor();
             if (u.docChanged && !u.transactions.some((tr) => tr.annotation(External))) {
               cb.current.onChange(u.state.doc.toString());
             }
@@ -116,13 +126,29 @@ export function CodeEditor(props: CodeEditorProps) {
       }),
     });
     viewRef.current = view;
+    scheduleCursor();
     if (autoFocus) view.focus();
     return () => {
+      cancelAnimationFrame(cursorFrame.current);
+      cursorFrame.current = 0; // 開発時の二重実行(StrictMode)で「予約済み」のまま残らないように
       view.destroy();
       viewRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 入力のたびに親を再描画しないよう、描画1回につき1回だけ通知する。状態を読むだけなので、日本語変換中も安全
+  function scheduleCursor() {
+    if (cursorFrame.current) return;
+    cursorFrame.current = requestAnimationFrame(() => {
+      cursorFrame.current = 0;
+      const view = viewRef.current;
+      if (!view) return;
+      const { head, from, to } = view.state.selection.main;
+      const line = view.state.doc.lineAt(head);
+      cb.current.onCursorChange?.({ line: line.number, column: head - line.from + 1, selectionLength: to - from });
+    });
+  }
 
   function applyExternal(view: EditorView) {
     const next = pending.current;
@@ -173,9 +199,10 @@ export function CodeEditor(props: CodeEditorProps) {
         c.editable.reconfigure(d.editable),
         c.wrap.reconfigure(d.wrap),
         c.aria.reconfigure(d.aria),
+        c.indent.reconfigure(d.indent),
       ],
     });
-  }, [lang, readOnly, wrap, ariaLabel, filename]);
+  }, [lang, readOnly, wrap, ariaLabel, filename, indentKey]);
 
   return <div ref={host} className="cm-host" data-language={lang.id} />;
 }

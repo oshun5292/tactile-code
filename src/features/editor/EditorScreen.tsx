@@ -8,7 +8,7 @@ import { AiPanel } from "./AiPanel";
 import { DocView } from "./DocView";
 import { EditorHeader } from "./EditorHeader";
 import { FileTree } from "./FileTree";
-import { absolutePathOf, baseName, emptySession, encodingLabel, neighborTab, type Session } from "./editorLogic";
+import { absolutePathOf, baseName, emptySession, encodingLabel, isDirty, neighborTab, type Session } from "./editorLogic";
 import { useEditor } from "./editorStore";
 import { QuickOpen } from "./QuickOpen";
 import { SearchPanel } from "./SearchPanel";
@@ -154,9 +154,9 @@ export function EditorScreen({ projectId }: { projectId: string }) {
   };
 
   // --- 確認ダイアログの文面 ---
-  const dirtyCount = session.tabs.filter((t) => t.draft !== null && t.draft !== t.baseline).length;
+  const dirtyCount = session.tabs.filter((t) => isDirty(t)).length;
   const closingDirty =
-    prompt?.kind === "closeTabs" ? session.tabs.filter((t) => prompt.relPaths.includes(t.relPath) && t.draft !== null && t.draft !== t.baseline).length : 0;
+    prompt?.kind === "closeTabs" ? session.tabs.filter((t) => prompt.relPaths.includes(t.relPath) && isDirty(t)).length : 0;
   const promptTitle =
     prompt?.kind === "reopen"
       ? `${baseName(prompt.relPath)} を ${encodingLabel(prompt.encoding)} で開き直しますか?`
@@ -175,7 +175,7 @@ export function EditorScreen({ projectId }: { projectId: string }) {
           { label: "保存せず閉じる", variant: "danger", onClick: () => void ed.resolvePrompt("discard") },
           { label: "保存して閉じる", variant: "primary", onClick: () => void ed.resolvePrompt("save") },
         ];
-  const quitDirty = Object.values(dirtyAll).reduce((n, s) => n + s.tabs.filter((t) => t.draft !== null && t.draft !== t.baseline).length, 0);
+  const quitDirty = Object.values(dirtyAll).reduce((n, s) => n + s.tabs.filter((t) => isDirty(t)).length, 0);
   const quitChoices: Choice[] = [
     { label: "やめる", variant: "ghost", autoFocus: true, onClick: () => void ed.resolveQuit("cancel") },
     { label: "保存せず閉じる", variant: "danger", onClick: () => void ed.resolveQuit("discard") },
@@ -279,6 +279,8 @@ export function EditorScreen({ projectId }: { projectId: string }) {
           onReload={(p) => void ed.reloadTab(projectId, p)}
           onReopen={(p, enc) => ed.requestReopenWithEncoding(projectId, p, enc)}
           onSaveAs={(p, enc) => void ed.save(projectId, p, false, enc)}
+          onSetEol={(p, eol) => ed.setEol(projectId, p, eol)}
+          onSetIndent={(p, indent) => ed.setIndent(projectId, p, indent)}
         />
       </main>
 

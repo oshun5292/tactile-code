@@ -1,6 +1,7 @@
 // エディタ画面の純粋な処理(副作用なし)。ストアや画面から切り離して、Vitest で確認する。
 import { ENCODINGS, type EditorSessionData, type EncodingName, type Eol, type FileContent, type FileStat, type FsEntry, type SessionTab } from "../../api/types";
 import { languageForFilename } from "./cm/languages";
+import type { IndentSetting } from "./statusBarLogic";
 
 // ---------- パス ----------
 
@@ -92,6 +93,8 @@ export type Tab = {
   /** 読んだ/保存したときの更新日時(保存時の競合検出に使う) */
   modified: string | null;
   eol: Eol;
+  /** 読んだ/保存したときの改行コード。eol との差が「未保存」(本文が同じでも改行だけ変えて保存できるように) */
+  baseEol: Eol;
   hasBom: boolean;
   /** 判定した(または指定した)文字コード。保存時にそのまま渡す */
   encoding: EncodingName;
@@ -100,6 +103,8 @@ export type Tab = {
   mdMode: MdMode;
   /** 外部の変更の印。reloaded=自動で読み直した(短く表示)、changed=未保存があるので読み直していない、deleted=ファイルが消えた */
   external: ExternalMark | null;
+  /** 状態バーで手動指定したインデント(このタブだけの一時設定。保存しない)。null=自動 */
+  indent: IndentSetting | null;
 };
 
 export type ExternalMark = "reloaded" | "changed" | "deleted";
@@ -115,12 +120,14 @@ export function newTab(relPath: string, mdMode: MdMode = "split"): Tab {
     draft: null,
     modified: null,
     eol: "lf",
+    baseEol: "lf",
     hasBom: false,
     encoding: "utf-8",
     save: "idle",
     saveError: null,
     mdMode,
     external: null,
+    indent: null,
   };
 }
 
@@ -136,6 +143,7 @@ export function applyLoaded(tab: Tab, f: FileContent): Tab {
     draft: f.content,
     modified: f.modified,
     eol: f.eol,
+    baseEol: f.eol,
     hasBom: f.hasBom,
     // text 以外のとき encoding は意味を持たないので、前の値を引きずらず既定に戻す
     encoding: f.kind === "text" ? f.encoding : "utf-8",
@@ -145,7 +153,7 @@ export function applyLoaded(tab: Tab, f: FileContent): Tab {
   };
 }
 
-export const isDirty = (t: Tab): boolean => t.draft !== null && t.draft !== t.baseline;
+export const isDirty = (t: Tab): boolean => t.draft !== null && (t.draft !== t.baseline || t.eol !== t.baseEol);
 
 export type Session = {
   tabs: Tab[];
