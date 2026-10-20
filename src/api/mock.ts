@@ -1,7 +1,8 @@
 // ブラウザ(Tauri の外)用のモック。メモリ上だけで追加・削除・編集が動く。
 // URL に ?mock=empty / error / loading / missing を付けると、各状態を確認できる(撮影用)。
+import { MAX_SEARCH_RESULTS, searchText } from "../features/editor/searchLogic";
 import { MOCK_FILES } from "./mockFiles";
-import type { Api, BoardState, EditorSessionData, EncodingName, Eol, FileKind, FsEntry, GitInfo, ProjectSummary, Stroke } from "./types";
+import type { Api, BoardState, EditorSessionData, EncodingName, Eol, FileKind, FsEntry, GitInfo, ProjectSummary, SearchMatch, Stroke } from "./types";
 
 const DAY = 86_400_000;
 const daysAgo = (n: number) => new Date(Date.now() - n * DAY).toISOString();
@@ -402,6 +403,22 @@ export const mockApi: Api = {
     if (mode === "listfail") throw "一覧を読めません(モックの失敗)";
     const relPaths = [...filesOf(projectId).keys()].sort((a, b) => collator.compare(a, b));
     return { relPaths, truncated: mode === "truncated" };
+  },
+  async searchInProject(projectId, query, options) {
+    await sleep(200);
+    find(projectId);
+    // ?mock=searchfail で失敗表示、?mock=searchmany で打ち切り表示を確認できる
+    if (mode === "searchfail") throw "検索に失敗しました(モックの失敗)";
+    if (query.length > 1000) throw "検索語が長すぎます(1,000 文字まで)";
+    const files = [...filesOf(projectId).entries()]
+      .filter((e): e is [string, typeof e[1] & { content: string }] => e[1].kind === "text" && e[1].content !== null)
+      .sort(([a], [b]) => collator.compare(a, b));
+    const matches: SearchMatch[] = [];
+    for (const [relPath, f] of files) {
+      if (matches.length >= MAX_SEARCH_RESULTS) break;
+      matches.push(...searchText(relPath, f.content, query, options, MAX_SEARCH_RESULTS - matches.length));
+    }
+    return { matches, truncated: mode === "searchmany" || matches.length >= MAX_SEARCH_RESULTS, filesSearched: files.length };
   },
   async listDir(projectId, relPath) {
     await sleep(120);

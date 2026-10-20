@@ -11,6 +11,8 @@ import { FileTree } from "./FileTree";
 import { absolutePathOf, baseName, emptySession, encodingLabel, type Session } from "./editorLogic";
 import { useEditor } from "./editorStore";
 import { QuickOpen } from "./QuickOpen";
+import { SearchPanel } from "./SearchPanel";
+import { seedFromSelection } from "./searchLogic";
 import { TabBar } from "./TabBar";
 import "./editor.css";
 
@@ -32,6 +34,10 @@ export function EditorScreen({ projectId }: { projectId: string }) {
   const dirtyAll = useEditor((s) => s.sessions);
   const ed = useEditor.getState();
   const [quickOpen, setQuickOpen] = useState(false);
+  const reveal = useEditor((s) => s.reveal);
+  // サイドバーの「ファイル / 検索」。検索の入力内容は、切り替えても残す(パネルはマウントしたまま隠す)
+  const [side, setSide] = useState<"files" | "search">("files");
+  const [searchFocus, setSearchFocus] = useState<{ tick: number; seed: string | null }>({ tick: 0, seed: null });
   // 空の入力で先頭に出す「最近開いたファイル」。タブの並び順を使う(タブが変わらない限り同じ配列にする)
   const tabKey = session.tabs.map((t) => t.relPath).join("\n");
   const recent = useMemo(() => (tabKey ? tabKey.split("\n") : []), [tabKey]);
@@ -86,6 +92,15 @@ export function EditorScreen({ projectId }: { projectId: string }) {
         if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
         e.preventDefault();
         useEditor.getState().requestBack();
+      } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        if (e.isComposing || document.querySelector("dialog[open]")) return;
+        // 編集欄で選択中の1行の文字があれば、検索語の初期値にする
+        const sel = window.getSelection();
+        const inEditor = !!sel?.anchorNode && !!sel.anchorNode.parentElement?.closest(".cm-content");
+        const seed = inEditor && sel ? seedFromSelection(sel.toString()) : null;
+        setSide("search");
+        setSearchFocus((f) => ({ tick: f.tick + 1, seed }));
       } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "p") {
         e.preventDefault(); // ブラウザの印刷を出さない(ダイアログ中でも抑える)
         if (e.isComposing || document.querySelector("dialog[open]")) return;
@@ -157,25 +172,55 @@ export function EditorScreen({ projectId }: { projectId: string }) {
         onNoteChange={(note) => void useBoard.getState().setNote(project.id, note)}
       />
 
-      <FileTree
-        dirs={dirs}
-        expanded={session.expanded}
-        activePath={session.active}
-        onToggleDir={(p) => ed.toggleDir(projectId, p)}
-        onOpenFile={(p) => void ed.openFile(projectId, p)}
-        onReload={() => void ed.reloadTree(projectId)}
-        onCreate={(kind, relPath) => ed.createEntry(projectId, kind, relPath)}
-        onRename={(from, to) => ed.renameEntry(projectId, from, to)}
-        onDelete={(entry) => ed.requestDelete(projectId, entry.relPath, entry.kind)}
-        onCopyPath={(entry, absolute) => {
-          const text = absolute ? absolutePathOf(project.path, entry.relPath) : entry.relPath;
-          navigator.clipboard.writeText(text).then(
-            () => ed.notify("info", `${absolute ? "絶対" : "相対"}パスをコピーしました`),
-            () => ed.notify("error", "クリップボードにコピーできませんでした"),
-          );
-        }}
-        onOpenInVscode={(relPath) => void ed.openInVscode(projectId, relPath)}
-      />
+      <aside className="side">
+        <div className="side-tabs" role="tablist" aria-label="サイドバー">
+          <button type="button" role="tab" className="side-tab" aria-selected={side === "files"} onClick={() => setSide("files")}>
+            ファイル
+          </button>
+          <button
+            type="button"
+            role="tab"
+            className="side-tab"
+            aria-selected={side === "search"}
+            onClick={() => {
+              setSide("search");
+              setSearchFocus((f) => ({ tick: f.tick + 1, seed: null }));
+            }}
+          >
+            検索
+          </button>
+        </div>
+        <div className="side-body" hidden={side !== "files"}>
+          <FileTree
+            dirs={dirs}
+            expanded={session.expanded}
+            activePath={session.active}
+            onToggleDir={(p) => ed.toggleDir(projectId, p)}
+            onOpenFile={(p) => void ed.openFile(projectId, p)}
+            onReload={() => void ed.reloadTree(projectId)}
+            onCreate={(kind, relPath) => ed.createEntry(projectId, kind, relPath)}
+            onRename={(from, to) => ed.renameEntry(projectId, from, to)}
+            onDelete={(entry) => ed.requestDelete(projectId, entry.relPath, entry.kind)}
+            onCopyPath={(entry, absolute) => {
+              const text = absolute ? absolutePathOf(project.path, entry.relPath) : entry.relPath;
+              navigator.clipboard.writeText(text).then(
+                () => ed.notify("info", `${absolute ? "絶対" : "相対"}パスをコピーしました`),
+                () => ed.notify("error", "クリップボードにコピーできませんでした"),
+              );
+            }}
+            onOpenInVscode={(relPath) => void ed.openInVscode(projectId, relPath)}
+          />
+        </div>
+        <div className="side-body" hidden={side !== "search"}>
+          <SearchPanel
+            key={projectId}
+            projectId={projectId}
+            focusTick={searchFocus.tick}
+            seed={searchFocus.seed}
+            onOpen={(p, line, col, len) => void ed.openAt(projectId, p, line, col, len)}
+          />
+        </div>
+      </aside>
 
       <main className="pagemain">
         <TabBar session={session} onActivate={(p) => ed.activateTab(projectId, p)} onClose={(p) => ed.requestCloseTab(p)} />
@@ -192,6 +237,8 @@ export function EditorScreen({ projectId }: { projectId: string }) {
         <DocView
           session={session}
           focusTick={focusTick}
+          reveal={reveal && reveal.projectId === projectId ? reveal : null}
+          onRevealed={(tick) => ed.clearReveal(tick)}
           onEdit={(p, v) => ed.edit(projectId, p, v)}
           onSave={(p) => void ed.save(projectId, p)}
           onMdMode={(p, m) => ed.setMdMode(projectId, p, m)}

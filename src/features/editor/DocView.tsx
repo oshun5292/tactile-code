@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type MouseEvent } from "react";
 import type { EncodingName } from "../../api/types";
 import { ContextMenu, type MenuItem } from "../../shared/ui/ContextMenu";
 import { languageForFilename } from "./cm/languages";
-import { CodeEditor } from "./cm/CodeEditor";
+import { CodeEditor, type RevealTarget } from "./cm/CodeEditor";
 import { MarkdownEditor } from "./cm/MarkdownEditor";
 import {
   baseName,
@@ -20,6 +20,9 @@ import {
 type Props = {
   session: Session;
   focusTick: number;
+  /** 検索結果から開いた位置(対象のファイルのパネルにだけ渡す) */
+  reveal: (RevealTarget & { relPath: string }) | null;
+  onRevealed: (tick: number) => void;
   onEdit: (relPath: string, next: string) => void;
   onSave: (relPath: string) => void;
   onMdMode: (relPath: string, mode: MdMode) => void;
@@ -40,7 +43,7 @@ const MODES: { id: MdMode; label: string }[] = [
 ];
 
 /** 本文。開いているタブはすべてマウントしたまま隠し、切り替えても元に戻す履歴(Ctrl+Z)とスクロールが残るようにする。 */
-export function DocView({ session, focusTick, onEdit, onSave, onMdMode, onReload, onReopen, onSaveAs }: Props) {
+export function DocView({ session, focusTick, reveal, onRevealed, onEdit, onSave, onMdMode, onReload, onReopen, onSaveAs }: Props) {
   const [menu, setMenu] = useState<EncMenu | null>(null);
   const active = session.tabs.find((t) => t.relPath === session.active) ?? null;
   const rootRef = useRef<HTMLDivElement>(null);
@@ -130,7 +133,7 @@ export function DocView({ session, focusTick, onEdit, onSave, onMdMode, onReload
       <div className="doc-body">
         {session.tabs.map((t) => (
           <div key={t.relPath} className="doc-panel" role="tabpanel" aria-label={baseName(t.relPath)} hidden={t.relPath !== session.active}>
-            <Panel tab={t} onEdit={onEdit} onSave={onSave} onReload={onReload} onOpenEncodingMenu={(e) => openMenu(e, "reopen")} />
+            <Panel tab={t} reveal={reveal?.relPath === t.relPath ? reveal : null} onRevealed={onRevealed} onEdit={onEdit} onSave={onSave} onReload={onReload} onOpenEncodingMenu={(e) => openMenu(e, "reopen")} />
           </div>
         ))}
       </div>
@@ -151,11 +154,13 @@ export function DocView({ session, focusTick, onEdit, onSave, onMdMode, onReload
 
 function Panel({
   tab,
+  reveal,
+  onRevealed,
   onEdit,
   onSave,
   onReload,
   onOpenEncodingMenu,
-}: { tab: Tab; onOpenEncodingMenu: (e: MouseEvent<HTMLElement>) => void } & Pick<Props, "onEdit" | "onSave" | "onReload">) {
+}: { tab: Tab; reveal: RevealTarget | null; onRevealed: (tick: number) => void; onOpenEncodingMenu: (e: MouseEvent<HTMLElement>) => void } & Pick<Props, "onEdit" | "onSave" | "onReload">) {
   if (tab.status === "loading") {
     return (
       <p className="doc-state" role="status">
@@ -196,7 +201,7 @@ function Panel({
   }
   if (isMarkdownFile(tab.relPath)) {
     return (
-      <MarkdownEditor value={tab.draft} onChange={(v) => onEdit(tab.relPath, v)} onSave={() => onSave(tab.relPath)} mode={tab.mdMode} />
+      <MarkdownEditor value={tab.draft} onChange={(v) => onEdit(tab.relPath, v)} onSave={() => onSave(tab.relPath)} mode={tab.mdMode} reveal={reveal} onRevealed={onRevealed} />
     );
   }
   return (
@@ -206,6 +211,8 @@ function Panel({
       onChange={(v) => onEdit(tab.relPath, v)}
       onSave={() => onSave(tab.relPath)}
       ariaLabel={`${baseName(tab.relPath)} の編集`}
+      reveal={reveal}
+      onRevealed={onRevealed}
     />
   );
 }

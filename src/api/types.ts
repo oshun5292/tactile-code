@@ -51,6 +51,10 @@ export type FileContent = {
 };
 /** クイックオープン用。ファイルだけの相対パス一覧(".gitignore と重いフォルダを除く")。 */
 export type FileList = { relPaths: string[]; truncated: boolean };
+/** プロジェクト内検索(N3)。line は 1 始まり、column は行頭からの文字数(0 始まり)。 */
+export type SearchMatch = { relPath: string; line: number; column: number; length: number; preview: string; previewColumn: number };
+export type SearchResult = { matches: SearchMatch[]; truncated: boolean; filesSearched: number };
+export type SearchOptions = { caseSensitive: boolean; wholeWord: boolean };
 export type SavedFile = { modified: string; size: number };
 
 // 段階3b-1(docs/stage3b1-contract.md §2)。
@@ -94,6 +98,8 @@ export interface Api {
   ): Promise<SavedFile>;
   /** プロジェクト内のファイルを再帰で列挙(上限 5 万件。超えたら truncated:true)。Ctrl+P で使う。 */
   listFiles(projectId: string): Promise<FileList>;
+  /** 文字列検索(正規表現は使わない)。UTF-8 のテキストだけを対象にする。結果は最大 2,000 件で打ち切り。 */
+  searchInProject(projectId: string, query: string, options: SearchOptions): Promise<SearchResult>;
   /** 外部変更の検知用。ファイルが無い/読めないときは exists:false(失敗にしない)。 */
   statFiles(projectId: string, relPaths: string[]): Promise<FileStat[]>;
   /** 空のファイルを作る。すでにあれば "既存:" で始まる文字列で失敗。親フォルダは存在していること。 */
