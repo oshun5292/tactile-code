@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 
 type Props = {
   open: boolean;
@@ -13,6 +13,7 @@ type Props = {
 /** ネイティブの <dialog>(showModal)を使う確認ダイアログ。Esc・フォーカス閉じ込めはブラウザが担当。 */
 export function ConfirmDialog({ open, title, children, confirmLabel, cancelLabel = "やめる", onConfirm, onCancel }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId(); // ダイアログが複数あっても id がぶつからないように
 
   useEffect(() => {
     const d = ref.current;
@@ -22,8 +23,8 @@ export function ConfirmDialog({ open, title, children, confirmLabel, cancelLabel
   }, [open]);
 
   return (
-    <dialog ref={ref} className="confirm" onCancel={(e) => { e.preventDefault(); onCancel(); }} aria-labelledby="confirm-title">
-      <h2 id="confirm-title">{title}</h2>
+    <dialog ref={ref} className="confirm" onCancel={(e) => { e.preventDefault(); onCancel(); }} aria-labelledby={titleId}>
+      <h2 id={titleId}>{title}</h2>
       <div className="confirm-body">{children}</div>
       <div className="confirm-actions">
         {/* 誤操作を防ぐため、最初のフォーカスは「やめる」側 */}

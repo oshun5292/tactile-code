@@ -40,7 +40,7 @@ export function EditableText({ value, placeholder, label, maxLength, className, 
     return (
       <input
         ref={inputRef}
-        className={`editable editable-input ${className ?? ""}`}
+        className={`editable editable-input nodrag nopan ${className ?? ""}`}
         value={draft}
         maxLength={maxLength}
         aria-label={label}
@@ -63,7 +63,7 @@ export function EditableText({ value, placeholder, label, maxLength, className, 
   return (
     <button
       type="button"
-      className={`editable editable-view ${value ? "" : "is-empty"} ${className ?? ""}`}
+      className={`editable editable-view nodrag nopan ${value ? "" : "is-empty"} ${className ?? ""}`}
       onClick={start}
       aria-label={`${label}を編集`}
       title="クリックで編集"

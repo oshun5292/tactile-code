@@ -26,6 +26,12 @@ export type ProjectSummary = {
   position: { x: number; y: number };
 };
 
+// 段階2(docs/stage2-contract.md §2)。座標はすべてフロー座標。
+export type Edge = { id: string; source: string; target: string };
+export type Stroke = { id: string; color: string; width: number; points: [number, number][] };
+export type Viewport = { x: number; y: number; zoom: number };
+export type BoardState = { edges: Edge[]; strokes: Stroke[]; viewport: Viewport | null };
+
 /** フロントが使う窓口。Tauri 版とモック版が同じ形を満たす。 */
 export interface Api {
   listProjects(): Promise<ProjectSummary[]>;
@@ -37,4 +43,12 @@ export interface Api {
   refreshProject(id: string): Promise<ProjectSummary>;
   /** フォルダ選択ダイアログ。キャンセルなら null。 */
   pickFolder(): Promise<string | null>;
+
+  getBoard(): Promise<BoardState>;
+  addEdge(source: string, target: string): Promise<Edge>;
+  removeEdge(id: string): Promise<void>;
+  addStroke(color: string, width: number, points: [number, number][]): Promise<Stroke>;
+  removeStroke(id: string): Promise<void>;
+  clearStrokes(): Promise<void>;
+  saveViewport(x: number, y: number, zoom: number): Promise<void>;
 }
