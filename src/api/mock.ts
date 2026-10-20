@@ -1,6 +1,6 @@
 // ブラウザ(Tauri の外)用のモック。メモリ上だけで追加・削除・編集が動く。
 // URL に ?mock=empty / error / loading / missing を付けると、各状態を確認できる(撮影用)。
-import type { Api, BoardState, Edge, GitInfo, ProjectSummary, Stroke } from "./types";
+import type { Api, BoardState, GitInfo, ProjectSummary, Stroke } from "./types";
 
 const DAY = 86_400_000;
 const daysAgo = (n: number) => new Date(Date.now() - n * DAY).toISOString();
@@ -138,11 +138,6 @@ function arrow(x0: number, y0: number, x1: number, y1: number): [number, number]
 
 function sampleBoard(): BoardState {
   return {
-    edges: [
-      { id: "mock-e1", source: "mock-1", target: "mock-2" },
-      { id: "mock-e2", source: "mock-2", target: "mock-3" },
-      { id: "mock-e3", source: "mock-1", target: "mock-4" },
-    ],
     strokes: [
       { id: "mock-s1", color: "#e2708a", width: 3, points: ellipse(560, 91, 148, 25) },
       { id: "mock-s2", color: "#5a9fe0", width: 3, points: wave(925, 1160, 206) },
@@ -155,7 +150,7 @@ function sampleBoard(): BoardState {
 const mode = typeof location !== "undefined" ? new URLSearchParams(location.search).get("mock") : null;
 let db: ProjectSummary[] = mode === "empty" ? [] : sampleProjects();
 if (mode === "missing") db[3] = { ...db[3], exists: false, git: null, lastUpdated: null };
-let board: BoardState = mode === "empty" ? { edges: [], strokes: [], viewport: null } : sampleBoard();
+let board: BoardState = mode === "empty" ? { strokes: [], viewport: null } : sampleBoard();
 let seq = 100;
 
 const find = (id: string) => {
@@ -197,7 +192,6 @@ export const mockApi: Api = {
   },
   async removeProject(id) {
     db = db.filter((p) => p.id !== id);
-    board.edges = board.edges.filter((e) => e.source !== id && e.target !== id); // つなぎは一緒に消える
   },
   async updateProjectNote(id, note) {
     find(id).note = note.slice(0, 200);
@@ -218,19 +212,6 @@ export const mockApi: Api = {
   async getBoard() {
     await sleep(mode === "loading" ? 60_000 : 100);
     return structuredClone(board);
-  },
-  async addEdge(source, target) {
-    if (source === target) throw "同じカードにはつなげません";
-    find(source);
-    find(target);
-    if (board.edges.some((e) => (e.source === source && e.target === target) || (e.source === target && e.target === source)))
-      throw "すでにつながっています";
-    const edge: Edge = { id: `mock-e${++seq}`, source, target };
-    board.edges = [...board.edges, edge];
-    return structuredClone(edge);
-  },
-  async removeEdge(id) {
-    board.edges = board.edges.filter((e) => e.id !== id);
   },
   async addStroke(color, width, points) {
     if (!/^#[0-9a-fA-F]{6}$/.test(color)) throw "色の形式が正しくありません";

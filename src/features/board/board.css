@@ -10,9 +10,6 @@
 /* ===== React Flow(ボード本体)。色や影は tokens.css の変数に合わせる ===== */
 .react-flow {
   --xy-background-color: transparent;
-  --xy-edge-stroke: var(--ink2);
-  --xy-handle-background-color: var(--white);
-  --xy-handle-border-color: var(--ink2);
   --xy-attribution-background-color: rgba(251, 249, 244, 0.8);
   font-family: var(--round);
 }
@@ -23,36 +20,23 @@
 .react-flow__node:focus-visible { outline: none; }
 .react-flow__node:focus-visible .card { box-shadow: var(--focus); }
 .react-flow__node.selected .card { box-shadow: 0 0 0 2px var(--acc-d, var(--sky-d)), var(--sh-up); }
-.react-flow__edge { cursor: pointer; }
-.react-flow__edge:focus, .react-flow__edge:focus-visible { outline: none; }
-.react-flow__edge:focus-visible .hd-edge { filter: drop-shadow(0 0 3px var(--sky-d)); }
 .react-flow__pane { cursor: default; }
 .react-flow__pane.draggable { cursor: grab; }
 .react-flow__pane.dragging { cursor: grabbing; }
-.react-flow__connectionline { z-index: 5; }
 .react-flow__viewport-portal { z-index: 5000; pointer-events: none; }
 
 .project-node { width: var(--card-w); }
 
-/* つなぐための丸: ホバー・選択・つなぎ中だけ見える(透明のままでも、つかめる) */
-.card-handle {
-  width: 14px; height: 14px; min-width: 0; min-height: 0; border: 2px solid var(--acc-d, var(--ink2));
-  background: var(--white); opacity: 0; transition: opacity 0.15s, transform 0.15s;
-}
-.project-node:hover .card-handle, .react-flow__node.selected .card-handle, .react-flow__node:focus-within .card-handle,
-.react-flow.connecting .card-handle { opacity: 1; }
-.card-handle:hover { transform: scale(1.25) translate(var(--tx, 0), var(--ty, 0)); background: var(--acc, var(--sky)); }
-.react-flow__handle.connectingto, .react-flow__handle.valid { opacity: 1; }
-.card-handle.react-flow__handle-top { --ty: -50%; }
-.card-handle.react-flow__handle-bottom { --ty: 50%; }
-
-/* 手書き風の線 */
-.hd-edge { transition: filter 0.15s; }
-.hd-edge[data-selected] { filter: drop-shadow(0 1px 3px rgba(52, 48, 43, 0.25)); }
+/* ドラッグ中(カードの移動・背景のパン)は、ポインタの下の子要素(編集欄=text、ボタン=pointer)に
+   カーソルを取られてチラつくので、body の目印で全要素を grabbing に揃える。Board.tsx が付け外しする。 */
+body.is-dragging-node, body.is-dragging-node * { cursor: grabbing !important; user-select: none !important; }
 
 /* ===== 手書き(ペン) ===== */
 .pen-strokes { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
 .pen-overlay { position: absolute; inset: 0; z-index: 6; cursor: crosshair; touch-action: none; }
+.pen-overlay-eraser { cursor: none; overflow: hidden; }
+/* 消しゴムの大きさを示す円(半径はコードの ERASER_RADIUS_PX と同じ) */
+.pen-eraser-cursor { position: absolute; left: 0; top: 0; box-sizing: border-box; border: 1.5px solid var(--ink); border-radius: 50%; background: rgba(255, 255, 255, 0.5); pointer-events: none; opacity: 0; }
 .board[data-pen="on"] .react-flow__node,
 .board[data-pen="on"] .react-flow__pane { cursor: crosshair; }
 
@@ -170,12 +154,19 @@
 
 /* ペンのツールバー(36 の .tools) */
 .pen-tools button {
+  white-space: nowrap; flex-shrink: 0;
   appearance: none; border: 0; background: transparent; height: 36px; padding: 0 14px; border-radius: 99px; cursor: pointer;
   font-weight: 700; font-size: 12px; letter-spacing: 0.06em; transition: background 0.15s;
 }
 .pen-tools button:hover:not(:disabled) { background: var(--bg2); }
 .pen-tools button:disabled { opacity: 0.4; cursor: default; }
+.pen-tools .pen-toggle { display: inline-flex; align-items: center; gap: 6px; }
 .pen-tools .pen-toggle[aria-pressed="true"] { background: var(--ink); color: #fff; }
+.pen-tools .pen-snap { display: inline-flex; align-items: center; gap: 6px; color: var(--ink2); }
+.pen-tools .pen-snap::before { content: ""; width: 8px; height: 8px; border-radius: 50%; border: 1.6px solid currentColor; }
+.pen-tools .pen-snap[aria-pressed="true"] { background: var(--bg2); color: var(--ink); }
+.pen-tools .pen-snap[aria-pressed="true"]::before { background: currentColor; }
+.pen-tools button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .pen-tools .pen-dot { width: 32px; padding: 0; position: relative; }
 .pen-tools .pen-dot::after { content: ""; position: absolute; inset: 8px; border-radius: 50%; background: var(--c); }
 .pen-tools .pen-dot[data-selected] { box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 35%, transparent); }

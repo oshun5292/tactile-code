@@ -1,7 +1,7 @@
 // Tauri の invoke を包む薄いラッパー。React から直接 invoke を呼ばないための窓口。
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { Api, BoardState, Edge, ProjectSummary, Stroke } from "./types";
+import type { Api, BoardState, ProjectSummary, Stroke } from "./types";
 
 export const tauriApi: Api = {
   listProjects: () => invoke<ProjectSummary[]>("list_projects"),
@@ -24,10 +24,6 @@ export const tauriApi: Api = {
     return typeof picked === "string" ? picked : null;
   },
   getBoard: () => invoke<BoardState>("get_board"),
-  addEdge: (source, target) => invoke<Edge>("add_edge", { source, target }),
-  removeEdge: async (id) => {
-    await invoke("remove_edge", { id });
-  },
   addStroke: (color, width, points) => invoke<Stroke>("add_stroke", { color, width, points }),
   removeStroke: async (id) => {
     await invoke("remove_stroke", { id });

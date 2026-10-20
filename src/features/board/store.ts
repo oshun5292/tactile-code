@@ -1,13 +1,12 @@
 import { create } from "zustand";
 import { api } from "../../api";
-import type { Edge, ProjectSummary, Stroke, Viewport } from "../../api/types";
+import type { ProjectSummary, Stroke, Viewport } from "../../api/types";
 import { toMessage } from "../../shared/format";
 
 type Status = "loading" | "ready" | "error";
 
 type BoardState = {
   projects: ProjectSummary[];
-  edges: Edge[];
   strokes: Stroke[];
   viewport: Viewport | null; // 起動時に保存されていた表示位置(null なら初期ビューポート)
   status: Status;
@@ -20,11 +19,6 @@ type BoardState = {
   setNote: (id: string, note: string) => Promise<void>;
   setDescription: (id: string, description: string | null) => Promise<void>;
   moveProject: (id: string, x: number, y: number) => Promise<void>;
-  connect: (source: string, target: string) => Promise<void>;
-  disconnect: (ids: string[]) => Promise<void>;
-  addStroke: (color: string, width: number, points: [number, number][]) => Promise<void>;
-  undoStroke: () => Promise<void>;
-  clearStrokes: () => Promise<void>;
   saveViewport: (vp: Viewport) => void;
   dismissNotice: () => void;
 };
@@ -48,7 +42,6 @@ async function optimistic(
 
 export const useBoard = create<BoardState>((set, get) => ({
   projects: [],
-  edges: [],
   strokes: [],
   viewport: null,
   status: "loading",
@@ -60,7 +53,7 @@ export const useBoard = create<BoardState>((set, get) => ({
     set({ status: "loading", error: null });
     try {
       const [projects, board] = await Promise.all([api.listProjects(), api.getBoard()]);
-      set({ projects, edges: board.edges, strokes: board.strokes, viewport: board.viewport, status: "ready" });
+      set({ projects, strokes: board.strokes, viewport: board.viewport, status: "ready" });
     } catch (e) {
       set({ status: "error", error: toMessage(e) });
     }
@@ -85,11 +78,7 @@ export const useBoard = create<BoardState>((set, get) => ({
   remove: async (id) => {
     try {
       await api.removeProject(id);
-      // バックエンドと同じく、そのカードにつながっていた線も消す(手書きは残す)
-      set({
-        projects: get().projects.filter((p) => p.id !== id),
-        edges: get().edges.filter((e) => e.source !== id && e.target !== id),
-      });
+      set({ projects: get().projects.filter((p) => p.id !== id) });
     } catch (e) {
       set({ notice: `外せませんでした: ${toMessage(e)}` });
     }
@@ -121,57 +110,7 @@ export const useBoard = create<BoardState>((set, get) => ({
     }
   },
 
-  connect: async (source, target) => {
-    try {
-      const edge = await api.addEdge(source, target);
-      set({ edges: [...get().edges, edge] });
-    } catch (e) {
-      set({ notice: `つなげませんでした: ${toMessage(e)}` });
-    }
-  },
-
-  disconnect: async (ids) => {
-    const before = get().edges;
-    set({ edges: before.filter((e) => !ids.includes(e.id)) });
-    try {
-      await Promise.all(ids.map((id) => api.removeEdge(id)));
-    } catch (e) {
-      set({ edges: before, notice: `線を外せませんでした: ${toMessage(e)}` });
-    }
-  },
-
-  addStroke: async (color, width, points) => {
-    // 描いた直後に消えて見えないよう、仮の id で先に表示し、保存できたら本物に置き換える
-    const tmp: Stroke = { id: `tmp-${Date.now()}`, color, width, points };
-    set({ strokes: [...get().strokes, tmp] });
-    try {
-      const saved = await api.addStroke(color, width, points);
-      set({ strokes: get().strokes.map((s) => (s.id === tmp.id ? saved : s)) });
-    } catch (e) {
-      set({ strokes: get().strokes.filter((s) => s.id !== tmp.id), notice: `手書きを保存できませんでした: ${toMessage(e)}` });
-    }
-  },
-
-  undoStroke: async () => {
-    const last = get().strokes[get().strokes.length - 1];
-    if (!last || last.id.startsWith("tmp-")) return; // 保存中の1本は、保存が済んでから
-    set({ strokes: get().strokes.slice(0, -1) });
-    try {
-      await api.removeStroke(last.id);
-    } catch (e) {
-      set({ strokes: [...get().strokes, last], notice: `戻せませんでした: ${toMessage(e)}` });
-    }
-  },
-
-  clearStrokes: async () => {
-    const before = get().strokes;
-    set({ strokes: [] });
-    try {
-      await api.clearStrokes();
-    } catch (e) {
-      set({ strokes: before, notice: `消せませんでした: ${toMessage(e)}` });
-    }
-  },
+  // 手書きの追加・消去・戻すは、操作の履歴を持つ src/features/pen/penActions.ts が行う
 
   // 連続で呼ばれる前提(呼び出し側で 500ms 待つ)。失敗しても操作の邪魔をしないよう、黙って無視する
   saveViewport: (vp) => {

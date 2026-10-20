@@ -1,8 +1,6 @@
-// 手書き風の線を作る純粋関数。画面(React)に依存しないので、テストしやすい。
-// 元は samples/assets/common.js の smooth / link を TypeScript で書き直したもの。
+// 手書き(ペン)の線を作る純粋関数。画面(React)に依存しないので、テストしやすい。
 
 export type Point = [number, number];
-export type Rect = { x: number; y: number; w: number; h: number };
 export type ViewportT = { x: number; y: number; zoom: number };
 
 const f = (n: number) => Math.round(n * 100) / 100;
@@ -60,7 +58,7 @@ export function mulberry32(seed: number): () => number {
   };
 }
 
-/** 文字列(エッジの id など)から seed を作る。 */
+/** 文字列(図形の id など)から seed を作る。 */
 export function hashString(s: string): number {
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) {
@@ -70,52 +68,6 @@ export function hashString(s: string): number {
   return h >>> 0;
 }
 
-export type LineOptions = { seed: number; curve?: number; steps?: number; jitter?: number };
-
-/**
- * 2点を、ゆるくふくらませた曲線でつなぎ、ごく小さな揺らぎを足した点列にする。
- * 両端は揺らさない(カードの縁にぴったり付けるため)。同じ入力なら同じ出力。
- */
-export function handDrawnLine(p0: Point, p1: Point, { seed, curve = 0.1, steps = 14, jitter = 1.2 }: LineOptions): Point[] {
-  const dx = p1[0] - p0[0];
-  const dy = p1[1] - p0[1];
-  const len = Math.hypot(dx, dy) || 1;
-  const bend = curve * len;
-  const qx = (p0[0] + p1[0]) / 2 - (dy / len) * bend;
-  const qy = (p0[1] + p1[1]) / 2 + (dx / len) * bend;
-  const rnd = mulberry32(seed);
-  const pts: Point[] = [];
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps;
-    const u = 1 - t;
-    const edge = i === 0 || i === steps;
-    pts.push([
-      u * u * p0[0] + 2 * u * t * qx + t * t * p1[0] + (edge ? 0 : (rnd() - 0.5) * jitter),
-      u * u * p0[1] + 2 * u * t * qy + t * t * p1[1] + (edge ? 0 : (rnd() - 0.5) * jitter),
-    ]);
-  }
-  return pts;
-}
-
-/** 矩形の中心から target 方向へ進んだとき、矩形の縁にぶつかる点。gap だけ外へ出す。 */
-export function rectEdgePoint(r: Rect, target: Point, gap = 0): Point {
-  const cx = r.x + r.w / 2;
-  const cy = r.y + r.h / 2;
-  const dx = target[0] - cx;
-  const dy = target[1] - cy;
-  if (dx === 0 && dy === 0) return [cx, cy];
-  const k = Math.min(Math.abs(r.w / 2 / (dx || 1e-9)), Math.abs(r.h / 2 / (dy || 1e-9)));
-  const len = Math.hypot(dx, dy);
-  return [cx + dx * k + (dx / len) * gap, cy + dy * k + (dy / len) * gap];
-}
-
-/** 2枚のカードの縁どうしを結ぶ端点(中心どうしを結ぶ線が縁と交わる点)。 */
-export function connectEndpoints(a: Rect, b: Rect, gap = 0): [Point, Point] {
-  const ca: Point = [a.x + a.w / 2, a.y + a.h / 2];
-  const cb: Point = [b.x + b.w / 2, b.y + b.h / 2];
-  return [rectEdgePoint(a, cb, gap), rectEdgePoint(b, ca, gap)];
-}
-
 export const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 /** 点 (cx, cy)(画面座標)を動かさずに、倍率だけ変えたビューポートを返す。ペンON中のホイール拡大縮小用。 */
@@ -123,4 +75,66 @@ export function zoomViewportAt(vp: ViewportT, factor: number, cx: number, cy: nu
   const zoom = clamp(vp.zoom * factor, minZoom, maxZoom);
   const k = zoom / vp.zoom;
   return { zoom, x: cx - (cx - vp.x) * k, y: cy - (cy - vp.y) * k };
+}
+
+// ===== 消しゴムのヒット判定 =====
+
+/** 点 p から線分 ab までの最短距離。 */
+export function distPointSegment(p: Point, a: Point, b: Point): number {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const len2 = dx * dx + dy * dy;
+  const t = len2 === 0 ? 0 : clamp(((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2, 0, 1);
+  return Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy));
+}
+
+function segmentsCross(a: Point, b: Point, c: Point, d: Point): boolean {
+  const o = (p: Point, q: Point, r: Point) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+  const d1 = o(a, b, c);
+  const d2 = o(a, b, d);
+  const d3 = o(c, d, a);
+  const d4 = o(c, d, b);
+  return d1 * d2 < 0 && d3 * d4 < 0;
+}
+
+/** 線分 ab と線分 cd の最短距離(交差していれば 0)。 */
+export function distSegmentSegment(a: Point, b: Point, c: Point, d: Point): number {
+  if (segmentsCross(a, b, c, d)) return 0;
+  return Math.min(distPointSegment(a, c, d), distPointSegment(b, c, d), distPointSegment(c, a, b), distPointSegment(d, a, b));
+}
+
+/** 線分 ab(消しゴムの動き)が、折れ線 pts から radius 以内を通ったか。点1つだけの線も扱う。 */
+export function polylineHitBySegment(pts: Point[], a: Point, b: Point, radius: number): boolean {
+  if (pts.length === 0) return false;
+  // 外接矩形での先回り判定(多くの線を毎回調べても軽くするため)
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const [x, y] of pts) {
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  if (Math.max(a[0], b[0]) < minX - radius || Math.min(a[0], b[0]) > maxX + radius) return false;
+  if (Math.max(a[1], b[1]) < minY - radius || Math.min(a[1], b[1]) > maxY + radius) return false;
+  if (pts.length === 1) return distPointSegment(pts[0], a, b) <= radius;
+  for (let i = 1; i < pts.length; i++) {
+    if (distSegmentSegment(a, b, pts[i - 1], pts[i]) <= radius) return true;
+  }
+  return false;
+}
+
+/**
+ * 消しゴムの動き ab で触れた手書きの id を返す。
+ * 半径 = 消しゴムの半径 + 線幅/2(線の縁に触れたら消える)。
+ */
+export function strokesHitBySegment(
+  strokes: ReadonlyArray<{ id: string; width: number; points: Point[] }>,
+  a: Point,
+  b: Point,
+  eraserRadius: number,
+): string[] {
+  return strokes.filter((s) => polylineHitBySegment(s.points, a, b, eraserRadius + s.width / 2)).map((s) => s.id);
 }

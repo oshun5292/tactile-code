@@ -1,40 +1,34 @@
 import {
   Background,
   BackgroundVariant,
-  ConnectionMode,
   Controls,
   ReactFlow,
-  applyEdgeChanges,
   applyNodeChanges,
-  type Connection,
-  type EdgeChange,
-  type EdgeTypes,
   type NodeChange,
   type NodeTypes,
   type Viewport as FlowViewport,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ProjectSummary } from "../../api/types";
-import { languageColor } from "../../shared/languageColors";
 import { ConfirmDialog } from "../../shared/ui/ConfirmDialog";
 import { EmptyState } from "../../shared/ui/EmptyState";
+import { clearAll } from "../pen/penActions";
 import { PenLayer } from "../pen/PenLayer";
 import { PenToolbar } from "../pen/PenToolbar";
 import { usePen } from "../pen/penStore";
-import { HandDrawnEdge, type HandDrawnFlowEdge } from "./HandDrawnEdge";
 import { Header } from "./Header";
 import { ProjectNode, type ProjectFlowNode } from "./ProjectNode";
 import { useBoard } from "./store";
 import "./board.css";
 
-// ノード・エッジの種類は、再描画のたびに作り直さないよう外に置く
+// ノードの種類は、再描画のたびに作り直さないよう外に置く
 const nodeTypes: NodeTypes = { project: ProjectNode };
-const edgeTypes: EdgeTypes = { handdrawn: HandDrawnEdge };
 
 // 保存が無いときの表示位置。左上に余白を作る(段階1のボードの余白と同じ)
 const INITIAL_VIEWPORT: FlowViewport = { x: 72, y: 150, zoom: 1 };
 const VIEWPORT_SAVE_DELAY = 500; // 止まってからこの時間(ms)後に保存する
+const GRABBING_CLASS = "is-dragging-node"; // board.css と対
 
 const ARIA_LABELS = {
   "controls.ariaLabel": "ズーム操作",
@@ -42,20 +36,17 @@ const ARIA_LABELS = {
   "controls.zoomOut.ariaLabel": "縮小",
   "controls.fitView.ariaLabel": "すべてのカードが見えるように表示",
   "node.a11yDescription.default": "Enter でカードを選択、選択後に矢印キーで移動できます",
-  "edge.a11yDescription.default": "Enter で線を選択。選択後に Delete キーで外せます",
 };
 
 export function Board() {
   const projects = useBoard((s) => s.projects);
-  const storeEdges = useBoard((s) => s.edges);
   const strokes = useBoard((s) => s.strokes);
   const savedViewport = useBoard((s) => s.viewport);
   const status = useBoard((s) => s.status);
   const error = useBoard((s) => s.error);
   const notice = useBoard((s) => s.notice);
   const adding = useBoard((s) => s.adding);
-  const { load, addFromDialog, remove, moveProject, connect, disconnect, addStroke, undoStroke, clearStrokes, saveViewport, dismissNotice } =
-    useBoard.getState();
+  const { load, addFromDialog, remove, moveProject, saveViewport, dismissNotice } = useBoard.getState();
   const penOn = usePen((s) => s.on);
 
   const [removing, setRemoving] = useState<ProjectSummary | null>(null);
@@ -79,7 +70,7 @@ export function Board() {
           // ドラッグ中は、保存済みの位置で上書きして飛ばないようにする
           position: old?.dragging ? old.position : p.position,
           data: { project: p, onRemoveRequest },
-          deletable: false, // Delete キーで消えるのは「線」だけ
+          deletable: false, // Delete キーでカードは消さない(外すのは×ボタン+確認)
         } satisfies ProjectFlowNode;
       }),
     );
@@ -88,35 +79,37 @@ export function Board() {
     setNodes((ns) => applyNodeChanges(changes, ns));
   }, []);
 
-  // --- エッジ: 色は「つなぎ元のカードのメイン言語色の濃いトーン」 ---
-  const [edges, setEdges] = useState<HandDrawnFlowEdge[]>([]);
-  useEffect(() => {
-    setEdges((prev) =>
-      storeEdges.map((e) => {
-        const src = projects.find((p) => p.id === e.source);
-        const d = languageColor(src?.mainLanguage).d;
-        return {
-          id: e.id,
-          source: e.source,
-          target: e.target,
-          type: "handdrawn",
-          selected: prev.find((x) => x.id === e.id)?.selected,
-          data: { color: `color-mix(in srgb, ${d} 72%, var(--ink))` },
-        } satisfies HandDrawnFlowEdge;
-      }),
-    );
-  }, [storeEdges, projects]);
-  const onEdgesChange = useCallback((changes: EdgeChange<HandDrawnFlowEdge>[]) => {
-    setEdges((es) => applyEdgeChanges(changes, es));
-  }, []);
 
-  const onConnect = useCallback((c: Connection) => void connect(c.source, c.target), [connect]);
-  const onEdgesDelete = useCallback((es: HandDrawnFlowEdge[]) => void disconnect(es.map((e) => e.id)), [disconnect]);
+  // --- ドラッグ中のカーソル: body に目印を付け、全要素のカーソルを grabbing に揃える ---
+  // カード内の編集欄(cursor:text)やボタン(pointer)が優先されて、手のマークがチラつくのを防ぐ。
+  const setGrabbing = useCallback((on: boolean) => document.body.classList.toggle(GRABBING_CLASS, on), []);
+  useEffect(() => {
+    // Esc・ウィンドウ外・フォーカス喪失で終了イベントを取りこぼしても、目印が残り続けないようにする
+    const clear = () => setGrabbing(false);
+    window.addEventListener("pointerup", clear);
+    window.addEventListener("pointercancel", clear);
+    window.addEventListener("blur", clear);
+    return () => {
+      window.removeEventListener("pointerup", clear);
+      window.removeEventListener("pointercancel", clear);
+      window.removeEventListener("blur", clear);
+      clear();
+    };
+  }, [setGrabbing]);
+  const onNodeDragStart = useCallback(() => setGrabbing(true), [setGrabbing]);
   const onNodeDragStop = useCallback(
     (_: unknown, _node: unknown, dragged: ProjectFlowNode[]) => {
+      setGrabbing(false);
       for (const n of dragged) void moveProject(n.id, Math.round(n.position.x), Math.round(n.position.y));
     },
-    [moveProject],
+    [moveProject, setGrabbing],
+  );
+  // 背景ドラッグのパン中も同じ。ホイールやボタンによる拡大縮小・プログラム移動では付けない
+  const onMoveStart = useCallback(
+    (event: MouseEvent | TouchEvent | null) => {
+      if (!penOn && event && event.type !== "wheel") setGrabbing(true);
+    },
+    [penOn, setGrabbing],
   );
 
   // --- 表示位置の保存: 止まってから 500ms 後に1回だけ ---
@@ -124,51 +117,40 @@ export function Board() {
   useEffect(() => () => clearTimeout(saveTimer.current), []);
   const onMoveEnd = useCallback(
     (_: unknown, vp: FlowViewport) => {
+      setGrabbing(false);
       clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => saveViewport(vp), VIEWPORT_SAVE_DELAY);
     },
-    [saveViewport],
-  );
-
-  const connectionLineStyle = useMemo(
-    () => ({ stroke: "var(--ink2)", strokeWidth: 2, strokeLinecap: "round" as const, strokeDasharray: "1 6" }),
-    [],
+    [saveViewport, setGrabbing],
   );
 
   return (
     <main className="board" data-pen={penOn ? "on" : "off"}>
       {status === "ready" && (
-        <ReactFlow<ProjectFlowNode, HandDrawnFlowEdge>
+        <ReactFlow<ProjectFlowNode>
           nodes={nodes}
-          edges={edges}
           nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
           onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onEdgesDelete={onEdgesDelete}
+          onNodeDragStart={onNodeDragStart}
           onNodeDragStop={onNodeDragStop}
+          onMoveStart={onMoveStart}
           onMoveEnd={onMoveEnd}
           defaultViewport={savedViewport ?? INITIAL_VIEWPORT}
           minZoom={0.2}
           maxZoom={2}
-          connectionMode={ConnectionMode.Loose}
-          connectionRadius={36}
-          connectionLineStyle={connectionLineStyle}
-          deleteKeyCode={["Delete", "Backspace"]}
+          deleteKeyCode={null}
           selectNodesOnDrag={false}
           nodeDragThreshold={3}
           zoomOnDoubleClick={false}
-          // ペンON中は、パン・ドラッグ・選択・つなぎをすべて止めて、ボード全面をペンに渡す
+          // ペンON中は、パン・ドラッグ・選択をすべて止めて、ボード全面をペンに渡す
           panOnDrag={!penOn}
           nodesDraggable={!penOn}
-          nodesConnectable={!penOn}
           elementsSelectable={!penOn}
           ariaLabelConfig={ARIA_LABELS}
         >
           <Background variant={BackgroundVariant.Dots} gap={32} size={1.4} color="rgba(52, 48, 43, 0.09)" />
           {projects.length > 0 && <Controls className="zoom-controls" orientation="horizontal" showInteractive={false} position="bottom-left" />}
-          <PenLayer strokes={strokes} onCommit={(c, w, pts) => void addStroke(c, w, pts)} />
+          <PenLayer strokes={strokes} />
         </ReactFlow>
       )}
 
@@ -211,12 +193,7 @@ export function Board() {
             <span aria-hidden="true">＋</span> {adding ? "追加しています…" : "プロジェクトを追加"}
           </button>
         </div>
-        <PenToolbar
-          canUndo={strokes.length > 0}
-          canClear={strokes.length > 0}
-          onUndo={() => void undoStroke()}
-          onClearRequest={() => setClearing(true)}
-        />
+        <PenToolbar canClear={strokes.length > 0} onClearRequest={() => setClearing(true)} />
       </div>
 
       <ConfirmDialog
@@ -230,7 +207,7 @@ export function Board() {
         }}
       >
         <p>
-          <b>{removing?.name}</b> をボードから外します。つながっていた線も消えます(手書きは残ります)。
+          <b>{removing?.name}</b> をボードから外します。手書きは残ります。
         </p>
         <p className="confirm-safe">フォルダは消えません。あとで「プロジェクトを追加」からいつでも戻せます。</p>
       </ConfirmDialog>
@@ -241,11 +218,12 @@ export function Board() {
         confirmLabel="すべて消す"
         onCancel={() => setClearing(false)}
         onConfirm={() => {
-          void clearStrokes();
+          // 全消しも「戻す」の履歴に積む(penActions を経由する)
+          void clearAll();
           setClearing(false);
         }}
       >
-        <p>ボード上の手書きが全部消えます。カードと線はそのまま残ります。</p>
+        <p>ボード上の手書きが全部消えます。カードはそのまま残ります。</p>
       </ConfirmDialog>
     </main>
   );
