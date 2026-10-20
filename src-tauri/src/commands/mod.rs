@@ -1,10 +1,10 @@
 //! Tauri コマンドの入口(薄く保つ。処理は services / storage)。
 use crate::domain::{
     BoardState, EditorSession, EditorSettings, Eol, FileContent, FileList, FileStat, FsEntry,
-    Position, ProjectSummary, SavedFile, SearchOptions, SearchResult, StoredProject, Stroke,
-    TextEncoding, Viewport,
+    GitStatus, Position, ProjectSummary, SavedFile, SearchOptions, SearchResult, StoredProject,
+    Stroke, TextEncoding, Viewport,
 };
-use crate::services::{board, fs, paths, search, settings, summary::build_summary};
+use crate::services::{board, fs, git, paths, search, settings, summary::build_summary};
 use crate::storage::Store;
 use tauri::State;
 
@@ -477,6 +477,20 @@ pub async fn save_settings(
             data.settings = Some(clamped);
             Ok(())
         })
+    })
+    .await
+}
+
+// ---- 段階N11: ツリーへの git 状態の表示 ----
+
+/// git 管理外・git 無しはエラーにせず isRepo:false を返す。
+#[tauri::command]
+pub async fn get_git_status(
+    project_id: String,
+    store: State<'_, Store>,
+) -> Result<GitStatus, String> {
+    run_store(&store, move |s| {
+        Ok(git::get_git_status(&project_root(s, &project_id)?))
     })
     .await
 }

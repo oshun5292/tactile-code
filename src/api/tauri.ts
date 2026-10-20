@@ -2,7 +2,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { Api, BoardState, EditorSessionData, EditorSettings, FileContent, FileList, FileStat, FsEntry, ProjectSummary, SavedFile, SearchResult, Stroke } from "./types";
+import type { Api, BoardState, EditorSessionData, EditorSettings, FileContent, FileList, FileStat, FsEntry, GitStatusResult, ProjectSummary, SavedFile, SearchResult, Stroke } from "./types";
 
 export const tauriApi: Api = {
   listProjects: () => invoke<ProjectSummary[]>("list_projects"),
@@ -51,6 +51,7 @@ export const tauriApi: Api = {
   },
   listFiles: (projectId) => invoke<FileList>("list_files", { projectId }),
   searchInProject: (projectId, query, options) => invoke<SearchResult>("search_in_project", { projectId, query, options }),
+  getGitStatus: (projectId) => invoke<GitStatusResult>("get_git_status", { projectId }),
   getSettings: () => invoke<EditorSettings | null>("get_settings"),
   saveSettings: async (settings) => {
     await invoke("save_settings", { settings });

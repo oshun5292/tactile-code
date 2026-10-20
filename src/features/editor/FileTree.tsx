@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
-import type { FsEntry } from "../../api/types";
+import type { FsEntry, GitFileState } from "../../api/types";
 import { languageColor } from "../../shared/languageColors";
 import { ContextMenu, type MenuItem } from "../../shared/ui/ContextMenu";
 import { InlineName } from "./InlineName";
+import { gitLabel, gitLetter } from "./gitLogic";
 import { canDropInto, creationParent, iconForFile, joinPath, movedPath, parentPath, visibleRows, type TreeDir, type TreeRow } from "./editorLogic";
 
 type Props = {
   dirs: Record<string, TreeDir>;
+  /** git の状態(ファイル単位 / 配下に変更があるフォルダ)。無ければ印を出さない */
+  gitFiles: ReadonlyMap<string, GitFileState>;
+  gitDirs: ReadonlyMap<string, GitFileState>;
   expanded: string[];
   activePath: string | null;
   onToggleDir: (relPath: string) => void;
@@ -31,7 +35,7 @@ type MenuState = { x: number; y: number; target: FsEntry | null };
 type EntryRow = Extract<TreeRow, { type: "entry" }>;
 
 /** ファイルツリー(36 の .tree)。flat な role="tree" で、↑↓ Enter ←→ F2 Delete で操作できる。 */
-export function FileTree({ dirs, expanded, activePath, onToggleDir, onOpenFile, onReload, onCreate, onRename, onMove, onDuplicate, onDelete, onCopyPath, onOpenInVscode }: Props) {
+export function FileTree({ dirs, gitFiles, gitDirs, expanded, activePath, onToggleDir, onOpenFile, onReload, onCreate, onRename, onMove, onDuplicate, onDelete, onCopyPath, onOpenInVscode }: Props) {
   const rows = useMemo(() => visibleRows(dirs, expanded), [dirs, expanded]);
   const entries = useMemo(() => rows.filter((r): r is EntryRow => r.type === "entry"), [rows]);
   const treeRef = useRef<HTMLDivElement>(null);
@@ -245,6 +249,18 @@ export function FileTree({ dirs, expanded, activePath, onToggleDir, onOpenFile, 
     if (handled) e.preventDefault();
   };
 
+  /** 行の右端の印。ファイルは文字、フォルダは配下の最優先の状態を示すドット。色以外(文字・読み上げ)でも伝える。 */
+  const gitMark = (state: GitFileState | undefined, isDir: boolean) => {
+    if (!state) return null;
+    return isDir ? (
+      <span className="tree-git tree-git-dot" data-git={state} role="img" aria-label={`配下に${gitLabel(state)}`} title={`配下に${gitLabel(state)}`} />
+    ) : (
+      <span className="tree-git" data-git={state} role="img" aria-label={gitLabel(state)} title={gitLabel(state)}>
+        {gitLetter(state)}
+      </span>
+    );
+  };
+
   const creating = editing?.type === "create" ? editing : null;
 
   /** 新規作成の入力行。親フォルダの直下(最初の子)に差し込む。 */
@@ -386,7 +402,10 @@ export function FileTree({ dirs, expanded, activePath, onToggleDir, onOpenFile, 
                 }}
               >
                 {iconEl}
-                <span className="tree-name">{entry.name}</span>
+                <span className="tree-name" data-git={isDir ? undefined : gitFiles.get(entry.relPath)}>
+                  {entry.name}
+                </span>
+                {gitMark(isDir ? gitDirs.get(entry.relPath) : gitFiles.get(entry.relPath), isDir)}
               </div>
               {creating && creating.parent !== "" && creating.parent === entry.relPath ? createRow(entry.relPath, creating.kind, depth + 1) : null}
             </div>

@@ -109,6 +109,35 @@ pub struct FileList {
     pub truncated: bool,
 }
 
+/// ファイルの git 状態(ステージ済みか否かは区別しない)。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum GitFileState {
+    Modified,
+    Added,
+    Deleted,
+    Renamed,
+    Untracked,
+    Conflicted,
+}
+
+/// get_git_status の1件。relPath は `/` 区切り。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitFileStatus {
+    pub rel_path: String,
+    pub state: GitFileState,
+}
+
+/// get_git_status の結果。git 管理外・git 無しは isRepo:false, files:[]。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitStatus {
+    pub is_repo: bool,
+    pub files: Vec<GitFileStatus>,
+    pub truncated: bool,
+}
+
 /// 検索の1件。line は 1 始まり、column / length は Unicode スカラー値の数(行頭から)。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
