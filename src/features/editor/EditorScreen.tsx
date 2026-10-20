@@ -171,12 +171,10 @@ export function EditorScreen({ projectId }: { projectId: string }) {
         ) : (
           <p>保存していない変更が {dirtyCount} 件のファイルにあります。</p>
         )}
-        <p className="confirm-safe">「保存せず閉じる」を選ぶと、保存していない変更は消えます。</p>
       </ChoiceDialog>
 
       <ChoiceDialog open={quit !== null} title="未保存の変更があります" choices={quitChoices} onCancel={() => void ed.resolveQuit("cancel")}>
         <p>保存していない変更が {quitDirty} 件のファイルにあります。</p>
-        <p className="confirm-safe">「保存せず閉じる」を選ぶと、保存していない変更は消えます。</p>
       </ChoiceDialog>
 
       <ChoiceDialog
