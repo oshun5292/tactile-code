@@ -21,7 +21,8 @@
 .react-flow__node:focus-visible .card { box-shadow: var(--focus); }
 .react-flow__node.selected .card { box-shadow: 0 0 0 2px var(--acc-d, var(--sky-d)), var(--sh-up); }
 .react-flow__pane { cursor: default; }
-.react-flow__pane.draggable { cursor: var(--cursor-grab); }
+/* 背景は普通の矢印のまま(掴めるのはカードだけに見せる)。パン中だけ握る手 */
+.react-flow__pane.draggable { cursor: default; }
 .react-flow__pane.dragging { cursor: var(--cursor-grabbing); }
 .react-flow__viewport-portal { z-index: 5000; pointer-events: none; }
 
