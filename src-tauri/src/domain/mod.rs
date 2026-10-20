@@ -101,6 +101,14 @@ pub struct FileStat {
     pub modified: Option<String>,
 }
 
+/// list_files の結果。relPaths は `/` 区切りの相対パス(自然順)。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileList {
+    pub rel_paths: Vec<String>,
+    pub truncated: bool,
+}
+
 /// 手書き1本。points はボード(フロー)座標。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

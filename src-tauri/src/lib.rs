@@ -43,7 +43,8 @@ pub fn run() {
             commands::create_dir,
             commands::rename_entry,
             commands::delete_entry,
-            commands::open_in_vscode
+            commands::open_in_vscode,
+            commands::list_files
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

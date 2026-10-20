@@ -1,7 +1,7 @@
 //! Tauri コマンドの入口(薄く保つ。処理は services / storage)。
 use crate::domain::{
-    BoardState, EditorSession, Eol, FileContent, FileStat, FsEntry, Position, ProjectSummary,
-    SavedFile, StoredProject, Stroke, TextEncoding, Viewport,
+    BoardState, EditorSession, Eol, FileContent, FileList, FileStat, FsEntry, Position,
+    ProjectSummary, SavedFile, StoredProject, Stroke, TextEncoding, Viewport,
 };
 use crate::services::{board, fs, paths, summary::build_summary};
 use crate::storage::Store;
@@ -415,6 +415,16 @@ pub async fn open_in_vscode(
 ) -> Result<(), String> {
     run_store(&store, move |s| {
         fs::open_in_vscode(&project_root(s, &project_id)?, &rel_path)
+    })
+    .await
+}
+
+// ---- 段階N2: クイックオープン(Ctrl+P)用の全ファイル一覧 ----
+
+#[tauri::command]
+pub async fn list_files(project_id: String, store: State<'_, Store>) -> Result<FileList, String> {
+    run_store(&store, move |s| {
+        fs::list_files(&project_root(s, &project_id)?)
     })
     .await
 }

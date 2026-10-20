@@ -41,7 +41,8 @@ fn harness() -> Harness {
             create_dir,
             rename_entry,
             delete_entry,
-            open_in_vscode
+            open_in_vscode,
+            list_files
         ])
         .build(mock_context(noop_assets()))
         .unwrap();
@@ -775,4 +776,30 @@ fn stage3b2_file_ops_contract() {
     ] {
         assert_eq!(call(&h, cmd, body).unwrap_err(), nope, "{cmd}");
     }
+}
+
+/// N2契約: list_files の JSON の形と挙動。
+#[test]
+fn stage_n2_list_files_contract() {
+    let h = harness();
+    let d = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(d.path().join("src")).unwrap();
+    std::fs::create_dir_all(d.path().join("node_modules/x")).unwrap();
+    std::fs::write(d.path().join("src/b.rs"), "x").unwrap();
+    std::fs::write(d.path().join("日本語.md"), "x").unwrap();
+    std::fs::write(d.path().join("node_modules/x/i.js"), "x").unwrap();
+    let id = add_dir(&h, &d);
+
+    let r = call(&h, "list_files", json!({ "projectId": id })).unwrap();
+    let mut keys: Vec<&str> = r.as_object().unwrap().keys().map(|k| k.as_str()).collect();
+    keys.sort();
+    assert_eq!(keys, ["relPaths", "truncated"]);
+    assert_eq!(r["truncated"], json!(false));
+    assert_eq!(r["relPaths"], json!(["src/b.rs", "日本語.md"]));
+
+    // 未登録のプロジェクトは日本語エラー
+    assert_eq!(
+        call(&h, "list_files", json!({ "projectId": "nope" })).unwrap_err(),
+        json!("プロジェクトが見つかりません")
+    );
 }
