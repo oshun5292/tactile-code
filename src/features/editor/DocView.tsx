@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type MouseEvent } from "react";
-import type { EncodingName } from "../../api/types";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import type { EncodingName, Eol } from "../../api/types";
 import { ContextMenu, type MenuItem } from "../../shared/ui/ContextMenu";
 import { languageForFilename } from "./cm/languages";
 import { CodeEditor, type RevealTarget } from "./cm/CodeEditor";
@@ -16,6 +16,19 @@ import {
   type Session,
   type Tab,
 } from "./editorLogic";
+import {
+  EOL_CHOICES,
+  INDENT_CHOICES,
+  detectIndent,
+  eolLabel,
+  formatPosition,
+  indentLabel,
+  resolveIndent,
+  sameCursor,
+  sameIndent,
+  type CursorInfo,
+  type IndentSetting,
+} from "./statusBarLogic";
 
 type Props = {
   session: Session;
@@ -31,10 +44,22 @@ type Props = {
   onReopen: (relPath: string, encoding: EncodingName) => void;
   /** 指定の文字コードで保存する */
   onSaveAs: (relPath: string, encoding: EncodingName) => void;
+  /** 改行コードの切り替え(本文は変えず、未保存扱いにする) */
+  onSetEol: (relPath: string, eol: Eol) => void;
+  /** インデントの一時設定(null=自動判定) */
+  onSetIndent: (relPath: string, indent: IndentSetting | null) => void;
 };
 
-/** 文字コードのメニュー。root=「再度開く/保存」の選択、reopen・save=文字コード一覧。 */
-type EncMenu = { x: number; y: number; step: "root" | "reopen" | "save"; relPath: string };
+/** 状態バーのメニュー。文字コード(root=「再度開く/保存」の選択、reopen・save=文字コード一覧)・インデント・改行コード。 */
+type EncMenu = { x: number; y: number; step: "root" | "reopen" | "save" | "indent" | "eol"; relPath: string };
+
+const MENU_LABEL: Record<EncMenu["step"], string> = {
+  root: "文字コード",
+  reopen: "エンコード付きで再度開く",
+  save: "エンコード付きで保存",
+  indent: "インデント",
+  eol: "改行コード",
+};
 
 const MODES: { id: MdMode; label: string }[] = [
   { id: "edit", label: "書く" },
@@ -43,11 +68,16 @@ const MODES: { id: MdMode; label: string }[] = [
 ];
 
 /** 本文。開いているタブはすべてマウントしたまま隠し、切り替えても元に戻す履歴(Ctrl+Z)とスクロールが残るようにする。 */
-export function DocView({ session, focusTick, reveal, onRevealed, onEdit, onSave, onMdMode, onReload, onReopen, onSaveAs }: Props) {
+export function DocView({ session, focusTick, reveal, onRevealed, onEdit, onSave, onMdMode, onReload, onReopen, onSaveAs, onSetEol, onSetIndent }: Props) {
   const [menu, setMenu] = useState<EncMenu | null>(null);
+  // タブごとのカーソル位置(隠れているタブは動かないので、表示中のぶんだけ見ればよい)
+  const [cursors, setCursors] = useState<Record<string, CursorInfo>>({});
   const active = session.tabs.find((t) => t.relPath === session.active) ?? null;
   const rootRef = useRef<HTMLDivElement>(null);
   const activeStatus = active?.status;
+  // インデントの自動判定は、読み込んだ内容(baseline)から。打鍵のたびに判定し直さない
+  const activeBaseline = active?.baseline ?? null;
+  const detectedIndent = useMemo(() => detectIndent(activeBaseline), [activeBaseline]);
 
   // タブを開いた・切り替えたとき、本文の編集欄へフォーカスを移す
   useEffect(() => {
@@ -73,14 +103,41 @@ export function DocView({ session, focusTick, reveal, onRevealed, onEdit, onSave
   }
 
   const isMd = isMarkdownFile(active.relPath);
-  const lang = languageForFilename(active.relPath).label;
+  const langInfo = languageForFilename(active.relPath);
+  const lang = langInfo.label;
+  const isText = active.kind === "text" && active.status === "ready" && active.draft !== null;
+  const indent = resolveIndent(active.indent, detectedIndent, langInfo.tabSize);
+  const cursor = cursors[active.relPath];
+  // 「読む」モードのマークダウンには編集欄が無く、カーソルも無い
+  const showCursor = isText && !(isMd && active.mdMode === "preview") && !!cursor;
 
   const openMenu = (e: MouseEvent<HTMLElement>, step: EncMenu["step"]) => {
     const r = e.currentTarget.getBoundingClientRect();
-    setMenu({ x: r.left, y: r.bottom + 4, step, relPath: active.relPath });
+    // 状態バーは画面の下端なので、メニューは上に開く(高さは項目数からの概算。はみ出しは ContextMenu が直す)
+    const rows = step === "indent" ? INDENT_CHOICES.length + 2 : step === "eol" ? EOL_CHOICES.length : step === "root" ? 2 : 9;
+    setMenu({ x: r.left, y: r.top - 4 - (rows * 32 + 12), step, relPath: active.relPath });
   };
   const menuTab = menu ? session.tabs.find((t) => t.relPath === menu.relPath) : undefined;
   const menuItems = (m: EncMenu, t: Tab): MenuItem[] => {
+    if (m.step === "indent") {
+      const cur = resolveIndent(t.indent, detectIndent(t.baseline), languageForFilename(t.relPath).tabSize);
+      return [
+        ...INDENT_CHOICES.map((c) => ({
+          label: indentLabel(c),
+          hint: sameIndent(c, cur) ? "現在" : undefined,
+          onClick: () => onSetIndent(m.relPath, c),
+        })),
+        { type: "separator" as const },
+        { label: "自動判定に戻す", disabled: t.indent === null, onClick: () => onSetIndent(m.relPath, null) },
+      ];
+    }
+    if (m.step === "eol") {
+      return EOL_CHOICES.map((c) => ({
+        label: c.label,
+        hint: c.eol === t.eol ? "現在" : undefined,
+        onClick: () => onSetEol(m.relPath, c.eol),
+      }));
+    }
     if (m.step === "root") {
       return [
         { label: "エンコード付きで再度開く", disabled: !canReopenWithEncoding(t), onClick: () => setMenu({ ...m, step: "reopen" }) },
@@ -101,18 +158,6 @@ export function DocView({ session, focusTick, reveal, onRevealed, onEdit, onSave
         <span className="doc-path" title={active.relPath}>
           {active.relPath}
         </span>
-        <span className="doc-lang">{lang}</span>
-        {(active.kind === "text" || active.kind === "unsupportedEncoding") && active.status === "ready" && (
-          <button
-            type="button"
-            className="enc-btn"
-            aria-haspopup="menu"
-            title="文字コード(クリックで、再度開く・保存の選択)"
-            onClick={(e) => openMenu(e, "root")}
-          >
-            {active.kind === "text" ? encodingLabel(active.encoding) : "文字コード不明"}
-          </button>
-        )}
         {active.kind === "text" && isMd && (
           <div className="mode" role="group" aria-label="マークダウンの表示">
             {MODES.map((m) => (
@@ -133,9 +178,31 @@ export function DocView({ session, focusTick, reveal, onRevealed, onEdit, onSave
       <div className="doc-body">
         {session.tabs.map((t) => (
           <div key={t.relPath} className="doc-panel" role="tabpanel" aria-label={baseName(t.relPath)} hidden={t.relPath !== session.active}>
-            <Panel tab={t} reveal={reveal?.relPath === t.relPath ? reveal : null} onRevealed={onRevealed} onEdit={onEdit} onSave={onSave} onReload={onReload} onOpenEncodingMenu={(e) => openMenu(e, "reopen")} />
+            <Panel tab={t} reveal={reveal?.relPath === t.relPath ? reveal : null} onRevealed={onRevealed} onEdit={onEdit} onSave={onSave} onReload={onReload} onOpenEncodingMenu={(e) => openMenu(e, "reopen")} onCursorChange={(c) => setCursors((cs) => (sameCursor(cs[t.relPath], c) ? cs : { ...cs, [t.relPath]: c }))} />
           </div>
         ))}
+      </div>
+
+      <div className="statusbar" role="status" aria-label="状態バー">
+        {showCursor && <span className="sb-item sb-pos">{formatPosition(cursor)}</span>}
+        <span className="sb-right">
+          {isText && (
+            <button type="button" className="sb-btn" aria-haspopup="menu" title="インデント(クリックで変更。このタブだけの一時設定)" onClick={(e) => openMenu(e, "indent")}>
+              {indentLabel(indent)}
+            </button>
+          )}
+          {isText && (
+            <button type="button" className="sb-btn" aria-haspopup="menu" title="改行コード(クリックで変更。保存すると反映)" onClick={(e) => openMenu(e, "eol")}>
+              {eolLabel(active.eol)}
+            </button>
+          )}
+          {(active.kind === "text" || active.kind === "unsupportedEncoding") && active.status === "ready" && (
+            <button type="button" className="sb-btn" aria-haspopup="menu" title="文字コード(クリックで、再度開く・保存の選択)" onClick={(e) => openMenu(e, "root")}>
+              {active.kind === "text" ? encodingLabel(active.encoding) : "文字コード不明"}
+            </button>
+          )}
+          <span className="sb-item sb-lang">{lang}</span>
+        </span>
       </div>
 
       {menu && menuTab && (
@@ -143,7 +210,7 @@ export function DocView({ session, focusTick, reveal, onRevealed, onEdit, onSave
           key={menu.step}
           x={menu.x}
           y={menu.y}
-          label={menu.step === "save" ? "エンコード付きで保存" : menu.step === "reopen" ? "エンコード付きで再度開く" : "文字コード"}
+          label={MENU_LABEL[menu.step]}
           items={menuItems(menu, menuTab)}
           onClose={() => setMenu(null)}
         />
@@ -160,7 +227,11 @@ function Panel({
   onSave,
   onReload,
   onOpenEncodingMenu,
-}: { tab: Tab; reveal: RevealTarget | null; onRevealed: (tick: number) => void; onOpenEncodingMenu: (e: MouseEvent<HTMLElement>) => void } & Pick<Props, "onEdit" | "onSave" | "onReload">) {
+  onCursorChange,
+}: { tab: Tab; onCursorChange: (c: CursorInfo) => void; reveal: RevealTarget | null; onRevealed: (tick: number) => void; onOpenEncodingMenu: (e: MouseEvent<HTMLElement>) => void } & Pick<Props, "onEdit" | "onSave" | "onReload">) {
+  // 隠れているタブも、自分のインデント設定を持つ(切り替え時に直さなくて済む)
+  const detected = useMemo(() => detectIndent(tab.baseline), [tab.baseline]);
+  const indent = resolveIndent(tab.indent, detected, languageForFilename(tab.relPath).tabSize);
   if (tab.status === "loading") {
     return (
       <p className="doc-state" role="status">
@@ -201,7 +272,7 @@ function Panel({
   }
   if (isMarkdownFile(tab.relPath)) {
     return (
-      <MarkdownEditor value={tab.draft} onChange={(v) => onEdit(tab.relPath, v)} onSave={() => onSave(tab.relPath)} mode={tab.mdMode} reveal={reveal} onRevealed={onRevealed} />
+      <MarkdownEditor value={tab.draft} onChange={(v) => onEdit(tab.relPath, v)} onSave={() => onSave(tab.relPath)} mode={tab.mdMode} reveal={reveal} onRevealed={onRevealed} onCursorChange={onCursorChange} indent={indent} />
     );
   }
   return (
@@ -213,6 +284,8 @@ function Panel({
       ariaLabel={`${baseName(tab.relPath)} の編集`}
       reveal={reveal}
       onRevealed={onRevealed}
+      onCursorChange={onCursorChange}
+      indent={indent}
     />
   );
 }

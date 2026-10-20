@@ -38,6 +38,8 @@ import {
   type TreeDir,
 } from "./editorLogic";
 import type { RevealTarget } from "./cm/CodeEditor";
+import type { Eol } from "../../api/types";
+import { withEol, type IndentSetting } from "./statusBarLogic";
 
 /** 未保存のタブがあるときの確認。何をしようとして止まったかを覚えておく。 */
 export type Prompt =
@@ -120,6 +122,10 @@ type EditorState = {
   activateTab: (projectId: string, relPath: string) => void;
   setMdMode: (projectId: string, relPath: string, mode: MdMode) => void;
   edit: (projectId: string, relPath: string, next: string) => void;
+  /** 改行コードの切り替え。本文は変えず、未保存扱いにする(保存時に反映) */
+  setEol: (projectId: string, relPath: string, eol: Eol) => void;
+  /** インデントの一時設定(このタブだけ。null=自動判定に戻す) */
+  setIndent: (projectId: string, relPath: string, indent: IndentSetting | null) => void;
   /** encoding を渡すと、その文字コードで保存する(内容が同じでも書く)。成功したらタブの文字コードを更新。 */
   save: (projectId: string, relPath: string, force?: boolean, encoding?: EncodingName) => Promise<boolean>;
   /** 指定の文字コードで読み直す。未保存の変更があれば、破棄の確認を挟む。 */
@@ -528,6 +534,10 @@ export const useEditor = create<EditorState>((set, get) => {
         saveError: null,
       })),
 
+    setEol: (projectId, relPath, eol) => patchTab(projectId, relPath, (t) => withEol(t, eol)),
+
+    setIndent: (projectId, relPath, indent) => patchTab(projectId, relPath, { indent }),
+
     requestReopenWithEncoding: (projectId, relPath, encoding) => {
       const tab = sessionOf(projectId).tabs.find((t) => t.relPath === relPath);
       if (!tab || !canReopenWithEncoding(tab)) return;
@@ -543,21 +553,23 @@ export const useEditor = create<EditorState>((set, get) => {
       const tab = sessionOf(projectId).tabs.find((t) => t.relPath === relPath);
       if (!tab || tab.kind !== "text" || tab.draft === null || tab.save === "saving") return false;
       const target = encoding ?? tab.encoding;
-      if (tab.draft === tab.baseline && !force && !needsWriteForEncoding(tab, target)) return true; // 変更なし
+      if (tab.draft === tab.baseline && tab.eol === tab.baseEol && !force && !needsWriteForEncoding(tab, target)) return true; // 変更なし
       const hasBom = bomForEncoding(tab.encoding, target, tab.hasBom);
       const content = tab.draft;
+      const eol = tab.eol;
       patchTab(projectId, relPath, { save: "saving", saveError: null });
       try {
-        const res = await api.writeFile(projectId, relPath, content, tab.modified, tab.eol, hasBom, target, force);
+        const res = await api.writeFile(projectId, relPath, content, tab.modified, eol, hasBom, target, force);
         patchTab(projectId, relPath, (t) => ({
           ...t,
           baseline: content,
+          baseEol: eol,
           modified: res.modified,
           size: res.size,
           encoding: target,
           hasBom,
           // 保存中にさらに打ち込んでいたら、まだ未保存のまま
-          save: t.draft === content ? "saved" : "idle",
+          save: t.draft === content && t.eol === eol ? "saved" : "idle",
           saveError: null,
           external: null,
         }));
