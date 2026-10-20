@@ -16,14 +16,20 @@
 .react-flow__attribution { font-size: 11px; color: var(--soft); border-radius: 8px 0 0 0; }
 .react-flow__attribution a { color: var(--soft); }
 /* 手のマークは使わない(環境によって光って見えるため)。掴める合図は、カードの浮き上がりと影(.card:hover)。 */
-.react-flow__node { cursor: default; }
-.react-flow__node.dragging { cursor: default; }
+.board .react-flow__node,
+.board .react-flow__node.draggable,
+.board .react-flow__node.selectable,
+.board .react-flow__node.draggable.dragging,
+.board .react-flow__nodesselection-rect { cursor: default; }
 .react-flow__node:focus-visible { outline: none; }
 .react-flow__node:focus-visible .card { box-shadow: var(--focus); }
 .react-flow__node.selected .card { box-shadow: 0 0 0 2px var(--acc-d, var(--sky-d)), var(--sh-up); }
-.react-flow__pane { cursor: default; }
-.react-flow__pane.draggable { cursor: default; }
-.react-flow__pane.dragging { cursor: default; }
+/* React Flow 自身の CSS は `.react-flow__node.draggable { cursor: grab }` のように詳しく指定しているので、
+   上の行も同じ強さ以上で書いて上書きしている(書き方が弱いと手のマークに戻る)。 */
+.board .react-flow__pane,
+.board .react-flow__pane.draggable,
+.board .react-flow__pane.dragging,
+.board .react-flow__pane.selection { cursor: default; }
 .react-flow__viewport-portal { z-index: 5000; pointer-events: none; }
 
 .project-node { width: var(--card-w); }
