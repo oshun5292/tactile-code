@@ -3,14 +3,45 @@
 .board {
   position: fixed;
   inset: 0;
-  overflow: auto;
+  overflow: hidden;
   background: radial-gradient(90% 70% at 15% 0%, #fffefb, transparent 70%), var(--bg);
 }
-.canvas { position: relative; min-height: 100%; }
-.slot { position: absolute; z-index: 10; }
+
+/* ===== React Flow(ボード本体)。色や影は tokens.css の変数に合わせる ===== */
+.react-flow {
+  --xy-background-color: transparent;
+  --xy-attribution-background-color: rgba(251, 249, 244, 0.8);
+  font-family: var(--round);
+}
+.react-flow__attribution { font-size: 11px; color: var(--soft); border-radius: 8px 0 0 0; }
+.react-flow__attribution a { color: var(--soft); }
+.react-flow__node { cursor: grab; }
+.react-flow__node.dragging { cursor: grabbing; }
+.react-flow__node:focus-visible { outline: none; }
+.react-flow__node:focus-visible .card { box-shadow: var(--focus); }
+.react-flow__node.selected .card { box-shadow: 0 0 0 2px var(--acc-d, var(--sky-d)), var(--sh-up); }
+.react-flow__pane { cursor: default; }
+.react-flow__pane.draggable { cursor: grab; }
+.react-flow__pane.dragging { cursor: grabbing; }
+.react-flow__viewport-portal { z-index: 5000; pointer-events: none; }
+
+.project-node { width: var(--card-w); }
+
+/* ドラッグ中(カードの移動・背景のパン)は、ポインタの下の子要素(編集欄=text、ボタン=pointer)に
+   カーソルを取られてチラつくので、body の目印で全要素を grabbing に揃える。Board.tsx が付け外しする。 */
+body.is-dragging-node, body.is-dragging-node * { cursor: grabbing !important; user-select: none !important; }
+
+/* ===== 手書き(ペン) ===== */
+.pen-strokes { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.pen-overlay { position: absolute; inset: 0; z-index: 6; cursor: crosshair; touch-action: none; }
+.pen-overlay-eraser { cursor: none; overflow: hidden; }
+/* 消しゴムの大きさを示す円(半径はコードの ERASER_RADIUS_PX と同じ) */
+.pen-eraser-cursor { position: absolute; left: 0; top: 0; box-sizing: border-box; border: 1.5px solid var(--ink); border-radius: 50%; background: rgba(255, 255, 255, 0.5); pointer-events: none; opacity: 0; }
+.board[data-pen="on"] .react-flow__node,
+.board[data-pen="on"] .react-flow__pane { cursor: crosshair; }
 
 /* ===== ヘッダー ===== */
-.head { position: absolute; left: 72px; top: 40px; z-index: 5; }
+.head { position: fixed; left: 72px; top: 40px; z-index: 5; pointer-events: none; }
 .head .hi {
   display: flex; align-items: center; gap: 6px;
   font-family: var(--mono); font-size: 12px; color: var(--soft); letter-spacing: 0.02em; white-space: nowrap;
@@ -21,7 +52,7 @@
 .head h1 .end { color: var(--sky-d); }
 
 .chips {
-  position: absolute; left: 380px; right: 72px; top: 54px; z-index: 5; margin: 0; padding: 0; list-style: none;
+  position: fixed; left: 380px; right: 72px; top: 54px; z-index: 5; margin: 0; padding: 0; list-style: none; pointer-events: none;
   display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px;
 }
 .chip {
@@ -114,10 +145,49 @@
 .x-desc { margin-top: 0; margin-bottom: 0; font-size: 13px; line-height: 1.7; color: var(--ink2); }
 
 /* ===== ボタン・ツールバー ===== */
-.tools {
-  position: fixed; left: 72px; bottom: 34px; z-index: 60; padding: 6px; background: var(--white);
+/* 左下: 「プロジェクトを追加」とペンのツールバーを横に並べ、その上にズーム操作を置く */
+.dock { position: fixed; left: 72px; bottom: 34px; z-index: 60; display: flex; align-items: center; gap: 12px; }
+.tools, .pen-tools {
+  display: flex; align-items: center; gap: 4px; padding: 6px; background: var(--white);
   border: 1px solid var(--line); border-radius: 99px; box-shadow: var(--sh);
 }
+
+/* ペンのツールバー(36 の .tools) */
+.pen-tools button {
+  white-space: nowrap; flex-shrink: 0;
+  appearance: none; border: 0; background: transparent; height: 36px; padding: 0 14px; border-radius: 99px; cursor: pointer;
+  font-weight: 700; font-size: 12px; letter-spacing: 0.06em; transition: background 0.15s;
+}
+.pen-tools button:hover:not(:disabled) { background: var(--bg2); }
+.pen-tools button:disabled { opacity: 0.4; cursor: default; }
+.pen-tools .pen-toggle { display: inline-flex; align-items: center; gap: 6px; }
+.pen-tools .pen-toggle[aria-pressed="true"] { background: var(--ink); color: #fff; }
+.pen-tools .pen-snap { display: inline-flex; align-items: center; gap: 6px; color: var(--ink2); }
+.pen-tools .pen-snap::before { content: ""; width: 8px; height: 8px; border-radius: 50%; border: 1.6px solid currentColor; }
+.pen-tools .pen-snap[aria-pressed="true"] { background: var(--bg2); color: var(--ink); }
+.pen-tools .pen-snap[aria-pressed="true"]::before { background: currentColor; }
+.pen-tools button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.pen-tools .pen-dot { width: 32px; padding: 0; position: relative; }
+.pen-tools .pen-dot::after { content: ""; position: absolute; inset: 8px; border-radius: 50%; background: var(--c); }
+.pen-tools .pen-dot[data-selected] { box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 35%, transparent); }
+.pen-tools .pen-dot[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--c); }
+.pen-sep { width: 1px; height: 16px; background: var(--line); margin: 0 4px; }
+
+/* ズーム操作(React Flow の Controls を、ツールバーと同じ丸いピルに整える) */
+.react-flow__panel.zoom-controls {
+  margin: 0; left: 72px; bottom: 92px; display: flex; flex-direction: row; align-items: center; gap: 2px; padding: 4px;
+  background: var(--white); border: 1px solid var(--line); border-radius: 99px; box-shadow: var(--sh);
+}
+.zoom-controls .react-flow__controls-button {
+  width: 32px; height: 32px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 50%;
+  background: transparent; color: var(--ink2); cursor: pointer; transition: background 0.15s;
+}
+.zoom-controls .react-flow__controls-button + .react-flow__controls-button { border: 0; }
+.zoom-controls .react-flow__controls-button:hover:not(:disabled) { background: var(--bg2); color: var(--ink); }
+.zoom-controls .react-flow__controls-button:disabled { opacity: 0.35; cursor: default; }
+.zoom-controls .react-flow__controls-button svg { width: 13px; height: 13px; max-width: none; max-height: none; fill: currentColor; }
+.zoom-controls .react-flow__controls-button:focus-visible { box-shadow: var(--focus); }
+
 .btn {
   appearance: none; border: 0; height: 36px; padding: 0 18px; border-radius: 99px; background: var(--bg2);
   font-weight: 700; font-size: 13px; letter-spacing: 0.04em; cursor: pointer; transition: background 0.15s, transform 0.12s;

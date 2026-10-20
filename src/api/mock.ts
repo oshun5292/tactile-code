@@ -1,6 +1,6 @@
 // ブラウザ(Tauri の外)用のモック。メモリ上だけで追加・削除・編集が動く。
 // URL に ?mock=empty / error / loading / missing を付けると、各状態を確認できる(撮影用)。
-import type { Api, GitInfo, ProjectSummary } from "./types";
+import type { Api, BoardState, GitInfo, ProjectSummary, Stroke } from "./types";
 
 const DAY = 86_400_000;
 const daysAgo = (n: number) => new Date(Date.now() - n * DAY).toISOString();
@@ -105,9 +105,52 @@ function sampleProjects(): ProjectSummary[] {
   ];
 }
 
+// 見た目確認用の手書き(丸囲み・下線・矢印風)。座標はフロー座標で、カードの位置に合わせてある。
+function ellipse(cx: number, cy: number, rx: number, ry: number): [number, number][] {
+  const pts: [number, number][] = [];
+  for (let i = 0; i <= 30; i++) {
+    const a = -2.0 + (i / 30) * Math.PI * 2.14;
+    const k = 1 + Math.sin(i * 0.9) * 0.025 + (i / 30) * 0.05;
+    pts.push([Math.round(cx + Math.cos(a) * rx * k), Math.round(cy + Math.sin(a) * ry * k)]);
+  }
+  return pts;
+}
+function wave(x0: number, x1: number, y: number): [number, number][] {
+  const pts: [number, number][] = [];
+  for (let i = 0; i <= 10; i++) pts.push([Math.round(x0 + ((x1 - x0) * i) / 10), Math.round(y + Math.sin(i * 1.3) * 1.8)]);
+  return pts;
+}
+function arrow(x0: number, y0: number, x1: number, y1: number): [number, number][] {
+  const pts: [number, number][] = [];
+  const qx = (x0 + x1) / 2 + (y1 - y0) * 0.25;
+  const qy = (y0 + y1) / 2 - (x1 - x0) * 0.25;
+  for (let i = 0; i <= 12; i++) {
+    const t = i / 12;
+    const u = 1 - t;
+    pts.push([Math.round(u * u * x0 + 2 * u * t * qx + t * t * x1), Math.round(u * u * y0 + 2 * u * t * qy + t * t * y1)]);
+  }
+  const a = Math.atan2(y1 - pts[10][1], x1 - pts[10][0]);
+  pts.push([Math.round(x1 - Math.cos(a - 0.5) * 14), Math.round(y1 - Math.sin(a - 0.5) * 14)]);
+  pts.push([x1, y1]);
+  pts.push([Math.round(x1 - Math.cos(a + 0.5) * 14), Math.round(y1 - Math.sin(a + 0.5) * 14)]);
+  return pts;
+}
+
+function sampleBoard(): BoardState {
+  return {
+    strokes: [
+      { id: "mock-s1", color: "#e2708a", width: 3, points: ellipse(560, 91, 148, 25) },
+      { id: "mock-s2", color: "#5a9fe0", width: 3, points: wave(925, 1160, 206) },
+      { id: "mock-s3", color: "#5fb36f", width: 3, points: arrow(930, 318, 720, 360) },
+    ],
+    viewport: null,
+  };
+}
+
 const mode = typeof location !== "undefined" ? new URLSearchParams(location.search).get("mock") : null;
 let db: ProjectSummary[] = mode === "empty" ? [] : sampleProjects();
 if (mode === "missing") db[3] = { ...db[3], exists: false, git: null, lastUpdated: null };
+let board: BoardState = mode === "empty" ? { strokes: [], viewport: null } : sampleBoard();
 let seq = 100;
 
 const find = (id: string) => {
@@ -165,5 +208,27 @@ export const mockApi: Api = {
   async pickFolder() {
     seq += 1;
     return `C:\\Users\\demo\\dev\\new-project-${seq}`;
+  },
+  async getBoard() {
+    await sleep(mode === "loading" ? 60_000 : 100);
+    return structuredClone(board);
+  },
+  async addStroke(color, width, points) {
+    if (!/^#[0-9a-fA-F]{6}$/.test(color)) throw "色の形式が正しくありません";
+    if (width < 1 || width > 12) throw "太さが範囲外です";
+    if (points.length < 2 || points.length > 5000) throw "点の数が正しくありません";
+    if (board.strokes.length >= 2000) throw "手書きが多すぎます";
+    const stroke: Stroke = { id: `mock-s${++seq}`, color, width, points };
+    board.strokes = [...board.strokes, stroke];
+    return structuredClone(stroke);
+  },
+  async removeStroke(id) {
+    board.strokes = board.strokes.filter((s) => s.id !== id);
+  },
+  async clearStrokes() {
+    board.strokes = [];
+  },
+  async saveViewport(x, y, zoom) {
+    board.viewport = { x, y, zoom };
   },
 };

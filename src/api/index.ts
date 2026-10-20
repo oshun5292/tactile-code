@@ -6,4 +6,4 @@ import type { Api } from "./types";
 const insideTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
 export const api: Api = insideTauri ? tauriApi : mockApi;
-export type { Api, ProjectSummary, LangShare, GitInfo } from "./types";
+export type { Api, ProjectSummary, LangShare, GitInfo, Stroke, Viewport, BoardState } from "./types";

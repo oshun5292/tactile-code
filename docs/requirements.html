@@ -98,7 +98,7 @@ code{font:12.5px Consolas,"Cascadia Mono",monospace;background:var(--bg2);paddin
 <h2 id="goal"><span class="n">1</span>ゴールと範囲</h2>
 <h3>1.1 何を作るか</h3>
 <div class="box">
-  <p><span class="tag t-dec">決定</span>AIがコードを書く時代には、「コードの書きやすさ」より<b>「使い始めたいと思えるか」</b>が大事になる。そこで、ディレクトリを<b>プロジェクト</b>として記憶し、見た目を自分の好きな形に作れる<b>ボード</b>(自由配置・手書きで囲む・線でつなぐ)に置く。カードをクリックすると、従来どおりの<b>エディタ</b>が現れ、コーディングもできる。</p>
+  <p><span class="tag t-dec">決定</span>AIがコードを書く時代には、「コードの書きやすさ」より<b>「使い始めたいと思えるか」</b>が大事になる。そこで、ディレクトリを<b>プロジェクト</b>として記憶し、見た目を自分の好きな形に作れる<b>ボード</b>(自由配置・手書きで囲む)に置く。カードをクリックすると、従来どおりの<b>エディタ</b>が現れ、コーディングもできる。</p>
   <p class="note">現状は、VSCode(CLI)をエディタ兼メモ帳として使っている。置き換えではなく、「毎日開く入口」になることを目指す。<span class="tag t-opn">判断</span></p>
 </div>
 <h3>1.2 MVPの範囲</h3>
@@ -125,7 +125,7 @@ code{font:12.5px Consolas,"Cascadia Mono",monospace;background:var(--bg2);paddin
   <ol>
     <li>朝、アプリを開く。ボードに並んだプロジェクトのカードで、各プロジェクトの言語・最終更新・メモを眺める。</li>
     <li>気になるカードをクリックして、エディタに入る。ファイルを開き、マークダウンやコードを編集して保存する。</li>
-    <li>Escでボードに戻り、手書きで囲んだり、カードを並べ替えたり、カードを線でつないだりして、頭の中を整理する。</li>
+    <li>Escでボードに戻り、手書きで囲んだり、カードを並べ替えたりして、頭の中を整理する。</li>
     <li>新しいディレクトリを、フォルダ選択でプロジェクトとして追加する。</li>
   </ol>
 </div>
@@ -156,8 +156,8 @@ code{font:12.5px Consolas,"Cascadia Mono",monospace;background:var(--bg2);paddin
   <tr><td class="id">FR-02</td><td>言語の自動検知</td><td>フォルダ内のファイル拡張子から、使われている言語と割合を検知。上位の言語を内訳バーで見せ、<b>メイン言語</b>(最大の割合)を決める。除外: <code>.git</code> <code>node_modules</code> <code>dist</code> <code>target</code> <code>.venv</code> など。.gitignore に従う。</td><td><span class="tag t-p1">必須</span></td></tr>
   <tr><td class="id">FR-03</td><td>プロジェクトカード</td><td>ボード上に、名前(ディレクトリ名)、パス、ブランチ、説明、ひと言メモ、最終更新、GitHub連携の状態、メイン言語の色と内訳バー、を表示する。<br>説明はREADMEの先頭行から取る(手入力で上書き可)。ひと言メモは手入力。最終更新はフォルダ内の最新のファイル更新(gitがあれば最終コミット)。</td><td><span class="tag t-p1">必須</span></td></tr>
   <tr><td class="id">FR-04</td><td>GitHub連携の表示(ローカル情報)</td><td>ローカルの git 設定から、リモート(origin)のリポジトリ名、公開/非公開(判定できる場合)、ブランチ、未push/未pullの件数(取得済みの追跡情報を基準)を表示する。連携していないフォルダは「未連携・ローカルのみ」と表示。<b>PR件数・CIの状態は、GitHub APIが必要なため次段階。</b></td><td><span class="tag t-p1">必須</span>(ローカル情報のみ)</td></tr>
-  <tr><td class="id">FR-05</td><td>ボード操作</td><td>カードの自由配置(ドラッグ移動)、位置の保存、ズーム・パン、カード同士を線でつなぐ(コネクタ)。</td><td><span class="tag t-p1">必須</span></td></tr>
-  <tr><td class="id">FR-06</td><td>手書き</td><td>ペンで自由に描く(色の選択、取り消し、全消し)。描いたものはボードに保存され、次回も残る。丸囲み・下線は、ペンで描いたものとして扱う。</td><td><span class="tag t-p1">必須</span></td></tr>
+  <tr><td class="id">FR-05</td><td>ボード操作</td><td>カードの自由配置(ドラッグ移動)、位置の保存、ズーム・パン、表示位置の保存。<br><span class="tag t-dec">決定</span>カード同士を線でつなぐ「コネクタ」は作らない(2026-10-21、実機で試したうえでの判断)。</td><td><span class="tag t-p1">必須</span></td></tr>
+  <tr><td class="id">FR-06</td><td>手書き</td><td>ペンで自由に描く(色の選択、全消し)。描いたものはボードに保存され、次回も残る。丸囲み・下線は、ペンで描いたものとして扱う。<br><b>消しゴム</b>(触れた線を、線ごと消す)と、<b>「戻す」</b>(描いた線も消した線も、新しい順に取り消せる)。<br><b>円の自動整形</b>: ほぼ閉じた丸を描くと、手書き風に少し重なる楕円に整える(ツールバーで ON/OFF、既定 ON)。<span class="tag t-dec">決定</span>2026-10-21、実機で試したうえでの要望。<br><span class="tag t-opn">後の課題</span>丸が、近くのカードなどを避けるように整形すること(難しいため、MVPの後に検討)。</td><td><span class="tag t-p1">必須</span></td></tr>
   <tr><td class="id">FR-07</td><td>エディタを開く</td><td>カードのクリックで、そのプロジェクトのエディタに切り替える(アニメーションなし)。Esc/戻るボタンでボードに戻る。</td><td><span class="tag t-p1">必須</span></td></tr>
   <tr><td class="id">FR-08</td><td>ファイルツリーとタブ</td><td>プロジェクトのフォルダ構造をツリーで表示。ファイルをクリックでタブとして開く。複数タブ、閉じる、アクティブ表示。</td><td><span class="tag t-p1">必須</span></td></tr>
   <tr><td class="id">FR-09</td><td>マークダウン編集</td><td>書く / 半分(左で書き、右でプレビュー)/ 読む の3モード。保存(Ctrl+S)。見出し・箇条書き・チェックリスト・コードブロックなどを表示。</td><td><span class="tag t-p1">必須</span></td></tr>
@@ -187,7 +187,6 @@ code{font:12.5px Consolas,"Cascadia Mono",monospace;background:var(--bg2);paddin
   <p><span class="tag t-opn">判断</span>保存するもの(案):</p>
   <ul>
     <li><b>projects</b>: id、パス、表示名、説明の上書き、ひと言メモ、ボード上の位置(x, y)と大きさ、追加日</li>
-    <li><b>edges</b>: カード同士のつなぎ(始点と終点のproject id)</li>
     <li><b>strokes</b>: 手書きの線(座標の並び、色、太さ)</li>
     <li><b>settings</b>: 画面の状態(ズーム位置など)、最後に開いたプロジェクト</li>
     <li>全体に <code>schema_version</code> を持たせ、将来の形式変更に備える</li>
@@ -239,7 +238,7 @@ code{font:12.5px Consolas,"Cascadia Mono",monospace;background:var(--bg2);paddin
     <li>左上: 「workspace / パス / N projects / week N」の小さな等幅ラベルと、大きな「Projects.」。右上: 自動検知した言語の凡例チップ。</li>
     <li>カード: 白い角丸の面。上段に言語(色の点+名前+「自動検知」)と内訳バー。題名=ディレクトリ名、パス・ブランチ、説明、ひと言メモ、最終更新、GitHubチップ。小さな絵(簡易アイコン)。</li>
     <li>配置: ベントー風に、大小を混ぜて自由に散らす(カードの大きさは、内容に応じて変えられる)。</li>
-    <li>手書き: ペンツールバー(ペン・色・戻す・消す)。細い線で、丸囲み・下線・コネクタ。</li>
+    <li>手書き: ツールバー(ペン・消しゴム・色・整える・戻す・消す)。細い線で、丸囲み・下線。</li>
     <li>カードに置かないもの: 番号、レビュー件数の大きな数字、進捗バー。</li>
   </ul>
   <h3>9.2 エディタ</h3>

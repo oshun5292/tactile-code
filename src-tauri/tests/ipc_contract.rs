@@ -25,7 +25,12 @@ fn harness() -> Harness {
             update_project_note,
             update_project_description,
             move_project,
-            refresh_project
+            refresh_project,
+            get_board,
+            add_stroke,
+            remove_stroke,
+            clear_strokes,
+            save_viewport
         ])
         .build(mock_context(noop_assets()))
         .unwrap();
@@ -197,4 +202,113 @@ fn contract_shape_and_flow() {
         1
     );
     assert!(call(&h, "remove_project", json!({ "id": "nope" })).is_err());
+}
+
+fn add_dir(h: &Harness, dir: &tempfile::TempDir) -> String {
+    let p = call(
+        h,
+        "add_project",
+        json!({ "path": dir.path().to_str().unwrap() }),
+    )
+    .unwrap();
+    p["id"].as_str().unwrap().to_string()
+}
+
+/// 段階2契約 §2, §3: get_board と各コマンドの JSON の形(camelCase)と、カード削除で手書きが残ること。
+#[test]
+fn stage2_board_contract() {
+    let h = harness();
+    // 空の状態
+    assert_eq!(
+        call(&h, "get_board", json!({})).unwrap(),
+        json!({ "strokes": [], "viewport": null })
+    );
+
+    let d1 = tempfile::tempdir().unwrap();
+    let a = add_dir(&h, &d1);
+
+    // add_stroke: {id, color, width, points: [[x,y],...]}
+    let s = call(
+        &h,
+        "add_stroke",
+        json!({ "color": "#e2708a", "width": 3, "points": [[0, 0], [10.5, 4]] }),
+    )
+    .unwrap();
+    let mut keys: Vec<&str> = s.as_object().unwrap().keys().map(|k| k.as_str()).collect();
+    keys.sort();
+    assert_eq!(keys, ["color", "id", "points", "width"]);
+    assert_eq!(s["color"], json!("#e2708a"));
+    assert_eq!(s["width"], json!(3.0));
+    assert_eq!(s["points"], json!([[0.0, 0.0], [10.5, 4.0]]));
+    assert!(
+        call(
+            &h,
+            "add_stroke",
+            json!({ "color": "red", "width": 3, "points": [[0, 0], [1, 1]] })
+        )
+        .is_err()
+    );
+    assert!(
+        call(
+            &h,
+            "add_stroke",
+            json!({ "color": "#000000", "width": 13, "points": [[0, 0], [1, 1]] })
+        )
+        .is_err()
+    );
+    assert!(
+        call(
+            &h,
+            "add_stroke",
+            json!({ "color": "#000000", "width": 3, "points": [[0, 0]] })
+        )
+        .is_err()
+    );
+    let s1 = s["id"].as_str().unwrap().to_string();
+    let s2 = call(
+        &h,
+        "add_stroke",
+        json!({ "color": "#34302b", "width": 3, "points": [[0, 0], [1, 1]] }),
+    )
+    .unwrap();
+
+    // save_viewport の往復。範囲外ズームはエラー
+    assert_eq!(
+        call(
+            &h,
+            "save_viewport",
+            json!({ "x": -10.5, "y": 20, "zoom": 0.75 })
+        )
+        .unwrap(),
+        Value::Null
+    );
+    assert!(call(&h, "save_viewport", json!({ "x": 0, "y": 0, "zoom": 3 })).is_err());
+
+    let board = call(&h, "get_board", json!({})).unwrap();
+    assert_eq!(board["strokes"].as_array().unwrap().len(), 2);
+    assert_eq!(
+        board["viewport"],
+        json!({ "x": -10.5, "y": 20.0, "zoom": 0.75 })
+    );
+
+    // remove_stroke / clear_strokes
+    assert_eq!(
+        call(&h, "remove_stroke", json!({ "id": s1 })).unwrap(),
+        Value::Null
+    );
+    assert!(call(&h, "remove_stroke", json!({ "id": s1 })).is_err());
+    assert_eq!(
+        call(&h, "get_board", json!({})).unwrap()["strokes"][0]["id"],
+        s2["id"]
+    );
+
+    // カードを消しても、手書きは残る
+    call(&h, "remove_project", json!({ "id": a })).unwrap();
+    let board = call(&h, "get_board", json!({})).unwrap();
+    assert_eq!(board["strokes"].as_array().unwrap().len(), 1);
+    assert!(board.get("edges").is_none());
+
+    assert_eq!(call(&h, "clear_strokes", json!({})).unwrap(), Value::Null);
+    let board = call(&h, "get_board", json!({})).unwrap();
+    assert_eq!(board["strokes"], json!([]));
 }

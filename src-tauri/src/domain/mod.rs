@@ -63,18 +63,54 @@ pub struct StoredProject {
     pub position: Position,
 }
 
+/// 手書き1本。points はボード(フロー)座標。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Stroke {
+    pub id: String,
+    pub color: String,
+    pub width: f64,
+    pub points: Vec<[f64; 2]>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Viewport {
+    pub x: f64,
+    pub y: f64,
+    pub zoom: f64,
+}
+
+/// get_board の戻り値。
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BoardState {
+    pub strokes: Vec<Stroke>,
+    pub viewport: Option<Viewport>,
+}
+
+pub const SCHEMA_VERSION: u32 = 2;
+
+/// v1 のファイルには strokes / viewport が無いので、欠けたら既定値で読む。
+/// 旧版が書いた `edges`(コネクタ)は未知のフィールドとして無視する(次の保存で消える)。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StoreFile {
     pub schema_version: u32,
     pub projects: Vec<StoredProject>,
+    #[serde(default)]
+    pub strokes: Vec<Stroke>,
+    #[serde(default)]
+    pub viewport: Option<Viewport>,
 }
 
 impl Default for StoreFile {
     fn default() -> Self {
         Self {
-            schema_version: 1,
+            schema_version: SCHEMA_VERSION,
             projects: Vec::new(),
+            strokes: Vec::new(),
+            viewport: None,
         }
     }
 }

@@ -1,12 +1,14 @@
 import { create } from "zustand";
 import { api } from "../../api";
-import type { ProjectSummary } from "../../api/types";
+import type { ProjectSummary, Stroke, Viewport } from "../../api/types";
 import { toMessage } from "../../shared/format";
 
 type Status = "loading" | "ready" | "error";
 
 type BoardState = {
   projects: ProjectSummary[];
+  strokes: Stroke[];
+  viewport: Viewport | null; // 起動時に保存されていた表示位置(null なら初期ビューポート)
   status: Status;
   error: string | null; // 読み込み失敗(画面全体のエラー)
   notice: string | null; // 操作の失敗(追加できなかった等)。画面上部に一時表示
@@ -16,6 +18,8 @@ type BoardState = {
   remove: (id: string) => Promise<void>;
   setNote: (id: string, note: string) => Promise<void>;
   setDescription: (id: string, description: string | null) => Promise<void>;
+  moveProject: (id: string, x: number, y: number) => Promise<void>;
+  saveViewport: (vp: Viewport) => void;
   dismissNotice: () => void;
 };
 
@@ -38,6 +42,8 @@ async function optimistic(
 
 export const useBoard = create<BoardState>((set, get) => ({
   projects: [],
+  strokes: [],
+  viewport: null,
   status: "loading",
   error: null,
   notice: null,
@@ -46,7 +52,8 @@ export const useBoard = create<BoardState>((set, get) => ({
   load: async () => {
     set({ status: "loading", error: null });
     try {
-      set({ projects: await api.listProjects(), status: "ready" });
+      const [projects, board] = await Promise.all([api.listProjects(), api.getBoard()]);
+      set({ projects, strokes: board.strokes, viewport: board.viewport, status: "ready" });
     } catch (e) {
       set({ status: "error", error: toMessage(e) });
     }
@@ -90,6 +97,24 @@ export const useBoard = create<BoardState>((set, get) => ({
         /* 取り直せなくても、表示は空のままで困らない */
       }
     }
+  },
+
+  moveProject: async (id, x, y) => {
+    // 位置は React Flow が先に動かしているので、ここでは保存と、store 側の値の更新だけ
+    const before = get().projects;
+    set({ projects: before.map((p) => (p.id === id ? { ...p, position: { x, y } } : p)) });
+    try {
+      await api.moveProject(id, x, y);
+    } catch (e) {
+      set({ projects: before, notice: `位置を保存できませんでした: ${toMessage(e)}` });
+    }
+  },
+
+  // 手書きの追加・消去・戻すは、操作の履歴を持つ src/features/pen/penActions.ts が行う
+
+  // 連続で呼ばれる前提(呼び出し側で 500ms 待つ)。失敗しても操作の邪魔をしないよう、黙って無視する
+  saveViewport: (vp) => {
+    api.saveViewport(vp.x, vp.y, vp.zoom).catch(() => {});
   },
 
   dismissNotice: () => set({ notice: null }),

@@ -28,7 +28,7 @@ export function ProjectCard({ project: p, onNoteChange, onDescriptionChange, onR
     >
       <button
         type="button"
-        className="card-remove"
+        className="card-remove nodrag nopan"
         onClick={() => onRemoveRequest(p)}
         aria-label={`${p.name} を記憶から外す`}
         title="記憶から外す"

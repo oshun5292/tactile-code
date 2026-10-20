@@ -27,6 +27,8 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 .claude/settings.local.json
+# アプリが自動生成するプレビュー設定(このプロジェクトのポートと合わない)
+.claude/launch.json
 
 # --- 作業用の一時ファイル(見本の動作確認用など) ---
 samples/_t*.html

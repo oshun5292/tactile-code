@@ -1,6 +1,6 @@
 //! Tauri コマンドの入口(薄く保つ。処理は services / storage)。
-use crate::domain::{Position, ProjectSummary, StoredProject};
-use crate::services::{paths, summary::build_summary};
+use crate::domain::{BoardState, Position, ProjectSummary, StoredProject, Stroke, Viewport};
+use crate::services::{board, paths, summary::build_summary};
 use crate::storage::Store;
 use tauri::State;
 
@@ -188,4 +188,54 @@ pub async fn refresh_project(
     })
     .await?;
     summarize(stored).await
+}
+
+#[tauri::command]
+pub async fn get_board(store: State<'_, Store>) -> Result<BoardState, String> {
+    run_store(&store, |s| Ok(board::board_state(&s.read()))).await
+}
+
+#[tauri::command]
+pub async fn add_stroke(
+    color: String,
+    width: f64,
+    points: Vec<[f64; 2]>,
+    store: State<'_, Store>,
+) -> Result<Stroke, String> {
+    run_store(&store, move |s| {
+        s.update(|data| board::add_stroke(data, &color, width, points))
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn remove_stroke(id: String, store: State<'_, Store>) -> Result<(), String> {
+    run_store(&store, move |s| {
+        s.update(|data| board::remove_stroke(data, &id))
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn clear_strokes(store: State<'_, Store>) -> Result<(), String> {
+    run_store(&store, |s| {
+        s.update(|data| {
+            data.strokes.clear();
+            Ok(())
+        })
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn save_viewport(
+    x: f64,
+    y: f64,
+    zoom: f64,
+    store: State<'_, Store>,
+) -> Result<(), String> {
+    run_store(&store, move |s| {
+        s.update(|data| board::save_viewport(data, Viewport { x, y, zoom }))
+    })
+    .await
 }
