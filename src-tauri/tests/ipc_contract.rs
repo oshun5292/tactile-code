@@ -30,7 +30,10 @@ fn harness() -> Harness {
             add_stroke,
             remove_stroke,
             clear_strokes,
-            save_viewport
+            save_viewport,
+            list_dir,
+            read_file,
+            write_file
         ])
         .build(mock_context(noop_assets()))
         .unwrap();
@@ -311,4 +314,111 @@ fn stage2_board_contract() {
     assert_eq!(call(&h, "clear_strokes", json!({})).unwrap(), Value::Null);
     let board = call(&h, "get_board", json!({})).unwrap();
     assert_eq!(board["strokes"], json!([]));
+}
+
+/// 段階3契約 §2, §3: list_dir / read_file / write_file の JSON の形(camelCase)と、エラー。
+#[test]
+fn stage3_editor_contract() {
+    let h = harness();
+    let d = tempfile::tempdir().unwrap();
+    std::fs::create_dir(d.path().join("sub")).unwrap();
+    std::fs::write(d.path().join("sub").join("x.md"), "# t\r\nb\r\n").unwrap();
+    std::fs::write(d.path().join("a.txt"), "hello").unwrap();
+    let id = add_dir(&h, &d);
+
+    let list = call(&h, "list_dir", json!({ "projectId": id, "relPath": "" })).unwrap();
+    let arr = list.as_array().unwrap();
+    assert_eq!(arr.len(), 2);
+    let mut keys: Vec<&str> = arr[0]
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(|k| k.as_str())
+        .collect();
+    keys.sort();
+    assert_eq!(keys, ["kind", "modified", "name", "relPath", "size"]);
+    assert_eq!(arr[0]["kind"], json!("dir"));
+    assert_eq!(arr[0]["relPath"], json!("sub"));
+    assert_eq!(arr[1]["kind"], json!("file"));
+    assert_eq!(arr[1]["size"], json!(5));
+    assert!(arr[1]["modified"].is_string());
+
+    let r = call(
+        &h,
+        "read_file",
+        json!({ "projectId": id, "relPath": "sub/x.md" }),
+    )
+    .unwrap();
+    let mut keys: Vec<&str> = r.as_object().unwrap().keys().map(|k| k.as_str()).collect();
+    keys.sort();
+    assert_eq!(
+        keys,
+        [
+            "content", "eol", "hasBom", "kind", "modified", "relPath", "size"
+        ]
+    );
+    assert_eq!(r["kind"], json!("text"));
+    assert_eq!(r["content"], json!("# t\nb\n"));
+    assert_eq!(r["eol"], json!("crlf"));
+    assert_eq!(r["hasBom"], json!(false));
+    assert_eq!(r["relPath"], json!("sub/x.md"));
+
+    // 種類の名前(camelCase)
+    std::fs::write(d.path().join("b.bin"), [0u8, 1]).unwrap();
+    std::fs::write(d.path().join("s.txt"), [0x82u8, 0xA0]).unwrap();
+    std::fs::write(d.path().join("big.txt"), vec![b'a'; 2 * 1024 * 1024 + 1]).unwrap();
+    let kind = |rel: &str| {
+        call(&h, "read_file", json!({ "projectId": id, "relPath": rel })).unwrap()["kind"].clone()
+    };
+    assert_eq!(kind("b.bin"), json!("binary"));
+    assert_eq!(kind("s.txt"), json!("unsupportedEncoding"));
+    assert_eq!(kind("big.txt"), json!("tooLarge"));
+
+    // 保存(引数は camelCase)
+    let saved = call(
+        &h,
+        "write_file",
+        json!({ "projectId": id, "relPath": "sub/x.md", "content": "new\n",
+                "expectedModified": r["modified"], "eol": "crlf", "hasBom": true, "force": false }),
+    )
+    .unwrap();
+    assert_eq!(saved["size"], json!(8)); // BOM 3 + "new\r\n" 5
+    assert!(saved["modified"].is_string());
+    assert_eq!(
+        std::fs::read(d.path().join("sub").join("x.md")).unwrap(),
+        b"\xEF\xBB\xBFnew\r\n"
+    );
+
+    // 競合は「競合:」で始まる文字列、force で通る(expectedModified は null 可)
+    let err = call(
+        &h,
+        "write_file",
+        json!({ "projectId": id, "relPath": "sub/x.md", "content": "z",
+                "expectedModified": "2000-01-01T00:00:00Z", "eol": "lf", "hasBom": false, "force": false }),
+    )
+    .unwrap_err();
+    assert!(err.as_str().unwrap().starts_with("競合:"));
+    call(
+        &h,
+        "write_file",
+        json!({ "projectId": id, "relPath": "sub/x.md", "content": "z",
+                "expectedModified": null, "eol": "lf", "hasBom": false, "force": true }),
+    )
+    .unwrap();
+
+    // 拒否・未登録のプロジェクトは日本語の文字列エラー
+    let err = call(
+        &h,
+        "read_file",
+        json!({ "projectId": id, "relPath": "../x" }),
+    )
+    .unwrap_err();
+    assert!(err.is_string());
+    let err = call(
+        &h,
+        "list_dir",
+        json!({ "projectId": "nope", "relPath": "" }),
+    )
+    .unwrap_err();
+    assert_eq!(err, json!("プロジェクトが見つかりません"));
 }

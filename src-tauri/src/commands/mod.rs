@@ -1,6 +1,9 @@
 //! Tauri コマンドの入口(薄く保つ。処理は services / storage)。
-use crate::domain::{BoardState, Position, ProjectSummary, StoredProject, Stroke, Viewport};
-use crate::services::{board, paths, summary::build_summary};
+use crate::domain::{
+    BoardState, Eol, FileContent, FsEntry, Position, ProjectSummary, SavedFile, StoredProject,
+    Stroke, Viewport,
+};
+use crate::services::{board, fs, paths, summary::build_summary};
 use crate::storage::Store;
 use tauri::State;
 
@@ -236,6 +239,68 @@ pub async fn save_viewport(
 ) -> Result<(), String> {
     run_store(&store, move |s| {
         s.update(|data| board::save_viewport(data, Viewport { x, y, zoom }))
+    })
+    .await
+}
+
+// ---- 段階3: エディタのファイル操作(検証は services::fs に集約) ----
+
+/// プロジェクトIDから登録済みのフォルダを引く。ID が未登録なら、ファイルには触れない。
+fn project_root(store: &Store, id: &str) -> Result<std::path::PathBuf, String> {
+    store
+        .read()
+        .projects
+        .into_iter()
+        .find(|p| p.id == id)
+        .map(|p| std::path::PathBuf::from(p.path))
+        .ok_or_else(|| "プロジェクトが見つかりません".to_string())
+}
+
+#[tauri::command]
+pub async fn list_dir(
+    project_id: String,
+    rel_path: String,
+    store: State<'_, Store>,
+) -> Result<Vec<FsEntry>, String> {
+    run_store(&store, move |s| {
+        fs::list_dir(&project_root(s, &project_id)?, &rel_path)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn read_file(
+    project_id: String,
+    rel_path: String,
+    store: State<'_, Store>,
+) -> Result<FileContent, String> {
+    run_store(&store, move |s| {
+        fs::read_file(&project_root(s, &project_id)?, &rel_path)
+    })
+    .await
+}
+
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub async fn write_file(
+    project_id: String,
+    rel_path: String,
+    content: String,
+    expected_modified: Option<String>,
+    eol: Eol,
+    has_bom: bool,
+    force: bool,
+    store: State<'_, Store>,
+) -> Result<SavedFile, String> {
+    run_store(&store, move |s| {
+        let req = fs::WriteRequest {
+            content: &content,
+            expected_modified: expected_modified.as_deref(),
+            eol,
+            has_bom,
+            force,
+        };
+        fs::write_file(&project_root(s, &project_id)?, &rel_path, &req)
     })
     .await
 }

@@ -32,7 +32,10 @@ pub fn run() {
             commands::add_stroke,
             commands::remove_stroke,
             commands::clear_strokes,
-            commands::save_viewport
+            commands::save_viewport,
+            commands::list_dir,
+            commands::read_file,
+            commands::write_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
