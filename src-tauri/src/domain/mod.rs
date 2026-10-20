@@ -178,6 +178,10 @@ pub struct StoreFile {
     pub strokes: Vec<Stroke>,
     #[serde(default)]
     pub viewport: Option<Viewport>,
+    /// N9: エディタ設定(アプリ全体で共通)。古いファイルには無いので default で読み、
+    /// 無いときは書き出さず、ファイルの形を変えない(schemaVersion は 2 のまま)。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub settings: Option<EditorSettings>,
 }
 
 impl Default for StoreFile {
@@ -187,8 +191,40 @@ impl Default for StoreFile {
             projects: Vec::new(),
             strokes: Vec::new(),
             viewport: None,
+            settings: None,
         }
     }
+}
+
+/// 自動保存の方式(フロントの "off" | "afterDelay" | "onFocusChange")。列挙以外は読み込みでエラーになる。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AutoSaveMode {
+    Off,
+    AfterDelay,
+    OnFocusChange,
+}
+
+/// 数値を丸めて整数にする。JS 側が 12.5 のような小数や範囲外を送っても、エラーにせず後で範囲内へ丸めるため。
+fn lenient_u32<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
+    let v = f64::deserialize(d)?;
+    if !v.is_finite() {
+        return Err(serde::de::Error::custom("数値が不正です"));
+    }
+    // 負数は 0、巨大な値は上限へ寄る(as は飽和変換)
+    Ok(v.round() as u32)
+}
+
+/// N9/N10: エディタの設定(契約書 docs/stage-n9-contract.md)。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EditorSettings {
+    #[serde(deserialize_with = "lenient_u32")]
+    pub font_size: u32,
+    pub word_wrap: bool,
+    pub auto_save: AutoSaveMode,
+    #[serde(deserialize_with = "lenient_u32")]
+    pub auto_save_delay_ms: u32,
 }
 
 // ---- 段階3: エディタのファイル操作(契約書 docs/stage3-contract.md §2) ----

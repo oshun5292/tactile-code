@@ -44,7 +44,9 @@ fn harness() -> Harness {
             duplicate_entry,
             open_in_vscode,
             list_files,
-            search_in_project
+            search_in_project,
+            get_settings,
+            save_settings
         ])
         .build(mock_context(noop_assets()))
         .unwrap();
@@ -961,5 +963,61 @@ fn stage_n3_search_in_project_contract() {
         )
         .unwrap_err(),
         json!("プロジェクトが見つかりません")
+    );
+}
+
+/// N9契約: get_settings / save_settings の JSON の形(camelCase)・丸め・不正値の拒否。
+#[test]
+fn stage_n9_settings_contract() {
+    let h = harness();
+    // 保存が無ければ null
+    assert_eq!(call(&h, "get_settings", json!({})).unwrap(), Value::Null);
+
+    let ok = json!({ "fontSize": 16, "wordWrap": true, "autoSave": "afterDelay", "autoSaveDelayMs": 1500 });
+    assert_eq!(
+        call(&h, "save_settings", json!({ "settings": ok })).unwrap(),
+        Value::Null
+    );
+    assert_eq!(call(&h, "get_settings", json!({})).unwrap(), ok);
+
+    // 範囲外は丸めて保存(エラーにしない)
+    call(
+        &h,
+        "save_settings",
+        json!({ "settings": { "fontSize": 99, "wordWrap": false, "autoSave": "onFocusChange", "autoSaveDelayMs": 5 } }),
+    )
+    .unwrap();
+    assert_eq!(
+        call(&h, "get_settings", json!({})).unwrap(),
+        json!({ "fontSize": 28, "wordWrap": false, "autoSave": "onFocusChange", "autoSaveDelayMs": 200 })
+    );
+    call(
+        &h,
+        "save_settings",
+        json!({ "settings": { "fontSize": 1, "wordWrap": false, "autoSave": "off", "autoSaveDelayMs": 20000 } }),
+    )
+    .unwrap();
+    let got = call(&h, "get_settings", json!({})).unwrap();
+    assert_eq!(got["fontSize"], json!(10));
+    assert_eq!(got["autoSaveDelayMs"], json!(10000));
+
+    // 列挙以外の autoSave はエラーで、保存済みの値は変わらない
+    assert!(
+        call(
+            &h,
+            "save_settings",
+            json!({ "settings": { "fontSize": 14, "wordWrap": false, "autoSave": "always", "autoSaveDelayMs": 1000 } }),
+        )
+        .is_err()
+    );
+    assert_eq!(
+        call(&h, "get_settings", json!({})).unwrap()["fontSize"],
+        json!(10)
+    );
+
+    // 設定を保存しても、ボードなど他の項目には影響しない
+    assert_eq!(
+        call(&h, "get_board", json!({})).unwrap(),
+        json!({ "strokes": [], "viewport": null })
     );
 }

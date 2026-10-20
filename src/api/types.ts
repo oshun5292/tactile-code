@@ -55,6 +55,9 @@ export type FileList = { relPaths: string[]; truncated: boolean };
 export type SearchMatch = { relPath: string; line: number; column: number; length: number; preview: string; previewColumn: number };
 export type SearchResult = { matches: SearchMatch[]; truncated: boolean; filesSearched: number };
 export type SearchOptions = { caseSensitive: boolean; wholeWord: boolean };
+/** エディタの設定(N9/N10)。保存が無ければ null を返し、既定値はフロントが持つ。 */
+export type AutoSaveMode = "off" | "afterDelay" | "onFocusChange";
+export type EditorSettings = { fontSize: number; wordWrap: boolean; autoSave: AutoSaveMode; autoSaveDelayMs: number };
 export type SavedFile = { modified: string; size: number };
 
 // 段階3b-1(docs/stage3b1-contract.md §2)。
@@ -100,6 +103,10 @@ export interface Api {
   listFiles(projectId: string): Promise<FileList>;
   /** 文字列検索(正規表現は使わない)。UTF-8 のテキストだけを対象にする。結果は最大 2,000 件で打ち切り。 */
   searchInProject(projectId: string, query: string, options: SearchOptions): Promise<SearchResult>;
+  /** 保存済みの設定。無ければ null。 */
+  getSettings(): Promise<EditorSettings | null>;
+  /** 範囲外の値は丸めて保存する(fontSize 10〜28、autoSaveDelayMs 200〜10000)。 */
+  saveSettings(settings: EditorSettings): Promise<void>;
   /** 外部変更の検知用。ファイルが無い/読めないときは exists:false(失敗にしない)。 */
   statFiles(projectId: string, relPaths: string[]): Promise<FileStat[]>;
   /** 空のファイルを作る。すでにあれば "既存:" で始まる文字列で失敗。親フォルダは存在していること。 */

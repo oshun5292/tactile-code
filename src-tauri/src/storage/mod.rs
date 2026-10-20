@@ -119,6 +119,7 @@ mod tests {
                 y: 6.5,
                 zoom: 0.8,
             }),
+            settings: None,
         }
     }
 
@@ -252,6 +253,37 @@ mod tests {
                 .unwrap()
                 .contains("editorSession")
         );
+    }
+
+    #[test]
+    fn settings_roundtrip_and_old_file_compat() {
+        use crate::domain::{AutoSaveMode, EditorSettings};
+        let d = tempfile::tempdir().unwrap();
+        let f = d.path().join("projects.json");
+        // settings の無い古いファイルは読める
+        std::fs::write(&f, r#"{"schemaVersion":2,"projects":[]}"#).unwrap();
+        let store = Store::new(f.clone());
+        assert!(store.read().settings.is_none());
+        let st = EditorSettings {
+            font_size: 16,
+            word_wrap: true,
+            auto_save: AutoSaveMode::AfterDelay,
+            auto_save_delay_ms: 1500,
+        };
+        store
+            .update(|data| {
+                data.settings = Some(st);
+                Ok(())
+            })
+            .unwrap();
+        let text = std::fs::read_to_string(&f).unwrap();
+        assert!(text.contains("\"settings\"") && text.contains("\"autoSave\":\"afterDelay\""));
+        assert!(text.contains("\"schemaVersion\":2"));
+        assert_eq!(load(&f).settings, Some(st));
+        // 未設定なら項目自体を書き出さない
+        let g = d.path().join("other.json");
+        save(&g, &sample()).unwrap();
+        assert!(!std::fs::read_to_string(&g).unwrap().contains("settings"));
     }
 
     #[test]

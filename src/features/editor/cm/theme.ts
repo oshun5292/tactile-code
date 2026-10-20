@@ -14,7 +14,8 @@ export const editorTheme = EditorView.theme({
     height: "100%",
     color: "var(--ink)",
     backgroundColor: "var(--white)",
-    fontSize: "13px",
+    // 文字サイズは設定(N9)が --cm-font-size で渡す。行番号・行の高さ(em/比率)も追従する
+    fontSize: "var(--cm-font-size, 13px)",
   },
   "&.cm-focused": { outline: "none" },
   ".cm-scroller": {
@@ -30,7 +31,7 @@ export const editorTheme = EditorView.theme({
     backgroundColor: "var(--white)",
     color: "color-mix(in srgb, var(--soft) 70%, transparent)",
     border: "none",
-    fontSize: "12px",
+    fontSize: "calc(var(--cm-font-size, 13px) - 1px)",
   },
   ".cm-lineNumbers .cm-gutterElement": { padding: "0 10px 0 14px", minWidth: "3ch" },
   ".cm-activeLine": { backgroundColor: mix(7) },

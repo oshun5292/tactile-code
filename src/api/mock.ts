@@ -3,7 +3,7 @@
 import { MAX_SEARCH_RESULTS, searchText } from "../features/editor/searchLogic";
 import { duplicateName } from "../shared/duplicateName";
 import { MOCK_FILES } from "./mockFiles";
-import type { Api, BoardState, EditorSessionData, EncodingName, Eol, FileKind, FsEntry, GitInfo, ProjectSummary, SearchMatch, Stroke } from "./types";
+import type { Api, BoardState, EditorSessionData, EditorSettings, EncodingName, Eol, FileKind, FsEntry, GitInfo, ProjectSummary, SearchMatch, Stroke } from "./types";
 
 const DAY = 86_400_000;
 const daysAgo = (n: number) => new Date(Date.now() - n * DAY).toISOString();
@@ -295,6 +295,9 @@ if (typeof window !== "undefined") {
   };
 }
 
+// 設定はアプリ全体で1つ(メモリのみ)。保存が無い状態は null
+let settingsDb: EditorSettings | null = null;
+
 export const mockApi: Api = {
   async createFile(projectId, relPath) {
     await sleep(FS_DELAY);
@@ -397,6 +400,19 @@ export const mockApi: Api = {
       const f = files.get(relPath);
       return { relPath, exists: !!f, modified: f ? f.modified : null };
     });
+  },
+  async getSettings() {
+    return settingsDb ? { ...settingsDb } : null;
+  },
+  async saveSettings(settings) {
+    // 本物(Rust側)と同じく範囲外は丸める。不正な autoSave はエラー
+    if (!["off", "afterDelay", "onFocusChange"].includes(settings.autoSave)) throw "自動保存の指定が正しくありません";
+    const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, Math.round(n)));
+    settingsDb = {
+      ...settings,
+      fontSize: clamp(settings.fontSize, 10, 28),
+      autoSaveDelayMs: clamp(settings.autoSaveDelayMs, 200, 10000),
+    };
   },
   async getEditorSession(projectId) {
     find(projectId);

@@ -4,6 +4,7 @@ import { ContextMenu, type MenuItem } from "../../shared/ui/ContextMenu";
 import { languageForFilename } from "./cm/languages";
 import { CodeEditor, type RevealTarget } from "./cm/CodeEditor";
 import { MarkdownEditor } from "./cm/MarkdownEditor";
+import { useSettings } from "./settingsStore";
 import {
   baseName,
   canReopenWithEncoding,
@@ -232,6 +233,8 @@ function Panel({
   // 隠れているタブも、自分のインデント設定を持つ(切り替え時に直さなくて済む)
   const detected = useMemo(() => detectIndent(tab.baseline), [tab.baseline]);
   const indent = resolveIndent(tab.indent, detected, languageForFilename(tab.relPath).tabSize);
+  const fontSize = useSettings((s) => s.settings.fontSize);
+  const wordWrap = useSettings((s) => s.settings.wordWrap);
   if (tab.status === "loading") {
     return (
       <p className="doc-state" role="status">
@@ -272,7 +275,7 @@ function Panel({
   }
   if (isMarkdownFile(tab.relPath)) {
     return (
-      <MarkdownEditor value={tab.draft} onChange={(v) => onEdit(tab.relPath, v)} onSave={() => onSave(tab.relPath)} mode={tab.mdMode} reveal={reveal} onRevealed={onRevealed} onCursorChange={onCursorChange} indent={indent} />
+      <MarkdownEditor value={tab.draft} onChange={(v) => onEdit(tab.relPath, v)} onSave={() => onSave(tab.relPath)} mode={tab.mdMode} reveal={reveal} onRevealed={onRevealed} onCursorChange={onCursorChange} indent={indent} fontSize={fontSize} />
     );
   }
   return (
@@ -286,6 +289,8 @@ function Panel({
       onRevealed={onRevealed}
       onCursorChange={onCursorChange}
       indent={indent}
+      fontSize={fontSize}
+      wrap={wordWrap}
     />
   );
 }
