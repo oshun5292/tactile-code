@@ -39,6 +39,15 @@ export const tauriApi: Api = {
   readFile: (projectId, relPath) => invoke<FileContent>("read_file", { projectId, relPath }),
   writeFile: (projectId, relPath, content, expectedModified, eol, hasBom, force) =>
     invoke<SavedFile>("write_file", { projectId, relPath, content, expectedModified, eol, hasBom, force }),
+  createFile: (projectId, relPath) => invoke<FsEntry>("create_file", { projectId, relPath }),
+  createDir: (projectId, relPath) => invoke<FsEntry>("create_dir", { projectId, relPath }),
+  renameEntry: (projectId, fromRelPath, toRelPath) => invoke<FsEntry>("rename_entry", { projectId, fromRelPath, toRelPath }),
+  deleteEntry: async (projectId, relPath) => {
+    await invoke("delete_entry", { projectId, relPath });
+  },
+  openInVscode: async (projectId, relPath) => {
+    await invoke("open_in_vscode", { projectId, relPath });
+  },
   statFiles: (projectId, relPaths) => invoke<FileStat[]>("stat_files", { projectId, relPaths }),
   getEditorSession: (projectId) => invoke<EditorSessionData | null>("get_editor_session", { projectId }),
   saveEditorSession: async (projectId, data) => {

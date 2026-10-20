@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { api } from "../../api";
 import { toMessage } from "../../shared/format";
+import type { ToastData } from "../../shared/ui/Toast";
 import {
   ancestorsOf,
   applyLoaded,
@@ -8,12 +9,17 @@ import {
   closeTabIn,
   dirtyTabs,
   discardDirtyTabs,
+  dropFromDirsCache,
   emptySession,
   judgeExternal,
   newTab,
   openTabIn,
   planRestore,
   pollTargets,
+  remapDirsCache,
+  removeFromSession,
+  renameInSession,
+  tabsUnder,
   toggleExpanded,
   updateTab,
   type MdMode,
@@ -32,11 +38,15 @@ export type PromptChoice = "save" | "discard" | "cancel";
 /** ウィンドウを閉じようとして止まっている確認。選択結果で resolve(true=閉じる) する。 */
 export type QuitRequest = { resolve: (ok: boolean) => void };
 
+/** 削除の確認待ち。未保存の編集が失われるタブ数も持つ(ダイアログで先に伝えるため)。 */
+export type DeleteRequest = { projectId: string; relPath: string; kind: "dir" | "file"; dirtyCount: number };
+
 const SESSION_SAVE_DELAY_MS = 500;
 const RELOADED_MARK_MS = 4000;
 
 /** 復元が済んだプロジェクト(これ以降の変更だけをセッションとして自動保存する) */
 const restoredProjects = new Set<string>();
+let noticeSeq = 0;
 
 type EditorState = {
   view: "board" | "editor";
@@ -50,6 +60,19 @@ type EditorState = {
   quit: QuitRequest | null;
   /** 増えるたびに、本文のエディタへフォーカスを移す(タブを開いた・切り替えたとき) */
   focusTick: number;
+  deleteRequest: DeleteRequest | null;
+  /** 画面下のお知らせ(失敗の理由など) */
+  notice: ToastData | null;
+
+  notify: (kind: ToastData["kind"], text: string) => void;
+  dismissNotice: () => void;
+  /** 新規作成。成功なら null、失敗なら理由(行内の入力欄に出す)。ファイルなら作成後に開く。 */
+  createEntry: (projectId: string, kind: "file" | "dir", relPath: string) => Promise<string | null>;
+  /** 名前変更・移動。成功なら null、失敗なら理由。 */
+  renameEntry: (projectId: string, from: string, to: string) => Promise<string | null>;
+  requestDelete: (projectId: string, relPath: string, kind: "dir" | "file") => void;
+  resolveDelete: (confirm: boolean) => Promise<void>;
+  openInVscode: (projectId: string, relPath: string) => Promise<void>;
 
   openEditor: (projectId: string, opts?: { file?: string; mdMode?: MdMode }) => Promise<void>;
   requestOpenProject: (projectId: string) => void;
@@ -156,6 +179,72 @@ export const useEditor = create<EditorState>((set, get) => {
     conflict: null,
     quit: null,
     focusTick: 0,
+    deleteRequest: null,
+    notice: null,
+
+    notify: (kind, text) => set({ notice: { id: ++noticeSeq, kind, text } }),
+    dismissNotice: () => set({ notice: null }),
+
+    createEntry: async (projectId, kind, relPath) => {
+      try {
+        if (kind === "file") await api.createFile(projectId, relPath);
+        else await api.createDir(projectId, relPath);
+      } catch (e) {
+        return toMessage(e);
+      }
+      // 作った場所が見えるよう、親フォルダを開いてから読み直す
+      const parents = ancestorsOf(relPath);
+      patchSession(projectId, (s) => ({ ...s, expanded: [...new Set([...s.expanded, ...parents])] }));
+      await get().reloadTree(projectId);
+      if (kind === "file") await get().openFile(projectId, relPath);
+      return null;
+    },
+
+    renameEntry: async (projectId, from, to) => {
+      try {
+        await api.renameEntry(projectId, from, to);
+      } catch (e) {
+        return toMessage(e);
+      }
+      // タブ・展開状態・一覧のキャッシュを新しいパスへ付け替える(未保存の編集は保つ)。移動先の親も開く
+      patchSession(projectId, (s) => {
+        const r = renameInSession(s, from, to);
+        return { ...r, expanded: [...new Set([...r.expanded, ...ancestorsOf(to)])] };
+      });
+      set((st) => ({ dirs: { ...st.dirs, [projectId]: remapDirsCache(st.dirs[projectId] ?? {}, from, to) } }));
+      await get().reloadTree(projectId);
+      return null;
+    },
+
+    requestDelete: (projectId, relPath, kind) => {
+      const dirtyCount = dirtyTabs({ ...emptySession(), tabs: tabsUnder(sessionOf(projectId), relPath) }).length;
+      set({ deleteRequest: { projectId, relPath, kind, dirtyCount } });
+    },
+
+    resolveDelete: async (confirm) => {
+      const req = get().deleteRequest;
+      if (!req) return;
+      set({ deleteRequest: null });
+      if (!confirm) return;
+      try {
+        await api.deleteEntry(req.projectId, req.relPath);
+      } catch (e) {
+        get().notify("error", `削除できませんでした: ${toMessage(e)}`);
+        return;
+      }
+      patchSession(req.projectId, (s) => removeFromSession(s, req.relPath));
+      set((st) => ({ dirs: { ...st.dirs, [req.projectId]: dropFromDirsCache(st.dirs[req.projectId] ?? {}, req.relPath) } }));
+      bumpFocus();
+      await get().reloadTree(req.projectId);
+    },
+
+    openInVscode: async (projectId, relPath) => {
+      try {
+        await api.openInVscode(projectId, relPath);
+      } catch (e) {
+        get().notify("error", toMessage(e));
+      }
+    },
 
     openEditor: async (projectId, opts) => {
       const isNew = !get().sessions[projectId];

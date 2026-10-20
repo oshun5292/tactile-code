@@ -1,0 +1,27 @@
+/* 右クリックメニューとトースト。色・影は tokens.css の変数だけを使う。 */
+.ctx-menu {
+  position: fixed; z-index: 300; min-width: 200px; padding: 6px; border-radius: 14px;
+  background: var(--white); border: 1px solid var(--line); box-shadow: var(--sh-up); font-size: 13px;
+}
+.ctx-item {
+  appearance: none; border: 0; background: transparent; width: 100%; display: flex; align-items: center; justify-content: space-between;
+  gap: 24px; padding: 7px 12px; border-radius: 9px; font: inherit; color: var(--ink); text-align: left; cursor: pointer;
+}
+.ctx-item kbd { font-family: var(--mono); font-size: 11px; color: var(--soft); }
+.ctx-item:hover:not(:disabled), .ctx-item:focus-visible { background: var(--proj, var(--bg2)); outline: none; }
+.ctx-item[data-danger] { color: var(--danger); }
+.ctx-item:disabled { color: var(--soft); cursor: default; opacity: 0.6; }
+.ctx-sep { height: 1px; margin: 5px 6px; background: var(--line); }
+
+.toast {
+  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 400; max-width: min(560px, calc(100vw - 32px));
+  display: flex; align-items: center; gap: 12px; padding: 10px 14px 10px 18px; border-radius: 14px;
+  background: var(--ink); color: #fff; font-size: 13px; line-height: 1.6; box-shadow: var(--sh-up);
+}
+.toast[data-kind="error"] { background: var(--danger); }
+.toast-text { min-width: 0; overflow-wrap: anywhere; }
+.toast-close {
+  appearance: none; border: 0; background: transparent; color: inherit; cursor: pointer; font-size: 18px; line-height: 1; padding: 0 4px; opacity: 0.8;
+}
+.toast-close:hover { opacity: 1; }
+.toast-close:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }

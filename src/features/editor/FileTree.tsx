@@ -1,6 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent } from "react";
+import type { FsEntry } from "../../api/types";
 import { languageColor } from "../../shared/languageColors";
-import { iconForFile, parentPath, visibleRows, type TreeDir, type TreeRow } from "./editorLogic";
+import { ContextMenu, type MenuItem } from "../../shared/ui/ContextMenu";
+import { InlineName } from "./InlineName";
+import { creationParent, iconForFile, joinPath, parentPath, visibleRows, type TreeDir, type TreeRow } from "./editorLogic";
 
 type Props = {
   dirs: Record<string, TreeDir>;
@@ -9,23 +12,116 @@ type Props = {
   onToggleDir: (relPath: string) => void;
   onOpenFile: (relPath: string) => void;
   onReload: () => void;
+  /** 作成・名前変更は、成功なら null、失敗なら理由を返す(行内の入力欄に出す) */
+  onCreate: (kind: "file" | "dir", relPath: string) => Promise<string | null>;
+  onRename: (from: string, to: string) => Promise<string | null>;
+  onDelete: (entry: FsEntry) => void;
+  onCopyPath: (entry: FsEntry, absolute: boolean) => void;
+  /** relPath が "" ならプロジェクトのフォルダ */
+  onOpenInVscode: (relPath: string) => void;
 };
 
-/** ファイルツリー(36 の .tree)。flat な role="tree" で、↑↓ Enter ←→ で操作できる。 */
-export function FileTree({ dirs, expanded, activePath, onToggleDir, onOpenFile, onReload }: Props) {
+/** いま行内で入力している対象 */
+type Editing = { type: "rename"; entry: FsEntry } | { type: "create"; kind: "file" | "dir"; parent: string };
+type MenuState = { x: number; y: number; target: FsEntry | null };
+type EntryRow = Extract<TreeRow, { type: "entry" }>;
+
+/** ファイルツリー(36 の .tree)。flat な role="tree" で、↑↓ Enter ←→ F2 Delete で操作できる。 */
+export function FileTree({ dirs, expanded, activePath, onToggleDir, onOpenFile, onReload, onCreate, onRename, onDelete, onCopyPath, onOpenInVscode }: Props) {
   const rows = useMemo(() => visibleRows(dirs, expanded), [dirs, expanded]);
-  const entries = useMemo(() => rows.filter((r): r is Extract<TreeRow, { type: "entry" }> => r.type === "entry"), [rows]);
+  const entries = useMemo(() => rows.filter((r): r is EntryRow => r.type === "entry"), [rows]);
   const treeRef = useRef<HTMLDivElement>(null);
   // キーボードで今いる行(roving tabindex)。なければ、選択中のファイル、それもなければ先頭
   const [focusPath, setFocusPath] = useState<string | null>(null);
   const current = entries.find((r) => r.entry.relPath === focusPath) ?? entries.find((r) => r.entry.relPath === activePath) ?? entries[0];
+  // 「選択中」の行(新規作成の置き場所の基準)。先頭への仮のフォールバックはここでは使わない
+  const selected = entries.find((r) => r.entry.relPath === focusPath) ?? entries.find((r) => r.entry.relPath === activePath) ?? null;
 
-  // フォーカスがツリーの中にあるときだけ、移った行へ実際のフォーカスも移す
+  const [editing, setEditing] = useState<Editing | null>(null);
+  const [menu, setMenu] = useState<MenuState | null>(null);
+  // メニューや入力欄が消えたあと、行へフォーカスを戻すための合図
+  const [restore, setRestore] = useState(0);
+
+  // フォーカスがツリーの中にあるときだけ、移った行へ実際のフォーカスも移す。
+  // 入力中は動かさない(入力欄からフォーカスを奪うと、入力が取り消されてしまう)
   useEffect(() => {
     const tree = treeRef.current;
-    if (!tree || !focusPath || !tree.contains(document.activeElement)) return;
+    if (editing || !tree || !focusPath || !tree.contains(document.activeElement)) return;
     tree.querySelector<HTMLElement>(`[data-path="${CSS.escape(focusPath)}"]`)?.focus();
-  }, [focusPath, rows]);
+  }, [focusPath, rows, editing]);
+
+  // 入力欄・メニューが閉じたら、選択していた行へフォーカスを戻す(restore が変わったときだけ動かす)
+  useEffect(() => {
+    if (restore === 0 || !focusPath) return;
+    const tree = treeRef.current;
+    // 何もフォーカスされていないとき(入力欄やメニューが消えた直後)だけ戻す。本文のエディタへ移っていたら邪魔しない
+    const a = document.activeElement;
+    if (tree && (!a || a === document.body)) {
+      tree.querySelector<HTMLElement>(`[data-path="${CSS.escape(focusPath)}"]`)?.focus();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restore]);
+
+  const closeEditing = () => {
+    setEditing(null);
+    setRestore((n) => n + 1);
+  };
+
+  const startCreate = (kind: "file" | "dir", parent: string) => {
+    if (parent && !expanded.includes(parent)) onToggleDir(parent);
+    setEditing({ type: "create", kind, parent });
+  };
+  const startRename = (entry: FsEntry) => setEditing({ type: "rename", entry });
+
+  const siblingNames = (parent: string, exceptRelPath?: string) =>
+    (dirs[parent]?.entries ?? []).filter((e) => e.relPath !== exceptRelPath).map((e) => e.name);
+
+  const commitCreate = async (kind: "file" | "dir", parent: string, name: string) => {
+    const relPath = joinPath(parent, name);
+    const reason = await onCreate(kind, relPath);
+    if (!reason) {
+      setFocusPath(relPath);
+      closeEditing();
+    }
+    return reason;
+  };
+
+  const commitRename = async (entry: FsEntry, name: string) => {
+    const to = joinPath(parentPath(entry.relPath), name);
+    const reason = await onRename(entry.relPath, to);
+    if (!reason) {
+      setFocusPath(to);
+      closeEditing();
+    }
+    return reason;
+  };
+
+  const openMenu = (e: MouseEvent, target: FsEntry | null) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (target) setFocusPath(target.relPath);
+    setMenu({ x: e.clientX, y: e.clientY, target });
+  };
+
+  const menuItems = (target: FsEntry | null): MenuItem[] => {
+    const parent = creationParent(target);
+    const items: MenuItem[] = [
+      { label: "新規ファイル", onClick: () => startCreate("file", parent) },
+      { label: "新規フォルダ", onClick: () => startCreate("dir", parent) },
+    ];
+    if (target) {
+      items.push(
+        { type: "separator" },
+        { label: "名前を変更", hint: "F2", onClick: () => startRename(target) },
+        { label: "削除", hint: "Delete", danger: true, onClick: () => onDelete(target) },
+        { type: "separator" },
+        { label: "相対パスをコピー", onClick: () => onCopyPath(target, false) },
+        { label: "絶対パスをコピー", onClick: () => onCopyPath(target, true) },
+      );
+    }
+    items.push({ type: "separator" }, { label: "VSCodeで開く", onClick: () => onOpenInVscode(target?.relPath ?? "") });
+    return items;
+  };
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (!current || e.altKey || e.ctrlKey || e.metaKey) return;
@@ -58,6 +154,17 @@ export function FileTree({ dirs, expanded, activePath, onToggleDir, onOpenFile, 
           if (parent) setFocusPath(parent);
         }
         break;
+      case "F2":
+        startRename(entry);
+        break;
+      case "Delete":
+        onDelete(entry);
+        break;
+      case "ContextMenu": {
+        const r = treeRef.current?.querySelector<HTMLElement>(`[data-path="${CSS.escape(entry.relPath)}"]`)?.getBoundingClientRect();
+        setMenu({ x: (r?.left ?? 0) + 40, y: (r?.bottom ?? 0) - 4, target: entry });
+        break;
+      }
       case "Enter":
       case " ":
         if (entry.kind === "dir") onToggleDir(entry.relPath);
@@ -69,19 +176,49 @@ export function FileTree({ dirs, expanded, activePath, onToggleDir, onOpenFile, 
     if (handled) e.preventDefault();
   };
 
+  const creating = editing?.type === "create" ? editing : null;
+
+  /** 新規作成の入力行。親フォルダの直下(最初の子)に差し込む。 */
+  const createRow = (parent: string, kind: "file" | "dir", depth: number) => (
+    <div key="#create" className="tree-row" data-editing="" role="treeitem" aria-selected={false} aria-label="新しい名前を入力" style={{ "--depth": depth } as CSSProperties}>
+      {kind === "dir" ? (
+        <span className="ico ico-dir" aria-hidden="true" />
+      ) : (
+        <span className="ico" aria-hidden="true">
+          ·
+        </span>
+      )}
+      <InlineName initial="" siblings={siblingNames(parent)} onCommit={(name) => commitCreate(kind, parent, name)} onCancel={closeEditing} />
+    </div>
+  );
+
+  const addBtn = (label: string, onClick: () => void, base: string) => (
+    <button type="button" className="tree-icon-btn" onClick={onClick} title={label} aria-label={label}>
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d={base} />
+        <path d="M12 9.5v4M10 11.5h4" />
+      </svg>
+    </button>
+  );
+
   return (
-    <nav className="tree" aria-label="ファイルツリー">
+    <nav className="tree" aria-label="ファイルツリー" onContextMenu={(e) => openMenu(e, null)}>
       <div className="tree-head">
         <h2 className="panel-title">FILES</h2>
-        <button type="button" className="tree-reload" onClick={onReload} title="フォルダの中身を読み直す">
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M13.5 8a5.5 5.5 0 1 1-1.8-4.1" />
-            <path d="M13.5 2v3.2h-3.2" />
-          </svg>
-          再読み込み
-        </button>
+        <div className="tree-tools">
+          {addBtn("新規ファイル", () => startCreate("file", creationParent(selected?.entry ?? null)), "M3.5 2h5l3 3v3M3.5 2v11h5M8.5 2v3h3")}
+          {addBtn("新規フォルダ", () => startCreate("dir", creationParent(selected?.entry ?? null)), "M2 4.5h4l1.5 1.5H13v2.5M2 4.5V13h7")}
+          <button type="button" className="tree-reload" onClick={onReload} title="フォルダの中身を読み直す">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M13.5 8a5.5 5.5 0 1 1-1.8-4.1" />
+              <path d="M13.5 2v3.2h-3.2" />
+            </svg>
+            再読み込み
+          </button>
+        </div>
       </div>
       <div ref={treeRef} role="tree" aria-label="プロジェクトのファイル" onKeyDown={onKeyDown}>
+        {creating && creating.parent === "" && createRow("", creating.kind, 0)}
         {rows.map((row) => {
           if (row.type === "status") {
             return (
@@ -95,38 +232,68 @@ export function FileTree({ dirs, expanded, activePath, onToggleDir, onOpenFile, 
           const isDir = entry.kind === "dir";
           const active = !isDir && entry.relPath === activePath;
           const icon = iconForFile(entry.name);
+          const iconEl = isDir ? (
+            <span className="ico ico-dir" aria-hidden="true" />
+          ) : (
+            <span className="ico" style={{ "--c": languageColor(icon.language).d } as CSSProperties} aria-hidden="true">
+              {icon.abbr}
+            </span>
+          );
+
+          if (editing?.type === "rename" && editing.entry.relPath === entry.relPath) {
+            return (
+              <div key={entry.relPath} className="tree-row" data-editing="" role="treeitem" aria-selected={false} aria-label={`${entry.name} の名前を変更`} style={{ "--depth": depth } as CSSProperties}>
+                {iconEl}
+                <InlineName
+                  initial={entry.name}
+                  siblings={siblingNames(parentPath(entry.relPath), entry.relPath)}
+                  onCommit={(name) => commitRename(entry, name)}
+                  onCancel={closeEditing}
+                />
+              </div>
+            );
+          }
           return (
-            <div
-              key={entry.relPath}
-              className="tree-row"
-              role="treeitem"
-              data-path={entry.relPath}
-              data-kind={entry.kind}
-              data-active={active ? "" : undefined}
-              aria-level={depth + 1}
-              aria-expanded={isDir ? open : undefined}
-              aria-selected={active}
-              tabIndex={current?.entry.relPath === entry.relPath ? 0 : -1}
-              style={{ "--depth": depth } as CSSProperties}
-              onFocus={() => setFocusPath(entry.relPath)}
-              onClick={() => {
-                setFocusPath(entry.relPath);
-                if (isDir) onToggleDir(entry.relPath);
-                else onOpenFile(entry.relPath);
-              }}
-            >
-              {isDir ? (
-                <span className="ico ico-dir" aria-hidden="true" />
-              ) : (
-                <span className="ico" style={{ "--c": languageColor(icon.language).d } as CSSProperties} aria-hidden="true">
-                  {icon.abbr}
-                </span>
-              )}
-              <span className="tree-name">{entry.name}</span>
+            <div key={entry.relPath} style={{ display: "contents" }}>
+              <div
+                className="tree-row"
+                role="treeitem"
+                data-path={entry.relPath}
+                data-kind={entry.kind}
+                data-active={active ? "" : undefined}
+                aria-level={depth + 1}
+                aria-expanded={isDir ? open : undefined}
+                aria-selected={active}
+                tabIndex={current?.entry.relPath === entry.relPath ? 0 : -1}
+                style={{ "--depth": depth } as CSSProperties}
+                onFocus={() => setFocusPath(entry.relPath)}
+                onContextMenu={(e) => openMenu(e, entry)}
+                onClick={() => {
+                  setFocusPath(entry.relPath);
+                  if (isDir) onToggleDir(entry.relPath);
+                  else onOpenFile(entry.relPath);
+                }}
+              >
+                {iconEl}
+                <span className="tree-name">{entry.name}</span>
+              </div>
+              {creating && creating.parent !== "" && creating.parent === entry.relPath ? createRow(entry.relPath, creating.kind, depth + 1) : null}
             </div>
           );
         })}
       </div>
+      {menu && (
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          label={menu.target ? `${menu.target.name} のメニュー` : "ファイルツリーのメニュー"}
+          items={menuItems(menu.target)}
+          onClose={() => {
+            setMenu(null);
+            setRestore((n) => n + 1);
+          }}
+        />
+      )}
     </nav>
   );
 }
