@@ -46,7 +46,8 @@ fn harness() -> Harness {
             list_files,
             search_in_project,
             get_settings,
-            save_settings
+            save_settings,
+            get_git_status
         ])
         .build(mock_context(noop_assets()))
         .unwrap();
@@ -1019,5 +1020,76 @@ fn stage_n9_settings_contract() {
     assert_eq!(
         call(&h, "get_board", json!({})).unwrap(),
         json!({ "strokes": [], "viewport": null })
+    );
+}
+
+/// N11契約: get_git_status の JSON の形と挙動(git が無い環境では isRepo:false の部分だけ確認)。
+#[test]
+fn stage_n11_get_git_status_contract() {
+    let h = harness();
+
+    // git 管理外: エラーにせず isRepo:false
+    let plain = tempfile::tempdir().unwrap();
+    std::fs::write(plain.path().join("a.txt"), "x").unwrap();
+    let plain_id = add_dir(&h, &plain);
+    let r = call(&h, "get_git_status", json!({ "projectId": plain_id })).unwrap();
+    assert_eq!(
+        r,
+        json!({ "isRepo": false, "files": [], "truncated": false })
+    );
+
+    // 未登録のプロジェクトは日本語エラー
+    assert_eq!(
+        call(&h, "get_git_status", json!({ "projectId": "nope" })).unwrap_err(),
+        json!("プロジェクトが見つかりません")
+    );
+
+    // git が使えるときだけ、リポジトリでの形を確認する
+    let git_ok = std::process::Command::new("git")
+        .arg("--version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+    if !git_ok {
+        eprintln!("git が無いのでスキップ");
+        return;
+    }
+    let repo = tempfile::tempdir().unwrap();
+    let null = if cfg!(windows) { "NUL" } else { "/dev/null" };
+    let git = |args: &[&str]| {
+        std::process::Command::new("git")
+            .arg("-C")
+            .arg(repo.path())
+            .args(["-c", "user.name=t", "-c", "user.email=t@example.com"])
+            .args(["-c", "commit.gpgsign=false"])
+            .args(args)
+            .env("GIT_CONFIG_GLOBAL", null)
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    };
+    assert!(git(&["init", "-q", "-b", "main"]));
+    std::fs::write(repo.path().join("tracked.txt"), "a\n").unwrap();
+    assert!(git(&["add", "."]));
+    assert!(git(&["commit", "-q", "-m", "init"]));
+    std::fs::write(repo.path().join("tracked.txt"), "b\n").unwrap();
+    std::fs::write(repo.path().join("新規 メモ.md"), "x").unwrap();
+    let repo_id = add_dir(&h, &repo);
+
+    let r = call(&h, "get_git_status", json!({ "projectId": repo_id })).unwrap();
+    let mut keys: Vec<&str> = r.as_object().unwrap().keys().map(|k| k.as_str()).collect();
+    keys.sort();
+    assert_eq!(keys, ["files", "isRepo", "truncated"]);
+    assert_eq!(r["isRepo"], json!(true));
+    assert_eq!(r["truncated"], json!(false));
+    let mut files = r["files"].as_array().unwrap().clone();
+    files.sort_by_key(|f| f["relPath"].as_str().unwrap().to_string());
+    assert_eq!(
+        files,
+        vec![
+            json!({ "relPath": "tracked.txt", "state": "modified" }),
+            json!({ "relPath": "新規 メモ.md", "state": "untracked" }),
+        ]
     );
 }
