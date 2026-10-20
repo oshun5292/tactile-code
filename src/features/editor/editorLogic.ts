@@ -400,6 +400,16 @@ export function remapDirsCache(dirs: Record<string, TreeDir>, from: string, to: 
       }),
     };
   }
+  // 別のフォルダへ移動したときは、元の親から外して新しい親へ入れる。
+  // 外さないと、読み直しまでの間、同じパスの行が2つ並び、React の key が重複して古い行が残ってしまう
+  const oldParent = parentPath(from);
+  const newParent = parentPath(to);
+  if (oldParent !== newParent) {
+    const moved = out[oldParent]?.entries.find((e) => e.relPath === to);
+    if (out[oldParent]) out[oldParent] = { ...out[oldParent], entries: out[oldParent].entries.filter((e) => e.relPath !== to) };
+    const dest = out[newParent];
+    if (moved && dest && !dest.entries.some((e) => e.relPath === to)) out[newParent] = { ...dest, entries: [...dest.entries, moved] };
+  }
   return out;
 }
 
@@ -411,4 +421,25 @@ export function dropFromDirsCache(dirs: Record<string, TreeDir>, relPath: string
     out[key] = { ...d, entries: d.entries.filter((e) => !isSameOrInside(e.relPath, relPath)) };
   }
   return out;
+}
+
+// ---------- ドラッグ&ドロップ移動(N4) ----------
+
+/** from を destDir("" ならルート)へ移したあとのパス。 */
+export const movedPath = (from: string, destDir: string): string => joinPath(destDir, baseName(from));
+
+/**
+ * from を destDir へドロップできるか。自分自身・自分の子孫(フォルダを自分の中へ)・今の親(動かない)は不可。
+ * from が "" (ルート)のときも不可。
+ */
+export function canDropInto(from: string, destDir: string): boolean {
+  if (from === "") return false;
+  if (isSameOrInside(destDir, from)) return false;
+  return parentPath(from) !== destDir;
+}
+
+/** 移動先の一覧(entries の名前)に、同名のものがあるか。Windows に合わせて大文字小文字は区別しない。 */
+export function hasSameName(entries: readonly Pick<FsEntry, "name">[], name: string): boolean {
+  const lower = name.toLowerCase();
+  return entries.some((e) => e.name.toLowerCase() === lower);
 }

@@ -409,6 +409,18 @@ pub async fn delete_entry(
 }
 
 #[tauri::command]
+pub async fn duplicate_entry(
+    project_id: String,
+    rel_path: String,
+    store: State<'_, Store>,
+) -> Result<FsEntry, String> {
+    run_store(&store, move |s| {
+        fs::duplicate_entry(&project_root(s, &project_id)?, &rel_path)
+    })
+    .await
+}
+
+#[tauri::command]
 pub async fn open_in_vscode(
     project_id: String,
     rel_path: String,

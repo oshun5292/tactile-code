@@ -264,3 +264,7 @@
 .search-line { flex: none; min-width: 2.2em; text-align: right; font-family: var(--mono); font-size: 11px; color: var(--soft); }
 .search-preview { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 12px; }
 .search-preview mark { background: var(--proj, transparent); color: inherit; font-weight: 800; border-radius: 3px; box-shadow: 0 -1px 0 var(--proj-d, var(--ink)) inset; }
+/* ドラッグ移動(N4): 置ける行き先をプロジェクト色で強調する */
+.tree-row[data-dragging] { opacity: 0.45; }
+.tree-row[data-drop] { background: var(--white); outline: 2px dashed var(--proj-d); outline-offset: -2px; }
+.tree[data-drop-root] { outline: 2px dashed var(--proj-d); outline-offset: -4px; }

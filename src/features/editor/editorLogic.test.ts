@@ -6,10 +6,13 @@ import {
   applyLoaded,
   baseName,
   bomForEncoding,
+  canDropInto,
   canReopenWithEncoding,
   canSaveWithEncoding,
   encodingChoices,
   encodingLabel,
+  hasSameName,
+  movedPath,
   needsWriteForEncoding,
   newTab,
   closeTabIn,
@@ -410,6 +413,16 @@ describe("フォルダ一覧のキャッシュ", () => {
     expect(m.lib.entries[0].relPath).toBe("lib/x.ts");
   });
 
+  it("remapDirsCache: 別フォルダへの移動は、元の親から外して新しい親へ入れる(同じパスの行を重複させない)", () => {
+    const m = remapDirsCache(dirs, "src/x.ts", "x.ts");
+    expect(m.src.entries).toEqual([]);
+    expect(m[""].entries.map((e) => e.relPath)).toEqual(["src", "a.md", "x.ts"]);
+    // 同じフォルダ内の名前変更では、親の入れ替えをしない
+    const r = remapDirsCache(dirs, "src/x.ts", "src/y.ts");
+    expect(r.src.entries.map((e) => e.relPath)).toEqual(["src/y.ts"]);
+    expect(r[""].entries).toHaveLength(2);
+  });
+
   it("dropFromDirsCache: 配下を捨て、親の一覧からも外す", () => {
     const m = dropFromDirsCache(dirs, "src");
     expect(Object.keys(m)).toEqual([""]);
@@ -461,5 +474,32 @@ describe("文字コード(3b-3)", () => {
   it("内容が同じでも、文字コードが違えば書き直しが要る", () => {
     expect(needsWriteForEncoding(ready(), "utf-8")).toBe(false);
     expect(needsWriteForEncoding(ready(), "shift_jis")).toBe(true);
+  });
+});
+
+describe("ドラッグ移動の純粋関数", () => {
+  it("movedPath: 移動先のパス", () => {
+    expect(movedPath("a/b.ts", "")).toBe("b.ts");
+    expect(movedPath("b.ts", "src/lib")).toBe("src/lib/b.ts");
+    expect(movedPath("x/dir", "y")).toBe("y/dir");
+  });
+  it("canDropInto: 有効なドロップ", () => {
+    expect(canDropInto("a/b.ts", "")).toBe(true);
+    expect(canDropInto("b.ts", "src")).toBe(true);
+    expect(canDropInto("src/x", "lib")).toBe(true);
+  });
+  it("canDropInto: 自分自身・子孫・今の親は無効", () => {
+    expect(canDropInto("src", "src")).toBe(false);
+    expect(canDropInto("src", "src/deep/er")).toBe(false);
+    expect(canDropInto("a/b.ts", "a")).toBe(false);
+    expect(canDropInto("b.ts", "")).toBe(false);
+    expect(canDropInto("", "src")).toBe(false);
+  });
+  it("canDropInto: 名前が前方一致するだけの別フォルダは有効", () => {
+    expect(canDropInto("src", "src2")).toBe(true);
+  });
+  it("hasSameName: 大文字小文字を区別しない", () => {
+    expect(hasSameName([{ name: "Readme.md" }], "README.MD")).toBe(true);
+    expect(hasSameName([{ name: "a.ts" }], "b.ts")).toBe(false);
   });
 });

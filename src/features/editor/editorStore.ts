@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { api } from "../../api";
-import type { EncodingName } from "../../api/types";
+import type { EncodingName, FsEntry } from "../../api/types";
 import { toMessage } from "../../shared/format";
 import type { ToastData } from "../../shared/ui/Toast";
 import {
@@ -15,8 +15,10 @@ import {
   dropFromDirsCache,
   emptySession,
   isDirty,
+  hasSameName,
   isMarkdownFile,
   judgeExternal,
+  movedPath,
   needsWriteForEncoding,
   newTab,
   openTabIn,
@@ -83,6 +85,10 @@ type EditorState = {
   createEntry: (projectId: string, kind: "file" | "dir", relPath: string) => Promise<string | null>;
   /** 名前変更・移動。成功なら null、失敗なら理由。 */
   renameEntry: (projectId: string, from: string, to: string) => Promise<string | null>;
+  /** ドラッグ移動。同名があれば上書きせずお知らせを出す。失敗・拒否は false。 */
+  moveEntry: (projectId: string, from: string, destDir: string) => Promise<boolean>;
+  /** 同じフォルダへ複製。成功なら新しいエントリ、失敗ならお知らせを出して null。 */
+  duplicateEntry: (projectId: string, relPath: string) => Promise<FsEntry | null>;
   requestDelete: (projectId: string, relPath: string, kind: "dir" | "file") => void;
   resolveDelete: (confirm: boolean) => Promise<void>;
   openInVscode: (projectId: string, relPath: string) => Promise<void>;
@@ -234,6 +240,36 @@ export const useEditor = create<EditorState>((set, get) => {
       set((st) => ({ dirs: { ...st.dirs, [projectId]: remapDirsCache(st.dirs[projectId] ?? {}, from, to) } }));
       await get().reloadTree(projectId);
       return null;
+    },
+
+    moveEntry: async (projectId, from, destDir) => {
+      const to = movedPath(from, destDir);
+      // 読み込み済みの移動先に同名があれば、API を呼ばずに断る(Rust 側でも上書きしないが、先に分かりやすく伝える)
+      const dest = get().dirs[projectId]?.[destDir];
+      if (dest && hasSameName(dest.entries, to.slice(to.lastIndexOf("/") + 1))) {
+        get().notify("error", "同じ名前のものがあります");
+        return false;
+      }
+      const reason = await get().renameEntry(projectId, from, to);
+      if (reason) {
+        get().notify("error", reason.startsWith("既存") ? "同じ名前のものがあります" : `移動できませんでした: ${reason}`);
+        return false;
+      }
+      return true;
+    },
+
+    duplicateEntry: async (projectId, relPath) => {
+      let entry: FsEntry;
+      try {
+        entry = await api.duplicateEntry(projectId, relPath);
+      } catch (e) {
+        get().notify("error", `複製できませんでした: ${toMessage(e)}`);
+        return null;
+      }
+      // 新しい行が見えるよう、親フォルダを開いてから読み直す
+      patchSession(projectId, (s) => ({ ...s, expanded: [...new Set([...s.expanded, ...ancestorsOf(entry.relPath)])] }));
+      await get().reloadTree(projectId);
+      return entry;
     },
 
     requestDelete: (projectId, relPath, kind) => {
