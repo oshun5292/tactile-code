@@ -1,10 +1,10 @@
 //! Tauri コマンドの入口(薄く保つ。処理は services / storage)。
 use crate::domain::{
-    BoardState, EditorSession, Eol, FileContent, FileList, FileStat, FsEntry, Position,
-    ProjectSummary, SavedFile, SearchOptions, SearchResult, StoredProject, Stroke, TextEncoding,
-    Viewport,
+    BoardState, EditorSession, EditorSettings, Eol, FileContent, FileList, FileStat, FsEntry,
+    Position, ProjectSummary, SavedFile, SearchOptions, SearchResult, StoredProject, Stroke,
+    TextEncoding, Viewport,
 };
-use crate::services::{board, fs, paths, search, summary::build_summary};
+use crate::services::{board, fs, paths, search, settings, summary::build_summary};
 use crate::storage::Store;
 use tauri::State;
 
@@ -453,6 +453,30 @@ pub async fn search_in_project(
 ) -> Result<SearchResult, String> {
     run_store(&store, move |s| {
         search::search_in_project(&project_root(s, &project_id)?, &query, options)
+    })
+    .await
+}
+
+// ---- 段階N9: エディタの設定(アプリ全体で共通) ----
+
+/// 保存が無ければ None(既定値はフロントが持つ)。
+#[tauri::command]
+pub async fn get_settings(store: State<'_, Store>) -> Result<Option<EditorSettings>, String> {
+    run_store(&store, |s| Ok(s.read().settings)).await
+}
+
+#[tauri::command]
+pub async fn save_settings(
+    settings: EditorSettings,
+    store: State<'_, Store>,
+) -> Result<(), String> {
+    // 範囲外は保存前に丸める(エラーにしない)
+    let clamped = settings::clamp(settings);
+    run_store(&store, move |s| {
+        s.update(|data| {
+            data.settings = Some(clamped);
+            Ok(())
+        })
     })
     .await
 }

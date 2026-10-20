@@ -46,7 +46,9 @@ pub fn run() {
             commands::duplicate_entry,
             commands::open_in_vscode,
             commands::list_files,
-            commands::search_in_project
+            commands::search_in_project,
+            commands::get_settings,
+            commands::save_settings
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
