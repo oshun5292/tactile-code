@@ -42,7 +42,8 @@ fn harness() -> Harness {
             rename_entry,
             delete_entry,
             open_in_vscode,
-            list_files
+            list_files,
+            search_in_project
         ])
         .build(mock_context(noop_assets()))
         .unwrap();
@@ -800,6 +801,93 @@ fn stage_n2_list_files_contract() {
     // 未登録のプロジェクトは日本語エラー
     assert_eq!(
         call(&h, "list_files", json!({ "projectId": "nope" })).unwrap_err(),
+        json!("プロジェクトが見つかりません")
+    );
+}
+
+/// N3契約: search_in_project の JSON の形と挙動。
+#[test]
+fn stage_n3_search_in_project_contract() {
+    let h = harness();
+    let d = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(d.path().join("node_modules/x")).unwrap();
+    std::fs::write(
+        d.path().join("メモ.md"),
+        "あ
+  Hello 世界 hello
+",
+    )
+    .unwrap();
+    std::fs::write(d.path().join("node_modules/x/i.js"), "hello").unwrap();
+    std::fs::write(d.path().join("bin.dat"), b"hello ").unwrap();
+    let id = add_dir(&h, &d);
+    let opts = json!({ "caseSensitive": false, "wholeWord": false });
+
+    let r = call(
+        &h,
+        "search_in_project",
+        json!({ "projectId": id, "query": "HELLO", "options": opts }),
+    )
+    .unwrap();
+    let mut keys: Vec<&str> = r.as_object().unwrap().keys().map(|k| k.as_str()).collect();
+    keys.sort();
+    assert_eq!(keys, ["filesSearched", "matches", "truncated"]);
+    assert_eq!(r["truncated"], json!(false));
+    assert_eq!(r["filesSearched"], json!(1));
+    let m = r["matches"][0].as_object().unwrap();
+    let mut mk: Vec<&str> = m.keys().map(|k| k.as_str()).collect();
+    mk.sort();
+    assert_eq!(
+        mk,
+        [
+            "column",
+            "length",
+            "line",
+            "preview",
+            "previewColumn",
+            "relPath"
+        ]
+    );
+    assert_eq!(r["matches"][0]["relPath"], json!("メモ.md"));
+    assert_eq!(r["matches"][0]["line"], json!(2));
+    assert_eq!(r["matches"][0]["column"], json!(2));
+    assert_eq!(r["matches"][0]["length"], json!(5));
+    assert_eq!(r["matches"][0]["preview"], json!("Hello 世界 hello"));
+    assert_eq!(r["matches"][1]["column"], json!(11));
+    assert_eq!(r["matches"].as_array().unwrap().len(), 2);
+
+    // 空のクエリは空の結果(エラーにしない)
+    let r = call(
+        &h,
+        "search_in_project",
+        json!({ "projectId": id, "query": "", "options": opts }),
+    )
+    .unwrap();
+    assert_eq!(
+        r,
+        json!({ "matches": [], "truncated": false, "filesSearched": 0 })
+    );
+
+    // 長すぎるクエリ・未登録のプロジェクトは日本語エラー
+    let long = "a".repeat(1001);
+    assert!(
+        call(
+            &h,
+            "search_in_project",
+            json!({ "projectId": id, "query": long, "options": opts }),
+        )
+        .unwrap_err()
+        .as_str()
+        .unwrap()
+        .contains("長すぎ")
+    );
+    assert_eq!(
+        call(
+            &h,
+            "search_in_project",
+            json!({ "projectId": "nope", "query": "x", "options": opts }),
+        )
+        .unwrap_err(),
         json!("プロジェクトが見つかりません")
     );
 }

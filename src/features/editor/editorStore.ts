@@ -15,6 +15,7 @@ import {
   dropFromDirsCache,
   emptySession,
   isDirty,
+  isMarkdownFile,
   judgeExternal,
   needsWriteForEncoding,
   newTab,
@@ -32,6 +33,7 @@ import {
   type Tab,
   type TreeDir,
 } from "./editorLogic";
+import type { RevealTarget } from "./cm/CodeEditor";
 
 /** 未保存のタブがあるときの確認。何をしようとして止まったかを覚えておく。 */
 export type Prompt =
@@ -54,6 +56,7 @@ const RELOADED_MARK_MS = 4000;
 /** 復元が済んだプロジェクト(これ以降の変更だけをセッションとして自動保存する) */
 const restoredProjects = new Set<string>();
 let noticeSeq = 0;
+let revealSeq = 0;
 
 type EditorState = {
   view: "board" | "editor";
@@ -69,6 +72,8 @@ type EditorState = {
   /** 増えるたびに、本文のエディタへフォーカスを移す(タブを開いた・切り替えたとき) */
   focusTick: number;
   deleteRequest: DeleteRequest | null;
+  /** 検索結果から開いた位置。適用し終えたら消す(tick は同じ位置への再クリックでも変わる) */
+  reveal: (RevealTarget & { projectId: string; relPath: string }) | null;
   /** 画面下のお知らせ(失敗の理由など) */
   notice: ToastData | null;
 
@@ -96,6 +101,9 @@ type EditorState = {
   toggleDir: (projectId: string, relPath: string) => void;
   reloadTree: (projectId: string) => Promise<void>;
   openFile: (projectId: string, relPath: string, mdMode?: MdMode) => Promise<void>;
+  /** ファイルを開き、指定の行・桁を選択して表示する(検索結果のクリック用) */
+  openAt: (projectId: string, relPath: string, line: number, column: number, length: number) => Promise<void>;
+  clearReveal: (tick: number) => void;
   activateTab: (projectId: string, relPath: string) => void;
   setMdMode: (projectId: string, relPath: string, mode: MdMode) => void;
   edit: (projectId: string, relPath: string, next: string) => void;
@@ -191,6 +199,7 @@ export const useEditor = create<EditorState>((set, get) => {
     quit: null,
     focusTick: 0,
     deleteRequest: null,
+    reveal: null,
     notice: null,
 
     notify: (kind, text) => set({ notice: { id: ++noticeSeq, kind, text } }),
@@ -420,6 +429,15 @@ export const useEditor = create<EditorState>((set, get) => {
         await loadTab(projectId, relPath);
       }
     },
+
+    openAt: async (projectId, relPath, line, column, length) => {
+      const had = sessionOf(projectId).tabs.find((t) => t.relPath === relPath);
+      // 「読む」モードでは編集欄が無い。勝手に「書く」へ切り替えず、開くだけにする
+      const readOnlyView = had !== undefined && isMarkdownFile(relPath) && had.mdMode === "preview";
+      if (!readOnlyView) set({ reveal: { projectId, relPath, line, column, length, tick: ++revealSeq } });
+      await get().openFile(projectId, relPath);
+    },
+    clearReveal: (tick) => set((st) => (st.reveal?.tick === tick ? { reveal: null } : {})),
 
     activateTab: (projectId, relPath) => {
       patchSession(projectId, (s) => ({ ...s, active: relPath }));

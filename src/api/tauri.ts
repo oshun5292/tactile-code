@@ -2,7 +2,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { Api, BoardState, EditorSessionData, FileContent, FileList, FileStat, FsEntry, ProjectSummary, SavedFile, Stroke } from "./types";
+import type { Api, BoardState, EditorSessionData, FileContent, FileList, FileStat, FsEntry, ProjectSummary, SavedFile, SearchResult, Stroke } from "./types";
 
 export const tauriApi: Api = {
   listProjects: () => invoke<ProjectSummary[]>("list_projects"),
@@ -49,6 +49,7 @@ export const tauriApi: Api = {
     await invoke("open_in_vscode", { projectId, relPath });
   },
   listFiles: (projectId) => invoke<FileList>("list_files", { projectId }),
+  searchInProject: (projectId, query, options) => invoke<SearchResult>("search_in_project", { projectId, query, options }),
   statFiles: (projectId, relPaths) => invoke<FileStat[]>("stat_files", { projectId, relPaths }),
   getEditorSession: (projectId) => invoke<EditorSessionData | null>("get_editor_session", { projectId }),
   saveEditorSession: async (projectId, data) => {

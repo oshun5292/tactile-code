@@ -11,6 +11,7 @@ import {
 import { bracketMatching, indentUnit } from "@codemirror/language";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
+import { revealRange } from "../searchLogic";
 import { languageForFilename } from "./languages";
 import { themeExtensions } from "./theme";
 import "./cm.css";
@@ -24,7 +25,13 @@ export type CodeEditorProps = {
   wrap?: boolean; // 折り返し(既定 false)
   autoFocus?: boolean;
   ariaLabel?: string;
+  /** この行・桁(行は1始まり、桁は0始まりの文字数)を選択して表示する。tick が変わるたびに動く(同じ位置への2回目も効く) */
+  reveal?: RevealTarget | null;
+  /** reveal を適用し終えたとき(古い要求が、タブの開き直しで再実行されないよう呼び出し側が消す) */
+  onRevealed?: (tick: number) => void;
 };
+
+export type RevealTarget = { line: number; column: number; length: number; tick: number };
 
 // 外から差し替えた変更には、この印を付けて onChange を呼ばない(自分の入力と区別する)
 const External = Annotation.define<boolean>();
@@ -138,6 +145,22 @@ export function CodeEditor(props: CodeEditorProps) {
     pending.current = value;
     applyExternal(view);
   }, [value]);
+
+  // 検索結果などからの「この位置を選択して表示」。タブが表示された後に動かすため、1フレーム待つ
+  const revealTick = props.reveal?.tick;
+  useEffect(() => {
+    const target = cb.current.reveal;
+    if (!target) return;
+    const id = requestAnimationFrame(() => {
+      const view = viewRef.current;
+      if (!view) return;
+      const { from, to } = revealRange(view.state.doc, target.line, target.column, target.length);
+      view.dispatch({ selection: { anchor: from, head: to }, effects: EditorView.scrollIntoView(from, { y: "center" }) });
+      view.focus();
+      cb.current.onRevealed?.(target.tick);
+    });
+    return () => cancelAnimationFrame(id);
+  }, [revealTick]);
 
   useEffect(() => {
     const view = viewRef.current;

@@ -1,9 +1,10 @@
 //! Tauri コマンドの入口(薄く保つ。処理は services / storage)。
 use crate::domain::{
     BoardState, EditorSession, Eol, FileContent, FileList, FileStat, FsEntry, Position,
-    ProjectSummary, SavedFile, StoredProject, Stroke, TextEncoding, Viewport,
+    ProjectSummary, SavedFile, SearchOptions, SearchResult, StoredProject, Stroke, TextEncoding,
+    Viewport,
 };
-use crate::services::{board, fs, paths, summary::build_summary};
+use crate::services::{board, fs, paths, search, summary::build_summary};
 use crate::storage::Store;
 use tauri::State;
 
@@ -425,6 +426,21 @@ pub async fn open_in_vscode(
 pub async fn list_files(project_id: String, store: State<'_, Store>) -> Result<FileList, String> {
     run_store(&store, move |s| {
         fs::list_files(&project_root(s, &project_id)?)
+    })
+    .await
+}
+
+// ---- 段階N3: プロジェクト内検索(Ctrl+Shift+F) ----
+
+#[tauri::command]
+pub async fn search_in_project(
+    project_id: String,
+    query: String,
+    options: SearchOptions,
+    store: State<'_, Store>,
+) -> Result<SearchResult, String> {
+    run_store(&store, move |s| {
+        search::search_in_project(&project_root(s, &project_id)?, &query, options)
     })
     .await
 }
