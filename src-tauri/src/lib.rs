@@ -35,7 +35,10 @@ pub fn run() {
             commands::save_viewport,
             commands::list_dir,
             commands::read_file,
-            commands::write_file
+            commands::write_file,
+            commands::stat_files,
+            commands::get_editor_session,
+            commands::save_editor_session
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

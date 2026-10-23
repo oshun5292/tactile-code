@@ -1,5 +1,5 @@
 // エディタ画面の純粋な処理(副作用なし)。ストアや画面から切り離して、Vitest で確認する。
-import type { Eol, FileContent, FsEntry } from "../../api/types";
+import type { EditorSessionData, Eol, FileContent, FileStat, FsEntry, SessionTab } from "../../api/types";
 import { languageForFilename } from "./cm/languages";
 
 // ---------- パス ----------
@@ -96,7 +96,11 @@ export type Tab = {
   save: SaveState;
   saveError: string | null;
   mdMode: MdMode;
+  /** 外部の変更の印。reloaded=自動で読み直した(短く表示)、changed=未保存があるので読み直していない、deleted=ファイルが消えた */
+  external: ExternalMark | null;
 };
+
+export type ExternalMark = "reloaded" | "changed" | "deleted";
 
 export function newTab(relPath: string, mdMode: MdMode = "split"): Tab {
   return {
@@ -113,6 +117,7 @@ export function newTab(relPath: string, mdMode: MdMode = "split"): Tab {
     save: "idle",
     saveError: null,
     mdMode,
+    external: null,
   };
 }
 
@@ -131,6 +136,7 @@ export function applyLoaded(tab: Tab, f: FileContent): Tab {
     hasBom: f.hasBom,
     save: "idle",
     saveError: null,
+    external: null,
   };
 }
 
@@ -214,4 +220,59 @@ export function visibleRows(dirs: Record<string, TreeDir>, expanded: string[], d
     if (open) rows.push(...visibleRows(dirs, expanded, entry.relPath, depth + 1));
   }
   return rows;
+}
+
+// ---------- 外部変更の検知 ----------
+
+export type ExternalAction = "none" | "reload" | "mark-changed" | "mark-deleted" | "clear";
+
+/** 1件の stat 結果から、タブをどうするかを決める。読み込み中・失敗のタブは対象外。 */
+export function judgeExternal(tab: Tab, stat: FileStat): ExternalAction {
+  if (tab.status !== "ready" || tab.modified === null) return "none";
+  if (!stat.exists) return "mark-deleted";
+  if (stat.modified === null) return "none";
+  if (stat.modified === tab.modified) return tab.external === "deleted" ? "clear" : "none";
+  // 未保存の編集は勝手に上書きしない(保存時の競合ダイアログに任せる)
+  return isDirty(tab) ? "mark-changed" : "reload";
+}
+
+/** statFiles に渡す対象。保存中のタブは、保存で modified が変わる途中なので除く。1回200件まで。 */
+export function pollTargets(s: Session, max = 200): { relPath: string; modified: string | null }[] {
+  return s.tabs
+    .filter((t) => t.status === "ready" && t.save !== "saving")
+    .slice(0, max)
+    .map((t) => ({ relPath: t.relPath, modified: t.modified }));
+}
+
+// ---------- タブの復元 ----------
+
+const TO_SAVED_MODE: Record<MdMode, SessionTab["mdMode"]> = { edit: "write", split: "split", preview: "read" };
+const FROM_SAVED_MODE: Record<SessionTab["mdMode"], MdMode> = { write: "edit", split: "split", read: "preview" };
+
+export const SESSION_LIMITS = { tabs: 200, expanded: 500 } as const;
+
+/** 保存するデータを組み立てる(本文は入れない。パスと表示モードだけ)。 */
+export function buildSessionData(s: Session): EditorSessionData {
+  return {
+    tabs: s.tabs.slice(0, SESSION_LIMITS.tabs).map((t) => ({ relPath: t.relPath, mdMode: TO_SAVED_MODE[t.mdMode] })),
+    active: s.active,
+    expanded: s.expanded.slice(0, SESSION_LIMITS.expanded),
+  };
+}
+
+export type RestorePlan = { tabs: { relPath: string; mdMode: MdMode }[]; active: string | null; expanded: string[] };
+
+/** 保存データと stat 結果から、復元するタブを決める。存在しないファイルは捨てる。 */
+export function planRestore(data: EditorSessionData | null, stats: FileStat[]): RestorePlan {
+  if (!data) return { tabs: [], active: null, expanded: [] };
+  const alive = new Set(stats.filter((s) => s.exists).map((s) => s.relPath));
+  const seen = new Set<string>();
+  const tabs: RestorePlan["tabs"] = [];
+  for (const t of data.tabs) {
+    if (!alive.has(t.relPath) || seen.has(t.relPath)) continue;
+    seen.add(t.relPath);
+    tabs.push({ relPath: t.relPath, mdMode: FROM_SAVED_MODE[t.mdMode] ?? "split" });
+  }
+  const active = data.active && seen.has(data.active) ? data.active : (tabs[tabs.length - 1]?.relPath ?? null);
+  return { tabs, active, expanded: [...new Set(data.expanded)] };
 }

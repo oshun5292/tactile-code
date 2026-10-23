@@ -46,6 +46,12 @@ export type FileContent = {
 };
 export type SavedFile = { modified: string; size: number };
 
+// 段階3b-1(docs/stage3b1-contract.md §2)。
+export type FileStat = { relPath: string; exists: boolean; modified: string | null };
+export type SessionTab = { relPath: string; mdMode: "write" | "split" | "read" };
+/** プロジェクトごとに保存する、エディタの再起動後に復元する状態。 */
+export type EditorSessionData = { tabs: SessionTab[]; active: string | null; expanded: string[] };
+
 /** フロントが使う窓口。Tauri 版とモック版が同じ形を満たす。 */
 export interface Api {
   listProjects(): Promise<ProjectSummary[]>;
@@ -77,4 +83,13 @@ export interface Api {
     hasBom: boolean,
     force: boolean,
   ): Promise<SavedFile>;
+  /** 外部変更の検知用。ファイルが無い/読めないときは exists:false(失敗にしない)。 */
+  statFiles(projectId: string, relPaths: string[]): Promise<FileStat[]>;
+  getEditorSession(projectId: string): Promise<EditorSessionData | null>;
+  saveEditorSession(projectId: string, data: EditorSessionData): Promise<void>;
+  /**
+   * ウィンドウを閉じようとしたときに呼ばれる。handler が false を返すと閉じるのをやめる。
+   * 戻り値は登録解除の関数。ブラウザ(モック)では beforeunload に結びつける。
+   */
+  onCloseRequested(handler: () => Promise<boolean>): Promise<() => void>;
 }

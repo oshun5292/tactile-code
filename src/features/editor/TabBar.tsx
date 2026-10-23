@@ -1,6 +1,12 @@
 import { useEffect, useRef, type CSSProperties, type KeyboardEvent } from "react";
 import { languageColor } from "../../shared/languageColors";
-import { baseName, iconForFile, isDirty, type Session } from "./editorLogic";
+import { baseName, iconForFile, isDirty, type ExternalMark, type Session } from "./editorLogic";
+
+const EXTERNAL_LABEL: Record<ExternalMark, string> = {
+  reloaded: "更新",
+  changed: "外部で変更",
+  deleted: "削除された",
+};
 
 type Props = {
   session: Session;
@@ -43,7 +49,7 @@ export function TabBar({ session, onActivate, onClose }: Props) {
               className="tab-main"
               aria-selected={active}
               tabIndex={active ? 0 : -1}
-              title={dirty ? `${t.relPath}(未保存)` : t.relPath}
+              title={`${t.relPath}${dirty ? "(未保存)" : ""}${t.external ? `(${EXTERNAL_LABEL[t.external]})` : ""}`}
               onClick={() => onActivate(t.relPath)}
               onAuxClick={(e) => {
                 if (e.button === 1) {
@@ -56,6 +62,11 @@ export function TabBar({ session, onActivate, onClose }: Props) {
                 {icon.abbr}
               </span>
               <span className="tab-name">{name}</span>
+              {t.external && (
+                <span className="tab-ext" data-kind={t.external}>
+                  {EXTERNAL_LABEL[t.external]}
+                </span>
+              )}
               {dirty && (
                 <span className="tab-dirty" role="img" aria-label="未保存">
                   ●

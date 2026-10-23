@@ -106,6 +106,7 @@ mod tests {
                 note: "メモ".into(),
                 description_override: Some("説明".into()),
                 position: Position { x: 1.5, y: 2.0 },
+                editor_session: None,
             }],
             strokes: vec![Stroke {
                 id: "s1".into(),
@@ -212,6 +213,45 @@ mod tests {
         let store = Store::new(f.clone());
         assert_eq!(store.read(), StoreFile::default());
         assert!(!f.exists());
+    }
+
+    #[test]
+    fn editor_session_roundtrip_and_old_file_compat() {
+        use crate::domain::{EditorSession, MdMode, SessionTab};
+        let d = tempfile::tempdir().unwrap();
+        let f = d.path().join("projects.json");
+        // editorSession の無い古いファイルは読める。読んだだけでは session は None
+        let old = r#"{"schemaVersion":2,"projects":[{"id":"p1","path":"C:/w/a","note":"n","position":{"x":3.0,"y":4.0}}]}"#;
+        std::fs::write(&f, old).unwrap();
+        let store = Store::new(f.clone());
+        assert!(store.read().projects[0].editor_session.is_none());
+        // 保存して読み直せる(camelCase で書かれる)
+        let sess = EditorSession {
+            tabs: vec![SessionTab {
+                rel_path: "a/b.md".into(),
+                md_mode: MdMode::Read,
+            }],
+            active: Some("a/b.md".into()),
+            expanded: vec!["a".into()],
+        };
+        store
+            .update(|data| {
+                data.projects[0].editor_session = Some(sess.clone());
+                Ok(())
+            })
+            .unwrap();
+        let text = std::fs::read_to_string(&f).unwrap();
+        assert!(text.contains("\"editorSession\"") && text.contains("\"mdMode\":\"read\""));
+        assert!(text.contains("\"schemaVersion\":2"));
+        assert_eq!(load(&f).projects[0].editor_session, Some(sess));
+        // セッションの無いプロジェクトでは、項目自体を書き出さない
+        let g = d.path().join("other.json");
+        save(&g, &sample()).unwrap();
+        assert!(
+            !std::fs::read_to_string(&g)
+                .unwrap()
+                .contains("editorSession")
+        );
     }
 
     #[test]

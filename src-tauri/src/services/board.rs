@@ -88,6 +88,7 @@ mod tests {
             note: String::new(),
             description_override: None,
             position: Position { x: 0.0, y: 0.0 },
+            editor_session: None,
         }
     }
 

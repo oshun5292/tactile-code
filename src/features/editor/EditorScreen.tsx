@@ -1,4 +1,5 @@
 import { useEffect, type CSSProperties } from "react";
+import { api } from "../../api";
 import { languageColor } from "../../shared/languageColors";
 import { ChoiceDialog, type Choice } from "../../shared/ui/ChoiceDialog";
 import { useBoard } from "../board/store";
@@ -13,6 +14,7 @@ import "./editor.css";
 
 const EMPTY_DIRS = {};
 const EMPTY: Session = emptySession();
+const POLL_MS = 5000;
 
 /** エディタ画面の全体。ボードの上に全面で重ねて表示される(ボードはマウントしたまま)。 */
 export function EditorScreen({ projectId }: { projectId: string }) {
@@ -22,6 +24,8 @@ export function EditorScreen({ projectId }: { projectId: string }) {
   const prompt = useEditor((s) => s.prompt);
   const conflict = useEditor((s) => s.conflict);
   const focusTick = useEditor((s) => s.focusTick);
+  const quit = useEditor((s) => s.quit);
+  const dirtyAll = useEditor((s) => s.sessions);
   const ed = useEditor.getState();
 
   const activeTab = session.tabs.find((t) => t.relPath === session.active) ?? null;
@@ -31,6 +35,37 @@ export function EditorScreen({ projectId }: { projectId: string }) {
   useEffect(() => {
     if (missing) useEditor.setState({ view: "board" });
   }, [missing]);
+
+  // ウィンドウを閉じるとき、全プロジェクトの未保存を確認する(ボード表示中は未保存が無いので素通し)
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    let cancelled = false;
+    void api.onCloseRequested(() => useEditor.getState().confirmQuit()).then((u) => {
+      if (cancelled) u();
+      else unlisten = u;
+    });
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, []);
+
+  // 外部変更の検知: ウィンドウにフォーカスが戻ったとき(ツリーも読み直す)と、表示中は一定間隔
+  useEffect(() => {
+    const check = () => void useEditor.getState().checkExternal(projectId);
+    const onFocus = () => {
+      check();
+      void useEditor.getState().reloadTree(projectId);
+    };
+    window.addEventListener("focus", onFocus);
+    const timer = setInterval(() => {
+      if (!document.hidden) check();
+    }, POLL_MS);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      clearInterval(timer);
+    };
+  }, [projectId]);
 
   // Esc でボードへ。検索パネル・ダイアログ・入力欄・IME 変換中の Esc は、そちらを優先する。
   // Ctrl+S は、フォーカスがツリー等にあるときの保存(編集欄の中では CodeMirror が先に処理する)。
@@ -70,6 +105,12 @@ export function EditorScreen({ projectId }: { projectId: string }) {
     { label: "保存せず閉じる", variant: "danger", onClick: () => void ed.resolvePrompt("discard") },
     { label: "保存して閉じる", variant: "primary", onClick: () => void ed.resolvePrompt("save") },
   ];
+  const quitDirty = Object.values(dirtyAll).reduce((n, s) => n + s.tabs.filter((t) => t.draft !== null && t.draft !== t.baseline).length, 0);
+  const quitChoices: Choice[] = [
+    { label: "やめる", variant: "ghost", autoFocus: true, onClick: () => void ed.resolveQuit("cancel") },
+    { label: "保存せず閉じる", variant: "danger", onClick: () => void ed.resolveQuit("discard") },
+    { label: "保存して閉じる", variant: "primary", onClick: () => void ed.resolveQuit("save") },
+  ];
   const conflictChoices: Choice[] = [
     { label: "やめる", variant: "ghost", autoFocus: true, onClick: () => void ed.resolveConflict("cancel") },
     { label: "読み込み直す", variant: "ghost", onClick: () => void ed.resolveConflict("reload") },
@@ -97,6 +138,16 @@ export function EditorScreen({ projectId }: { projectId: string }) {
 
       <main className="pagemain">
         <TabBar session={session} onActivate={(p) => ed.activateTab(projectId, p)} onClose={(p) => ed.requestCloseTab(p)} />
+        {activeTab?.external === "changed" && (
+          <div className="ext-banner" role="status" data-kind="changed">
+            このファイルは、ほかのアプリで変更されました。保存しようとすると確認が出ます(編集内容は残してあります)。
+          </div>
+        )}
+        {activeTab?.external === "deleted" && (
+          <div className="ext-banner" role="status" data-kind="deleted">
+            このファイルは削除されました。内容はこのタブに残っています(保存すると、同じ場所に作り直されます)。
+          </div>
+        )}
         <DocView
           session={session}
           focusTick={focusTick}
@@ -120,7 +171,10 @@ export function EditorScreen({ projectId }: { projectId: string }) {
         ) : (
           <p>保存していない変更が {dirtyCount} 件のファイルにあります。</p>
         )}
-        <p className="confirm-safe">「保存せず閉じる」を選ぶと、保存していない変更は消えます。</p>
+      </ChoiceDialog>
+
+      <ChoiceDialog open={quit !== null} title="未保存の変更があります" choices={quitChoices} onCancel={() => void ed.resolveQuit("cancel")}>
+        <p>保存していない変更が {quitDirty} 件のファイルにあります。</p>
       </ChoiceDialog>
 
       <ChoiceDialog
