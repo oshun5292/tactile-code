@@ -52,4 +52,7 @@ describe("languageForFilename", () => {
     expect(languageForFilename("a.py").tabSize).toBe(4);
     expect(languageForFilename("a.ts").tabSize).toBe(2);
   });
+  it("マークダウンは GFM(表・取り消し線)入りの extension を作れる", () => {
+    expect(languageForFilename("note.md").extension).toBeDefined();
+  });
 });

@@ -106,7 +106,7 @@ fn main() {
 
 export const MARKDOWN_SAMPLE = `# 3年計画メモ
 
-仕事と暮らしの方向を、ゆっくり整理するためのメモです。**大事なところ**は太字で、\`inline code\` は等幅で表示します。
+仕事と暮らしの方向を、ゆっくり整理するためのメモです。**大事なところ**は太字で、\`inline code\` は等幅で表示します。*斜体*と~~取り消し線~~も使えます。
 
 ## 今年やること
 
@@ -144,6 +144,11 @@ export const MARKDOWN_SAMPLE = `# 3年計画メモ
 select order_id, amount
 from {{ ref('stg_orders') }}
 where amount > 0
+\`\`\`
+
+\`\`\`python
+def f(x):
+    return x * 2  # 倍にする
 \`\`\`
 
 ---

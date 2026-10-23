@@ -2,6 +2,7 @@ import { EditorView } from "@codemirror/view";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { tags as t } from "@lezer/highlight";
 import type { Extension } from "@codemirror/state";
+import { mdFenceInfo, mdHeadMark, mdListMark, mdMark, mdQuoteMark } from "./markdownTags";
 
 // プロジェクト色。--proj が無ければ空色。値は :root の CSS 変数を毎回参照するので、
 // --proj の変更だけで、エディタを作り直さずに選択色・アクセントが変わる。
@@ -87,6 +88,9 @@ const FN = "var(--tk-fn, #2f68b5)";
 const META = "var(--tk-meta, #7a52b8)";
 const TYPE = "var(--tk-type, #0e7c86)";
 
+const SOFT = "var(--soft)";
+const HEAD = `color-mix(in srgb, ${PD} 55%, var(--ink))`;
+
 export const highlightStyle = HighlightStyle.define([
   { tag: [t.keyword, t.controlKeyword, t.operatorKeyword, t.modifier, t.definitionKeyword], color: KW, fontWeight: "500" },
   { tag: [t.string, t.special(t.string), t.regexp], color: STR },
@@ -100,14 +104,28 @@ export const highlightStyle = HighlightStyle.define([
   { tag: [t.meta, t.annotation, t.processingInstruction, t.self], color: META },
   { tag: [t.special(t.brace), t.definitionOperator], color: META, fontWeight: "600" },
   { tag: [t.operator, t.punctuation, t.bracket, t.separator], color: "var(--ink2)" },
-  { tag: [t.link, t.url], color: FN, textDecoration: "underline" },
-  { tag: t.heading, color: "var(--ink)", fontWeight: "700" },
-  { tag: t.heading1, fontWeight: "700" },
-  { tag: t.strong, fontWeight: "700" },
-  { tag: t.emphasis, fontStyle: "italic" },
-  { tag: t.strikethrough, textDecoration: "line-through" },
+  // --- マークダウン(見出しなどの色はプロジェクト色を濃い墨と混ぜ、白地でも読める濃さにする) ---
+  // 記号は本文より薄く、文字は本文色のまま。サイズ差は控えめ(行の高さ・カーソル位置のずれを避ける)。
+  // 子タグ(heading1 等)は親の heading の指定を引き継がないので、色と太さを各レベルに書く
+  { tag: t.heading, color: HEAD, fontWeight: "700" },
+  { tag: t.heading1, color: HEAD, fontWeight: "700", fontSize: "1.12em" },
+  { tag: t.heading2, color: HEAD, fontWeight: "700", fontSize: "1.07em" },
+  { tag: t.heading3, color: HEAD, fontWeight: "700", fontSize: "1.03em" },
+  { tag: [t.heading4, t.heading5, t.heading6], color: HEAD, fontWeight: "700" },
+  { tag: mdHeadMark, color: PD, fontWeight: "700" },
+  { tag: t.strong, color: "var(--ink)", fontWeight: "700" },
+  { tag: t.emphasis, color: "var(--ink2)", fontStyle: "italic" },
+  { tag: t.strikethrough, color: "var(--soft)", textDecoration: "line-through" },
+  { tag: t.monospace, color: STR, backgroundColor: "color-mix(in srgb, var(--bg2) 85%, transparent)", borderRadius: "4px" },
+  { tag: mdFenceInfo, color: META, fontStyle: "italic" },
+  { tag: mdMark, color: SOFT, fontWeight: "400" },
+  { tag: mdListMark, color: PD, fontWeight: "700" },
+  { tag: mdQuoteMark, color: PD, fontWeight: "700" },
   { tag: t.quote, color: "var(--ink2)", fontStyle: "italic" },
-  { tag: t.monospace, color: STR },
+  { tag: t.contentSeparator, color: SOFT, fontWeight: "700" },
+  { tag: t.link, color: FN, textDecoration: "underline", textDecorationColor: PD },
+  { tag: t.url, color: TYPE },
+  { tag: t.labelName, color: META },
   { tag: t.invalid, color: "var(--danger)" },
 ]);
 
