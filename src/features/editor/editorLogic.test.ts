@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { FileContent, FsEntry } from "../../api/types";
 import {
+  absolutePathOf,
   ancestorsOf,
   applyLoaded,
   baseName,
   closeTabIn,
+  creationParent,
   dirtyTabs,
+  dropFromDirsCache,
   discardDirtyTabs,
   emptySession,
   extensionOf,
@@ -13,12 +16,20 @@ import {
   iconForFile,
   isDirty,
   isMarkdownFile,
+  isSameOrInside,
+  joinPath,
   judgeExternal,
   neighborTab,
   openTabIn,
   parentPath,
   planRestore,
   pollTargets,
+  remapDirsCache,
+  remapPath,
+  removeFromSession,
+  renameInSession,
+  tabsUnder,
+  validateEntryName,
   buildSessionData,
   toggleExpanded,
   unopenableReason,
@@ -288,5 +299,112 @@ describe("タブの復元", () => {
     let s = emptySession();
     for (let i = 0; i < 205; i++) s = openTabIn(s, `f${i}`);
     expect(buildSessionData(s).tabs).toHaveLength(200);
+  });
+});
+
+describe("ファイル操作: パス", () => {
+  it("joinPath / isSameOrInside / remapPath", () => {
+    expect(joinPath("", "a.ts")).toBe("a.ts");
+    expect(joinPath("src", "a.ts")).toBe("src/a.ts");
+    expect(isSameOrInside("src/a.ts", "src")).toBe(true);
+    expect(isSameOrInside("src", "src")).toBe(true);
+    expect(isSameOrInside("srcx/a.ts", "src")).toBe(false); // 前方一致だけでは配下にしない
+    expect(isSameOrInside("a", "")).toBe(true);
+    expect(remapPath("src/a.ts", "src", "lib")).toBe("lib/a.ts");
+    expect(remapPath("src", "src", "lib")).toBe("lib");
+    expect(remapPath("srcx/a.ts", "src", "lib")).toBe("srcx/a.ts");
+  });
+
+  it("creationParent: フォルダ選択ならその中、ファイルなら親、なければルート", () => {
+    expect(creationParent({ relPath: "src", kind: "dir" })).toBe("src");
+    expect(creationParent({ relPath: "src/a.ts", kind: "file" })).toBe("src");
+    expect(creationParent({ relPath: "README.md", kind: "file" })).toBe("");
+    expect(creationParent(null)).toBe("");
+  });
+
+  it("absolutePathOf: プロジェクトの区切りに合わせる", () => {
+    expect(absolutePathOf("C:\\p\\app", "src/a.ts")).toBe("C:\\p\\app\\src\\a.ts");
+    expect(absolutePathOf("/home/u/app/", "src/a.ts")).toBe("/home/u/app/src/a.ts");
+    expect(absolutePathOf("C:\\p\\app", "")).toBe("C:\\p\\app");
+  });
+});
+
+describe("validateEntryName", () => {
+  it("正常な名前は null", () => {
+    expect(validateEntryName("a.ts", ["b.ts"])).toBeNull();
+    expect(validateEntryName(".gitignore")).toBeNull();
+  });
+  it("空・区切り・禁止文字・末尾のドット・予約名を弾く", () => {
+    expect(validateEntryName("")).not.toBeNull();
+    expect(validateEntryName("   ")).not.toBeNull();
+    expect(validateEntryName("..")).not.toBeNull();
+    expect(validateEntryName("a/b")).not.toBeNull();
+    expect(validateEntryName("a:b")).not.toBeNull();
+    expect(validateEntryName("a.")).not.toBeNull();
+    expect(validateEntryName("NUL.txt")).not.toBeNull();
+  });
+  it("同じフォルダの名前とは、大文字小文字を区別せず重複扱い", () => {
+    expect(validateEntryName("README.md", ["readme.md"])).toBe("同じ名前がすでにあります。");
+  });
+});
+
+describe("名前変更・削除とタブ", () => {
+  const open = (paths: string[], active: string, expanded: string[] = []) => {
+    let s = emptySession();
+    for (const p of paths) s = openTabIn(s, p);
+    return { ...s, active, expanded };
+  };
+
+  it("ファイルの名前変更: タブとアクティブが付け替わり、未保存の編集は保たれる", () => {
+    const base = open(["a.ts", "b.ts"], "a.ts");
+    const s0 = updateTab(base, "a.ts", (t) => ({ ...applyLoaded(t, file("a.ts", "old")), draft: "edited" }));
+    const s = renameInSession(s0, "a.ts", "c.ts");
+    expect(s.tabs.map((t) => t.relPath)).toEqual(["c.ts", "b.ts"]);
+    expect(s.active).toBe("c.ts");
+    expect(s.tabs[0].draft).toBe("edited");
+    expect(isDirty(s.tabs[0])).toBe(true);
+  });
+
+  it("フォルダの名前変更: 配下のタブと展開状態をまとめて付け替える(似た名前は触らない)", () => {
+    const s0 = open(["src/a.ts", "src/x/b.ts", "srcx/c.ts"], "src/x/b.ts", ["src", "src/x", "srcx"]);
+    const s = renameInSession(s0, "src", "lib");
+    expect(s.tabs.map((t) => t.relPath)).toEqual(["lib/a.ts", "lib/x/b.ts", "srcx/c.ts"]);
+    expect(s.active).toBe("lib/x/b.ts");
+    expect(s.expanded).toEqual(["lib", "lib/x", "srcx"]);
+  });
+
+  it("tabsUnder / removeFromSession: フォルダの削除で配下のタブをすべて閉じる", () => {
+    const s0 = open(["src/a.ts", "src/b.ts", "keep.ts"], "src/b.ts", ["src", "other"]);
+    expect(tabsUnder(s0, "src").length).toBe(2);
+    const s = removeFromSession(s0, "src");
+    expect(s.tabs.map((t) => t.relPath)).toEqual(["keep.ts"]);
+    expect(s.active).toBe("keep.ts");
+    expect(s.expanded).toEqual(["other"]);
+  });
+
+  it("ファイル削除: アクティブでないタブを消してもアクティブは変わらない", () => {
+    const s = removeFromSession(open(["a.ts", "b.ts"], "a.ts"), "b.ts");
+    expect(s.active).toBe("a.ts");
+  });
+});
+
+describe("フォルダ一覧のキャッシュ", () => {
+  const ent = (relPath: string, kind: "dir" | "file"): FsEntry => ({ name: baseName(relPath), relPath, kind, size: 0, modified: null });
+  const dirs: Record<string, TreeDir> = {
+    "": { status: "ready", entries: [ent("src", "dir"), ent("a.md", "file")], error: null },
+    src: { status: "ready", entries: [ent("src/x.ts", "file")], error: null },
+  };
+
+  it("remapDirsCache: キーと中身のパス・名前が付け替わる", () => {
+    const m = remapDirsCache(dirs, "src", "lib");
+    expect(Object.keys(m).sort()).toEqual(["", "lib"]);
+    expect(m[""].entries[0]).toMatchObject({ relPath: "lib", name: "lib" });
+    expect(m.lib.entries[0].relPath).toBe("lib/x.ts");
+  });
+
+  it("dropFromDirsCache: 配下を捨て、親の一覧からも外す", () => {
+    const m = dropFromDirsCache(dirs, "src");
+    expect(Object.keys(m)).toEqual([""]);
+    expect(m[""].entries.map((e) => e.relPath)).toEqual(["a.md"]);
   });
 });

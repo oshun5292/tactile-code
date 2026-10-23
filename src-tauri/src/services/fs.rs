@@ -461,6 +461,188 @@ pub fn sanitize_session(s: EditorSession) -> EditorSession {
     }
 }
 
+// ---------------------------------------------------------------- ファイル操作(段階3b-2)
+
+/// 親フォルダだけを実体にした位置。対象自身は、まだ無くてもよい(作成・移動先)。
+/// 対象自身を canonicalize しないのは、リンク自体を操作の対象にするため(リンク先を触らない)。
+struct Located {
+    /// 親フォルダ(canonicalize 済み・ルートの内側)
+    parent: PathBuf,
+    name: String,
+    path: PathBuf,
+}
+
+/// 空でない相対パスを、親の検証つきで解決する。字面の検証(`.git`・予約名など)は validate_rel が行う。
+fn locate(root: &Path, rel: &str) -> Result<Located, String> {
+    let parts = validate_rel(rel)?;
+    let (name, parent_parts) = parts
+        .split_last()
+        .ok_or("プロジェクトのフォルダ自体は操作できません")?;
+    let parent = resolve(root, &parent_parts.join("/"))?.path;
+    if !parent.is_dir() {
+        return Err("親のフォルダが見つかりません".to_string());
+    }
+    Ok(Located {
+        path: parent.join(name),
+        name: (*name).to_string(),
+        parent,
+    })
+}
+
+/// リンクの切れたものも「在る」と数えるため、symlink_metadata で見る。
+fn exists_nofollow(p: &Path) -> bool {
+    std::fs::symlink_metadata(p).is_ok()
+}
+
+fn entry_of(rel: &str, name: &str, path: &Path) -> Result<FsEntry, String> {
+    let md = std::fs::symlink_metadata(path).map_err(|e| io_msg(&e, "ファイルを調べる"))?;
+    let kind = if md.is_dir() {
+        EntryKind::Dir
+    } else {
+        EntryKind::File
+    };
+    Ok(FsEntry {
+        rel_path: rel.to_string(),
+        name: name.to_string(),
+        kind,
+        size: if kind == EntryKind::File { md.len() } else { 0 },
+        modified: modified_of(&md),
+    })
+}
+
+pub fn create_file(root: &Path, rel: &str) -> Result<FsEntry, String> {
+    let t = locate(root, rel)?;
+    if exists_nofollow(&t.path) {
+        return Err("既存: 同じ名前がすでにあります".to_string());
+    }
+    // create_new で、確認から作成までの間に作られても上書きしない
+    std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&t.path)
+        .map_err(|e| match e.kind() {
+            std::io::ErrorKind::AlreadyExists => "既存: 同じ名前がすでにあります".to_string(),
+            _ => io_msg(&e, "作成する"),
+        })?;
+    entry_of(rel, &t.name, &t.path)
+}
+
+pub fn create_dir(root: &Path, rel: &str) -> Result<FsEntry, String> {
+    let t = locate(root, rel)?;
+    if exists_nofollow(&t.path) {
+        return Err("既存: 同じ名前がすでにあります".to_string());
+    }
+    // create_dir_all ではなく create_dir(親は作らない)
+    std::fs::create_dir(&t.path).map_err(|e| match e.kind() {
+        std::io::ErrorKind::AlreadyExists => "既存: 同じ名前がすでにあります".to_string(),
+        _ => io_msg(&e, "作成する"),
+    })?;
+    entry_of(rel, &t.name, &t.path)
+}
+
+pub fn rename_entry(root: &Path, from: &str, to: &str) -> Result<FsEntry, String> {
+    let src = locate(root, from)?;
+    let dst = locate(root, to)?;
+    if !exists_nofollow(&src.path) {
+        return Err("ファイルが見つかりません".to_string());
+    }
+    // フォルダを自分の中(または自分自身の位置)へ移す操作は拒否
+    if relative_inside(&src.path, &dst.parent).is_some() {
+        return Err("フォルダを自分の中には移せません".to_string());
+    }
+    if exists_nofollow(&dst.path) {
+        // Windows は大文字小文字を区別しないので、同じ場所の綴り違いだけの変更は「同じもの」として許す
+        let case_only = cfg!(windows)
+            && norm_component(src.parent.as_os_str()) == norm_component(dst.parent.as_os_str())
+            && src.name != dst.name
+            && src.name.to_lowercase() == dst.name.to_lowercase();
+        if !case_only {
+            return Err("既存: 移動先に同じ名前がすでにあります".to_string());
+        }
+    }
+    std::fs::rename(&src.path, &dst.path).map_err(|e| io_msg(&e, "名前を変更する"))?;
+    entry_of(to, &dst.name, &dst.path)
+}
+
+/// `\\?\` 形式(canonicalize の結果)を、シェルやコマンドが読める通常の形に戻す。
+fn plain_path(p: &Path) -> PathBuf {
+    let s = p.to_string_lossy();
+    match s.strip_prefix(r"\\?\") {
+        Some(rest) if !rest.starts_with("UNC\\") => PathBuf::from(rest),
+        _ => p.to_path_buf(),
+    }
+}
+
+pub fn delete_entry(root: &Path, rel: &str) -> Result<(), String> {
+    let t = locate(root, rel)?;
+    if !exists_nofollow(&t.path) {
+        return Err("ファイルが見つかりません".to_string());
+    }
+    // 親だけを実体にしているので、リンクならリンク自体がごみ箱へ行く(中身へは入らない)
+    trash::delete(plain_path(&t.path)).map_err(|_| "ごみ箱へ移せませんでした".to_string())
+}
+
+/// PATH から実行ファイルを探す。Windows では `code` が code.cmd のため拡張子も試す。
+fn find_in_path(name: &str, path_var: &std::ffi::OsStr) -> Option<PathBuf> {
+    let exts: &[&str] = if cfg!(windows) {
+        &["cmd", "exe", "bat"]
+    } else {
+        &[""]
+    };
+    std::env::split_paths(path_var).find_map(|dir| {
+        exts.iter().find_map(|ext| {
+            let file = if ext.is_empty() {
+                dir.join(name)
+            } else {
+                dir.join(format!("{name}.{ext}"))
+            };
+            file.is_file().then_some(file)
+        })
+    })
+}
+
+pub fn open_in_vscode(root: &Path, rel: &str) -> Result<(), String> {
+    // 先にパスを検証する(不正なパスでは、プロセスを起動しない)
+    let target = plain_path(&resolve(root, rel)?.path);
+    let path_var = std::env::var_os("PATH").unwrap_or_default();
+    if find_in_path("code", &path_var).is_none() {
+        return Err("VSCode(code コマンド)が見つかりません".to_string());
+    }
+    let mut cmd = launch_command(&target)?;
+    let mut child = cmd
+        .spawn()
+        .map_err(|_| "VSCode: 起動できませんでした".to_string())?;
+    // 待たない。終了だけ回収する(ゾンビ防止)
+    std::thread::spawn(move || {
+        let _ = child.wait();
+    });
+    Ok(())
+}
+
+#[cfg(windows)]
+fn launch_command(target: &Path) -> Result<std::process::Command, String> {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let s = target.to_string_lossy();
+    // cmd は % を展開してしまうので、引用符でも防げない。ほかの記号は引用符の中なら文字のまま
+    if s.contains('%') {
+        return Err("VSCode: パスに % が含まれているため開けません".to_string());
+    }
+    let mut cmd = std::process::Command::new("cmd");
+    // raw_arg で自前の引用符を付ける(空白・日本語・& を含むパスでも壊れない)。-- 以降はオプション扱いされない
+    cmd.args(["/C", "code", "--"])
+        .raw_arg(format!("\"{s}\""))
+        .creation_flags(CREATE_NO_WINDOW);
+    Ok(cmd)
+}
+
+#[cfg(not(windows))]
+fn launch_command(target: &Path) -> Result<std::process::Command, String> {
+    let mut cmd = std::process::Command::new("code");
+    cmd.arg("--").arg(target);
+    Ok(cmd)
+}
+
 // ---------------------------------------------------------------- テスト
 
 #[cfg(test)]
@@ -948,5 +1130,248 @@ mod tests {
         // 長いパスは 1,000 文字に切り詰めて残す(エラーにしない)
         assert_eq!(got.tabs[0].rel_path.chars().count(), 1000);
         assert_eq!(got.active.unwrap().chars().count(), 1000);
+    }
+
+    // ---- 段階3b-2: 作成・名前変更・削除・VSCode ----
+
+    #[test]
+    fn create_file_and_dir_basic() {
+        let d = proj();
+        let p = d.path();
+        std::fs::create_dir(p.join("sub")).unwrap();
+        let f = create_file(p, "sub/new.md").unwrap();
+        assert_eq!(f.rel_path, "sub/new.md");
+        assert_eq!(f.name, "new.md");
+        assert_eq!(f.kind, EntryKind::File);
+        assert_eq!(f.size, 0);
+        assert!(f.modified.is_some());
+        assert!(p.join("sub").join("new.md").is_file());
+        let dir = create_dir(p, "sub/inner").unwrap();
+        assert_eq!(dir.kind, EntryKind::Dir);
+        assert!(p.join("sub").join("inner").is_dir());
+        // ルート直下
+        create_file(p, "top.txt").unwrap();
+    }
+
+    #[test]
+    fn create_rejects_existing_missing_parent_and_bad_names() {
+        let d = proj();
+        let p = d.path();
+        std::fs::write(p.join("a.txt"), "keep").unwrap();
+        std::fs::create_dir(p.join("dir")).unwrap();
+        // 既存(ファイル・フォルダ、種類をまたいでも)は上書きしない
+        assert!(create_file(p, "a.txt").unwrap_err().starts_with("既存:"));
+        assert!(create_dir(p, "a.txt").unwrap_err().starts_with("既存:"));
+        assert!(create_file(p, "dir").unwrap_err().starts_with("既存:"));
+        assert!(create_dir(p, "dir").unwrap_err().starts_with("既存:"));
+        assert_eq!(std::fs::read_to_string(p.join("a.txt")).unwrap(), "keep");
+        // 親が無い・親がファイル → エラーで、親は作らない
+        assert!(create_file(p, "nope/x.txt").is_err());
+        assert!(create_dir(p, "nope/x").is_err());
+        assert!(!p.join("nope").exists());
+        assert!(create_file(p, "a.txt/x").is_err());
+        // 空(ルート自体)・不正名・予約名・.git
+        for bad in [
+            "", "../x", "/x", "a//b", "x:y", "x.", "x ", "CON", "con.txt", "a?b", "dir/NUL",
+            ".git", ".git/x", "dir/.GIT", "a\\b",
+        ] {
+            assert!(create_file(p, bad).is_err(), "作れてしまった: {bad}");
+            assert!(create_dir(p, bad).is_err(), "作れてしまった: {bad}");
+        }
+        assert!(!p.join(".git").exists());
+        // 大文字小文字違いは Windows では既存扱い
+        if cfg!(windows) {
+            assert!(create_file(p, "A.TXT").unwrap_err().starts_with("既存:"));
+        }
+    }
+
+    #[test]
+    fn create_cannot_escape_through_link() {
+        let d = proj();
+        let outside = proj();
+        let link = d.path().join("link");
+        #[cfg(windows)]
+        if make_junction(&link, outside.path()).is_none() {
+            eprintln!("ジャンクションを作れないため skip");
+            return;
+        }
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(outside.path(), &link).unwrap();
+        assert!(create_file(d.path(), "link/x.txt").is_err());
+        assert!(create_dir(d.path(), "link/x").is_err());
+        assert!(rename_entry(d.path(), "link/x", "y").is_err());
+        assert!(delete_entry(d.path(), "link/x").is_err());
+        assert!(std::fs::read_dir(outside.path()).unwrap().next().is_none());
+        let _ = std::fs::remove_dir(&link);
+    }
+
+    #[test]
+    fn rename_file_dir_and_move() {
+        let d = proj();
+        let p = d.path();
+        std::fs::write(p.join("a.txt"), "x").unwrap();
+        std::fs::create_dir_all(p.join("dir").join("sub")).unwrap();
+        std::fs::write(p.join("dir").join("sub").join("f.txt"), "y").unwrap();
+        std::fs::create_dir(p.join("other")).unwrap();
+        let e = rename_entry(p, "a.txt", "b.txt").unwrap();
+        assert_eq!((e.rel_path.as_str(), e.name.as_str()), ("b.txt", "b.txt"));
+        assert!(!p.join("a.txt").exists() && p.join("b.txt").is_file());
+        // フォルダごと別フォルダへ(移動)
+        let e = rename_entry(p, "dir", "other/dir2").unwrap();
+        assert_eq!(e.kind, EntryKind::Dir);
+        assert_eq!(e.rel_path, "other/dir2");
+        let moved = p.join("other").join("dir2").join("sub").join("f.txt");
+        assert_eq!(std::fs::read_to_string(moved).unwrap(), "y");
+        // 無いもの
+        assert!(rename_entry(p, "nope", "z").is_err());
+        // 移動先の親が無い
+        assert!(rename_entry(p, "b.txt", "nodir/b.txt").is_err());
+        assert!(p.join("b.txt").exists());
+    }
+
+    #[test]
+    fn rename_rejects_existing_root_git_and_self_move() {
+        let d = proj();
+        let p = d.path();
+        std::fs::write(p.join("a.txt"), "A").unwrap();
+        std::fs::write(p.join("b.txt"), "B").unwrap();
+        std::fs::create_dir_all(p.join("dir").join("in")).unwrap();
+        std::fs::create_dir(p.join(".git")).unwrap();
+        // 既存を上書きしない
+        let err = rename_entry(p, "a.txt", "b.txt").unwrap_err();
+        assert!(err.starts_with("既存:"), "{err}");
+        assert_eq!(std::fs::read_to_string(p.join("b.txt")).unwrap(), "B");
+        assert!(rename_entry(p, "a.txt", "dir").is_err());
+        // 同じ名前への変更も「既存」(何も起きない)
+        assert!(rename_entry(p, "a.txt", "a.txt").is_err());
+        // ルート自体・.git
+        assert!(rename_entry(p, "", "x").is_err());
+        assert!(rename_entry(p, "a.txt", "").is_err());
+        assert!(rename_entry(p, ".git", "g").is_err());
+        assert!(rename_entry(p, "a.txt", ".git").is_err());
+        assert!(rename_entry(p, "a.txt", ".git/a.txt").is_err());
+        assert!(p.join(".git").is_dir());
+        // 自分の中へ・自分自身の位置へ
+        assert!(rename_entry(p, "dir", "dir/in/dir").is_err());
+        assert!(rename_entry(p, "dir", "dir/x").is_err());
+        assert!(p.join("dir").join("in").is_dir());
+        // 名前が似ているだけの別フォルダへは動かせる
+        std::fs::create_dir(p.join("dir2")).unwrap();
+        assert!(rename_entry(p, "dir", "dir2/dir").is_ok());
+        // 外へ出る・不正
+        for bad in ["../x", "/x", "a//b", "CON"] {
+            assert!(rename_entry(p, "b.txt", bad).is_err(), "{bad}");
+            assert!(rename_entry(p, bad, "ok.txt").is_err(), "{bad}");
+        }
+        assert!(p.join("b.txt").exists());
+    }
+
+    #[test]
+    fn rename_case_only_change() {
+        let d = proj();
+        let p = d.path();
+        std::fs::write(p.join("readme.md"), "x").unwrap();
+        std::fs::create_dir(p.join("docs")).unwrap();
+        let e = rename_entry(p, "readme.md", "README.md").unwrap();
+        assert_eq!(e.name, "README.md");
+        let names: Vec<_> = std::fs::read_dir(p)
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .collect();
+        assert!(names.contains(&"README.md".to_string()), "{names:?}");
+        assert!(!names.contains(&"readme.md".to_string()), "{names:?}");
+        // フォルダでも
+        rename_entry(p, "docs", "Docs").unwrap();
+        // 別々のフォルダの同名(大文字小文字違い)は、Windows では既存扱い
+        std::fs::create_dir(p.join("sub")).unwrap();
+        std::fs::write(p.join("sub").join("x.txt"), "x").unwrap();
+        if cfg!(windows) {
+            let err = rename_entry(p, "sub/x.txt", "SUB/x.txt");
+            assert!(err.is_err(), "同じ場所(綴り違い)でも名前が同じなら既存");
+        }
+    }
+
+    #[test]
+    fn delete_rejects_root_git_missing_and_bad() {
+        let d = proj();
+        let p = d.path();
+        std::fs::write(p.join("a.txt"), "x").unwrap();
+        std::fs::create_dir(p.join(".git")).unwrap();
+        let bad = [
+            "",
+            ".git",
+            ".git/config",
+            "../a.txt",
+            "/a.txt",
+            "nope.txt",
+            "CON",
+        ];
+        for b in bad {
+            assert!(delete_entry(p, b).is_err(), "{b}");
+        }
+        assert!(p.join("a.txt").exists() && p.join(".git").exists() && p.exists());
+    }
+
+    /// 実際のごみ箱へ移す(一時フォルダ内の1件だけ)。
+    #[test]
+    fn delete_moves_one_temp_file_to_trash() {
+        let d = proj();
+        let p = d.path();
+        let name = format!("tactile-trash-test-{}.txt", uuid::Uuid::new_v4());
+        std::fs::write(p.join(&name), "x").unwrap();
+        std::fs::write(p.join("keep.txt"), "k").unwrap();
+        delete_entry(p, &name).unwrap();
+        assert!(!p.join(&name).exists());
+        assert!(p.join("keep.txt").exists());
+        // もう無い
+        assert!(delete_entry(p, &name).is_err());
+    }
+
+    #[test]
+    fn plain_path_strips_verbatim_prefix() {
+        assert_eq!(
+            plain_path(Path::new(r"\\?\C:\a b\日本語")),
+            PathBuf::from(r"C:\a b\日本語")
+        );
+        assert_eq!(
+            plain_path(Path::new(r"\\?\UNC\srv\share")),
+            PathBuf::from(r"\\?\UNC\srv\share")
+        );
+        assert_eq!(plain_path(Path::new("/a/b")), PathBuf::from("/a/b"));
+    }
+
+    #[test]
+    fn find_in_path_finds_code_launcher() {
+        let with = proj();
+        let without = proj();
+        let file = if cfg!(windows) { "code.cmd" } else { "code" };
+        std::fs::write(with.path().join(file), "").unwrap();
+        let joined = std::env::join_paths([without.path(), with.path()]).unwrap();
+        assert_eq!(find_in_path("code", &joined), Some(with.path().join(file)));
+        let only_without = std::env::join_paths([without.path()]).unwrap();
+        assert_eq!(find_in_path("code", &only_without), None);
+    }
+
+    #[test]
+    fn open_in_vscode_validates_path_before_launching() {
+        let d = proj();
+        // 不正・不在・.git は、code の有無に関わらず(起動する前に)エラー
+        for bad in ["../x", "/x", "nope", ".git", "a//b", "CON"] {
+            let err = open_in_vscode(d.path(), bad).unwrap_err();
+            assert!(!err.starts_with("VSCode:"), "{bad}: {err}");
+        }
+        assert!(open_in_vscode(&d.path().join("gone"), "").is_err());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn launch_command_quotes_unusual_paths() {
+        let c = launch_command(Path::new(r"C:\R&D\日本語 フォルダ\a b.md")).unwrap();
+        let dbg = format!("{c:?}");
+        assert!(dbg.contains("code"), "{dbg}");
+        assert!(dbg.contains("日本語 フォルダ"), "{dbg}");
+        let err = launch_command(Path::new(r"C:\100%\x")).unwrap_err();
+        assert!(err.starts_with("VSCode:"));
     }
 }

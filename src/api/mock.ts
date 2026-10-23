@@ -205,10 +205,67 @@ function listMockDir(projectId: string, relPath: string): FsEntry[] {
       if (!dirs.has(name)) dirs.set(name, { name, relPath: prefix + name, kind: "dir", size: 0, modified: null });
     }
   }
+  for (const d of dirSetOf(projectId)) {
+    if (!d.startsWith(prefix)) continue;
+    const name = d.slice(prefix.length).split("/")[0];
+    if (name && !dirs.has(name)) dirs.set(name, { name, relPath: prefix + name, kind: "dir", size: 0, modified: null });
+  }
   // フォルダが先、名前は大文字小文字を区別せず自然順
   const byName = (a: FsEntry, b: FsEntry) => collator.compare(a.name, b.name);
   return [...[...dirs.values()].sort(byName), ...out.sort(byName)];
 }
+
+
+// 空のフォルダや、ファイルを全部消したあとのフォルダを覚えておく(ファイルのパスだけではフォルダが消えてしまうため)
+const dirDb = new Map<string, Set<string>>();
+function dirSetOf(projectId: string): Set<string> {
+  let d = dirDb.get(projectId);
+  if (!d) {
+    d = new Set();
+    dirDb.set(projectId, d);
+  }
+  return d;
+}
+
+const lowerEq = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+const parentOf = (p: string) => (p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "");
+const insideOf = (p: string, dir: string) => p === dir || p.startsWith(`${dir}/`);
+
+/** ファイルの祖先をすべて明示フォルダにしておく(これで、中身が空になってもフォルダは残る)。 */
+function materializeDirs(projectId: string) {
+  const dirs = dirSetOf(projectId);
+  for (const path of filesOf(projectId).keys()) {
+    for (let d = parentOf(path); d; d = parentOf(d)) dirs.add(d);
+  }
+}
+
+function isDir(projectId: string, relPath: string): boolean {
+  if (relPath === "") return true;
+  if (dirSetOf(projectId).has(relPath)) return true;
+  for (const path of filesOf(projectId).keys()) if (path.startsWith(`${relPath}/`)) return true;
+  return false;
+}
+
+/** 同じ場所(親)に、大文字小文字だけ違うものも含めて、すでにあるか。 */
+function findExisting(projectId: string, relPath: string): string | null {
+  const parent = parentOf(relPath);
+  const name = relPath.slice(parent ? parent.length + 1 : 0);
+  const hit = listMockDir(projectId, parent).find((e) => lowerEq(e.name, name));
+  return hit ? hit.relPath : null;
+}
+
+// Rust 側の検査に合わせた、最低限の名前チェック(本番の最終判断は Rust 側)
+function checkNewName(relPath: string) {
+  const name = relPath.slice(relPath.lastIndexOf("/") + 1);
+  if (!name || name === "." || name === ".." || /[\\:*?"<>|]/.test(name) || /[. ]$/.test(name)) throw "不正な名前です";
+  if (relPath.split("/").some((seg) => seg.toLowerCase() === ".git")) throw ".git は操作できません";
+}
+
+function checkParent(projectId: string, relPath: string) {
+  if (!isDir(projectId, parentOf(relPath))) throw "親フォルダが見つかりません";
+}
+
+const FS_DELAY = 80;
 
 const sessionDb = new Map<string, EditorSessionData>();
 
@@ -225,6 +282,75 @@ if (typeof window !== "undefined") {
 }
 
 export const mockApi: Api = {
+  async createFile(projectId, relPath) {
+    await sleep(FS_DELAY);
+    find(projectId);
+    checkNewName(relPath);
+    checkParent(projectId, relPath);
+    if (findExisting(projectId, relPath)) throw `既存: ${relPath}`;
+    materializeDirs(projectId);
+    const modified = new Date().toISOString();
+    filesOf(projectId).set(relPath, { kind: "text", content: "", size: 0, eol: "lf", hasBom: false, modified });
+    return { name: relPath.slice(relPath.lastIndexOf("/") + 1), relPath, kind: "file", size: 0, modified };
+  },
+  async createDir(projectId, relPath) {
+    await sleep(FS_DELAY);
+    find(projectId);
+    checkNewName(relPath);
+    checkParent(projectId, relPath);
+    if (findExisting(projectId, relPath)) throw `既存: ${relPath}`;
+    materializeDirs(projectId);
+    dirSetOf(projectId).add(relPath);
+    return { name: relPath.slice(relPath.lastIndexOf("/") + 1), relPath, kind: "dir", size: 0, modified: null };
+  },
+  async renameEntry(projectId, from, to) {
+    await sleep(FS_DELAY);
+    find(projectId);
+    if (from === "") throw "プロジェクトのフォルダ自体は変更できません";
+    checkNewName(to);
+    if (from.split("/").includes(".git")) throw ".git は操作できません";
+    const files = filesOf(projectId);
+    const fromIsDir = !files.has(from) && isDir(projectId, from);
+    if (!fromIsDir && !files.has(from)) throw "元のファイルが見つかりません";
+    if (fromIsDir && insideOf(to, from) && to !== from) throw "フォルダを自分の中へは移せません";
+    checkParent(projectId, to);
+    const hit = findExisting(projectId, to);
+    // 大文字小文字だけの違い(自分自身)は許す
+    if (hit && !(lowerEq(hit, from) && hit === from)) throw `既存: ${to}`;
+    materializeDirs(projectId);
+    const dirs = dirSetOf(projectId);
+    for (const [path, f] of [...files]) {
+      if (!insideOf(path, from)) continue;
+      files.delete(path);
+      files.set(to + path.slice(from.length), f);
+    }
+    for (const d of [...dirs]) {
+      if (!insideOf(d, from)) continue;
+      dirs.delete(d);
+      dirs.add(to + d.slice(from.length));
+    }
+    const f = files.get(to);
+    return { name: to.slice(to.lastIndexOf("/") + 1), relPath: to, kind: fromIsDir ? "dir" : "file", size: f?.size ?? 0, modified: f?.modified ?? null };
+  },
+  async deleteEntry(projectId, relPath) {
+    await sleep(FS_DELAY);
+    find(projectId);
+    if (relPath === "") throw "プロジェクトのフォルダ自体は削除できません";
+    if (relPath.split("/").includes(".git")) throw ".git は操作できません";
+    const files = filesOf(projectId);
+    if (!files.has(relPath) && !isDir(projectId, relPath)) throw "見つかりません";
+    materializeDirs(projectId); // 親フォルダが空になっても残す
+    for (const path of [...files.keys()]) if (insideOf(path, relPath)) files.delete(path);
+    const dirs = dirSetOf(projectId);
+    for (const d of [...dirs]) if (insideOf(d, relPath)) dirs.delete(d);
+  },
+  async openInVscode(projectId, relPath) {
+    await sleep(FS_DELAY);
+    find(projectId);
+    // ?mock=novscode のとき、見つからない場合の表示を確認できる
+    if (mode === "novscode") throw "VSCode: VSCode(code コマンド)が見つかりません";
+    console.info("[mock] VSCodeで開く:", relPath || "(プロジェクトのフォルダ)");
+  },
   async statFiles(projectId, relPaths) {
     find(projectId);
     const files = filesOf(projectId);

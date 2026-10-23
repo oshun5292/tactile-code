@@ -352,3 +352,66 @@ pub async fn save_editor_session(
     })
     .await
 }
+
+// ---- 段階3b-2: ファイル操作・VSCodeで開く(検証は services::fs に集約) ----
+
+#[tauri::command]
+pub async fn create_file(
+    project_id: String,
+    rel_path: String,
+    store: State<'_, Store>,
+) -> Result<FsEntry, String> {
+    run_store(&store, move |s| {
+        fs::create_file(&project_root(s, &project_id)?, &rel_path)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn create_dir(
+    project_id: String,
+    rel_path: String,
+    store: State<'_, Store>,
+) -> Result<FsEntry, String> {
+    run_store(&store, move |s| {
+        fs::create_dir(&project_root(s, &project_id)?, &rel_path)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn rename_entry(
+    project_id: String,
+    from_rel_path: String,
+    to_rel_path: String,
+    store: State<'_, Store>,
+) -> Result<FsEntry, String> {
+    run_store(&store, move |s| {
+        fs::rename_entry(&project_root(s, &project_id)?, &from_rel_path, &to_rel_path)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn delete_entry(
+    project_id: String,
+    rel_path: String,
+    store: State<'_, Store>,
+) -> Result<(), String> {
+    run_store(&store, move |s| {
+        fs::delete_entry(&project_root(s, &project_id)?, &rel_path)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn open_in_vscode(
+    project_id: String,
+    rel_path: String,
+    store: State<'_, Store>,
+) -> Result<(), String> {
+    run_store(&store, move |s| {
+        fs::open_in_vscode(&project_root(s, &project_id)?, &rel_path)
+    })
+    .await
+}

@@ -276,3 +276,100 @@ export function planRestore(data: EditorSessionData | null, stats: FileStat[]): 
   const active = data.active && seen.has(data.active) ? data.active : (tabs[tabs.length - 1]?.relPath ?? null);
   return { tabs, active, expanded: [...new Set(data.expanded)] };
 }
+
+// ---------- ファイル操作(3b-2) ----------
+
+export const joinPath = (parent: string, name: string): string => (parent ? `${parent}/${name}` : name);
+
+/** p が dir 自身、または dir の配下か。dir が "" (ルート)なら常に true。 */
+export const isSameOrInside = (p: string, dir: string): boolean => dir === "" || p === dir || p.startsWith(`${dir}/`);
+
+/** 名前変更・移動で、パス p がどこへ移るか。from の配下でなければそのまま。 */
+export function remapPath(p: string, from: string, to: string): string {
+  if (p === from) return to;
+  return p.startsWith(`${from}/`) ? to + p.slice(from.length) : p;
+}
+
+// Windows で使えない文字と予約名。フロントで先に弾いて、すぐ理由を見せる(最終判断は Rust 側)。
+const BAD_CHARS = /[\/:*?"<>|\u0000-\u001f]/;
+const RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
+
+/**
+ * 新しい名前の検査。問題があれば理由(日本語)、なければ null。
+ * siblings は同じフォルダの既存の名前(自分自身の元の名前は除いて渡す)。大文字小文字は区別せず重複とみなす。
+ */
+export function validateEntryName(name: string, siblings: string[] = []): string | null {
+  if (name.trim() === "") return "名前を入力してください。";
+  if (name === "." || name === "..") return "「.」「..」は名前にできません。";
+  if (name.includes("/") || name.includes("\\")) return "名前に「/」「\」は使えません(フォルダの中に作るには、先にそのフォルダを選んでください)。";
+  if (BAD_CHARS.test(name)) return "名前に使えない文字があります(: * ? \" < > | など)。";
+  if (/[. ]$/.test(name)) return "名前の末尾に「.」や空白は付けられません。";
+  if (RESERVED.test(name)) return "Windows の予約された名前なので使えません。";
+  const lower = name.toLowerCase();
+  if (siblings.some((s) => s.toLowerCase() === lower)) return "同じ名前がすでにあります。";
+  return null;
+}
+
+/** 新規作成の置き場所。選択中がフォルダならその中、ファイルならその親、何もなければルート。 */
+export function creationParent(selected: Pick<FsEntry, "relPath" | "kind"> | null): string {
+  if (!selected) return "";
+  return selected.kind === "dir" ? selected.relPath : parentPath(selected.relPath);
+}
+
+/** 絶対パス。プロジェクトのパスが使う区切り(Windows なら \)に合わせる。 */
+export function absolutePathOf(projectPath: string, relPath: string): string {
+  if (!relPath) return projectPath;
+  const sep = projectPath.includes("\\") ? "\\" : "/";
+  return projectPath.replace(/[\/]+$/, "") + sep + relPath.split("/").join(sep);
+}
+
+/** 名前変更・移動を、タブ・アクティブ・展開状態へ反映する。未保存の編集内容(draft)はそのまま保つ。 */
+export function renameInSession(s: Session, from: string, to: string): Session {
+  const seen = new Set<string>();
+  const tabs: Tab[] = [];
+  for (const t of s.tabs) {
+    const relPath = remapPath(t.relPath, from, to);
+    if (seen.has(relPath)) continue;
+    seen.add(relPath);
+    tabs.push(relPath === t.relPath ? t : { ...t, relPath });
+  }
+  return {
+    tabs,
+    active: s.active === null ? null : remapPath(s.active, from, to),
+    expanded: [...new Set(s.expanded.map((p) => remapPath(p, from, to)))],
+  };
+}
+
+/** relPath(ファイルまたはフォルダ)に含まれるタブ。 */
+export const tabsUnder = (s: Session, relPath: string): Tab[] => s.tabs.filter((t) => isSameOrInside(t.relPath, relPath));
+
+/** 削除を反映する。該当タブをすべて閉じ、展開状態からも外す(未保存の確認は呼び出し側で済ませる)。 */
+export function removeFromSession(s: Session, relPath: string): Session {
+  const closed = tabsUnder(s, relPath).reduce((acc, t) => closeTabIn(acc, t.relPath), s);
+  return { ...closed, expanded: closed.expanded.filter((p) => !isSameOrInside(p, relPath)) };
+}
+
+/** フォルダ一覧のキャッシュを、名前変更に合わせて付け替える(読み直すまでの間、ちらつかせない)。 */
+export function remapDirsCache(dirs: Record<string, TreeDir>, from: string, to: string): Record<string, TreeDir> {
+  const out: Record<string, TreeDir> = {};
+  for (const [key, d] of Object.entries(dirs)) {
+    out[remapPath(key, from, to)] = {
+      ...d,
+      entries: d.entries.map((e) => {
+        const relPath = remapPath(e.relPath, from, to);
+        return relPath === e.relPath ? e : { ...e, relPath, name: e.relPath === from ? baseName(to) : e.name };
+      }),
+    };
+  }
+  return out;
+}
+
+/** フォルダ一覧のキャッシュから、削除したパスの配下を捨てる。 */
+export function dropFromDirsCache(dirs: Record<string, TreeDir>, relPath: string): Record<string, TreeDir> {
+  const out: Record<string, TreeDir> = {};
+  for (const [key, d] of Object.entries(dirs)) {
+    if (key !== "" && isSameOrInside(key, relPath)) continue;
+    out[key] = { ...d, entries: d.entries.filter((e) => !isSameOrInside(e.relPath, relPath)) };
+  }
+  return out;
+}

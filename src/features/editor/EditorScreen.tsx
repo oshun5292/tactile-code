@@ -2,12 +2,13 @@ import { useEffect, type CSSProperties } from "react";
 import { api } from "../../api";
 import { languageColor } from "../../shared/languageColors";
 import { ChoiceDialog, type Choice } from "../../shared/ui/ChoiceDialog";
+import { Toast } from "../../shared/ui/Toast";
 import { useBoard } from "../board/store";
 import { AiPanel } from "./AiPanel";
 import { DocView } from "./DocView";
 import { EditorHeader } from "./EditorHeader";
 import { FileTree } from "./FileTree";
-import { baseName, emptySession, type Session } from "./editorLogic";
+import { absolutePathOf, baseName, emptySession, type Session } from "./editorLogic";
 import { useEditor } from "./editorStore";
 import { TabBar } from "./TabBar";
 import "./editor.css";
@@ -25,6 +26,8 @@ export function EditorScreen({ projectId }: { projectId: string }) {
   const conflict = useEditor((s) => s.conflict);
   const focusTick = useEditor((s) => s.focusTick);
   const quit = useEditor((s) => s.quit);
+  const deleteRequest = useEditor((s) => s.deleteRequest);
+  const notice = useEditor((s) => s.notice);
   const dirtyAll = useEditor((s) => s.sessions);
   const ed = useEditor.getState();
 
@@ -111,6 +114,10 @@ export function EditorScreen({ projectId }: { projectId: string }) {
     { label: "保存せず閉じる", variant: "danger", onClick: () => void ed.resolveQuit("discard") },
     { label: "保存して閉じる", variant: "primary", onClick: () => void ed.resolveQuit("save") },
   ];
+  const deleteChoices: Choice[] = [
+    { label: "やめる", variant: "ghost", autoFocus: true, onClick: () => void ed.resolveDelete(false) },
+    { label: "ごみ箱へ移す", variant: "danger", onClick: () => void ed.resolveDelete(true) },
+  ];
   const conflictChoices: Choice[] = [
     { label: "やめる", variant: "ghost", autoFocus: true, onClick: () => void ed.resolveConflict("cancel") },
     { label: "読み込み直す", variant: "ghost", onClick: () => void ed.resolveConflict("reload") },
@@ -124,6 +131,7 @@ export function EditorScreen({ projectId }: { projectId: string }) {
         activeTab={activeTab}
         onBack={() => ed.requestBack()}
         onSave={() => activeTab && void ed.save(projectId, activeTab.relPath)}
+        onOpenInVscode={() => void ed.openInVscode(projectId, "")}
         onNoteChange={(note) => void useBoard.getState().setNote(project.id, note)}
       />
 
@@ -134,6 +142,17 @@ export function EditorScreen({ projectId }: { projectId: string }) {
         onToggleDir={(p) => ed.toggleDir(projectId, p)}
         onOpenFile={(p) => void ed.openFile(projectId, p)}
         onReload={() => void ed.reloadTree(projectId)}
+        onCreate={(kind, relPath) => ed.createEntry(projectId, kind, relPath)}
+        onRename={(from, to) => ed.renameEntry(projectId, from, to)}
+        onDelete={(entry) => ed.requestDelete(projectId, entry.relPath, entry.kind)}
+        onCopyPath={(entry, absolute) => {
+          const text = absolute ? absolutePathOf(project.path, entry.relPath) : entry.relPath;
+          navigator.clipboard.writeText(text).then(
+            () => ed.notify("info", `${absolute ? "絶対" : "相対"}パスをコピーしました`),
+            () => ed.notify("error", "クリップボードにコピーできませんでした"),
+          );
+        }}
+        onOpenInVscode={(relPath) => void ed.openInVscode(projectId, relPath)}
       />
 
       <main className="pagemain">
@@ -176,6 +195,22 @@ export function EditorScreen({ projectId }: { projectId: string }) {
       <ChoiceDialog open={quit !== null} title="未保存の変更があります" choices={quitChoices} onCancel={() => void ed.resolveQuit("cancel")}>
         <p>保存していない変更が {quitDirty} 件のファイルにあります。</p>
       </ChoiceDialog>
+
+      <ChoiceDialog
+        open={deleteRequest !== null}
+        title={deleteRequest ? `「${baseName(deleteRequest.relPath)}」を削除しますか?` : ""}
+        choices={deleteChoices}
+        onCancel={() => void ed.resolveDelete(false)}
+      >
+        {/* 緑の囲み(confirm-safe)は使わず、普通の段落で伝える */}
+        <p>ごみ箱へ移します。ごみ箱から元に戻せます。</p>
+        {deleteRequest?.kind === "dir" && <p>フォルダの中身も、まとめてごみ箱へ移ります。</p>}
+        {deleteRequest && deleteRequest.dirtyCount > 0 && (
+          <p className="confirm-warn">保存していない変更が {deleteRequest.dirtyCount} 件のタブにあります。削除すると、この変更は失われます。</p>
+        )}
+      </ChoiceDialog>
+
+      <Toast toast={notice} onClose={() => ed.dismissNotice()} />
 
       <ChoiceDialog
         open={conflict !== null}

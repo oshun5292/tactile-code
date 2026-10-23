@@ -85,6 +85,15 @@ export interface Api {
   ): Promise<SavedFile>;
   /** 外部変更の検知用。ファイルが無い/読めないときは exists:false(失敗にしない)。 */
   statFiles(projectId: string, relPaths: string[]): Promise<FileStat[]>;
+  /** 空のファイルを作る。すでにあれば "既存:" で始まる文字列で失敗。親フォルダは存在していること。 */
+  createFile(projectId: string, relPath: string): Promise<FsEntry>;
+  createDir(projectId: string, relPath: string): Promise<FsEntry>;
+  /** 名前変更・移動(同じプロジェクトの内側)。行き先が既にあれば "既存:" で失敗。 */
+  renameEntry(projectId: string, fromRelPath: string, toRelPath: string): Promise<FsEntry>;
+  /** 完全には消さず、ごみ箱へ移す。 */
+  deleteEntry(projectId: string, relPath: string): Promise<void>;
+  /** VSCode の `code` コマンドで開く。relPath が空ならプロジェクトのフォルダ。見つからなければ "VSCode:" で始まる文字列で失敗。 */
+  openInVscode(projectId: string, relPath: string): Promise<void>;
   getEditorSession(projectId: string): Promise<EditorSessionData | null>;
   saveEditorSession(projectId: string, data: EditorSessionData): Promise<void>;
   /**
