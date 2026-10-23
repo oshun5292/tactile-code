@@ -1,8 +1,21 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
+import type { EncodingName } from "../../api/types";
+import { ContextMenu, type MenuItem } from "../../shared/ui/ContextMenu";
 import { languageForFilename } from "./cm/languages";
 import { CodeEditor } from "./cm/CodeEditor";
 import { MarkdownEditor } from "./cm/MarkdownEditor";
-import { baseName, isMarkdownFile, unopenableReason, type MdMode, type Session, type Tab } from "./editorLogic";
+import {
+  baseName,
+  canReopenWithEncoding,
+  canSaveWithEncoding,
+  encodingChoices,
+  encodingLabel,
+  isMarkdownFile,
+  unopenableReason,
+  type MdMode,
+  type Session,
+  type Tab,
+} from "./editorLogic";
 
 type Props = {
   session: Session;
@@ -11,7 +24,14 @@ type Props = {
   onSave: (relPath: string) => void;
   onMdMode: (relPath: string, mode: MdMode) => void;
   onReload: (relPath: string) => void;
+  /** 指定の文字コードで読み直す(未保存の確認はストア側) */
+  onReopen: (relPath: string, encoding: EncodingName) => void;
+  /** 指定の文字コードで保存する */
+  onSaveAs: (relPath: string, encoding: EncodingName) => void;
 };
+
+/** 文字コードのメニュー。root=「再度開く/保存」の選択、reopen・save=文字コード一覧。 */
+type EncMenu = { x: number; y: number; step: "root" | "reopen" | "save"; relPath: string };
 
 const MODES: { id: MdMode; label: string }[] = [
   { id: "edit", label: "書く" },
@@ -20,7 +40,8 @@ const MODES: { id: MdMode; label: string }[] = [
 ];
 
 /** 本文。開いているタブはすべてマウントしたまま隠し、切り替えても元に戻す履歴(Ctrl+Z)とスクロールが残るようにする。 */
-export function DocView({ session, focusTick, onEdit, onSave, onMdMode, onReload }: Props) {
+export function DocView({ session, focusTick, onEdit, onSave, onMdMode, onReload, onReopen, onSaveAs }: Props) {
+  const [menu, setMenu] = useState<EncMenu | null>(null);
   const active = session.tabs.find((t) => t.relPath === session.active) ?? null;
   const rootRef = useRef<HTMLDivElement>(null);
   const activeStatus = active?.status;
@@ -35,6 +56,9 @@ export function DocView({ session, focusTick, onEdit, onSave, onMdMode, onReload
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.active, focusTick, activeStatus]);
 
+  // 別のタブへ移ったらメニューは閉じる(違うファイルへ作用しないように)
+  useEffect(() => setMenu(null), [session.active]);
+
   if (!active) {
     return (
       <div className="doc">
@@ -48,6 +72,26 @@ export function DocView({ session, focusTick, onEdit, onSave, onMdMode, onReload
   const isMd = isMarkdownFile(active.relPath);
   const lang = languageForFilename(active.relPath).label;
 
+  const openMenu = (e: MouseEvent<HTMLElement>, step: EncMenu["step"]) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    setMenu({ x: r.left, y: r.bottom + 4, step, relPath: active.relPath });
+  };
+  const menuTab = menu ? session.tabs.find((t) => t.relPath === menu.relPath) : undefined;
+  const menuItems = (m: EncMenu, t: Tab): MenuItem[] => {
+    if (m.step === "root") {
+      return [
+        { label: "エンコード付きで再度開く", disabled: !canReopenWithEncoding(t), onClick: () => setMenu({ ...m, step: "reopen" }) },
+        { label: "エンコード付きで保存", disabled: !canSaveWithEncoding(t), onClick: () => setMenu({ ...m, step: "save" }) },
+      ];
+    }
+    // 現在の文字コードに印を付ける(文字コード不明のタブは印なし)
+    return encodingChoices(t.kind === "text" ? t.encoding : null).map((c) => ({
+      label: c.label,
+      hint: c.current ? "現在" : undefined,
+      onClick: () => (m.step === "reopen" ? onReopen(m.relPath, c.encoding) : onSaveAs(m.relPath, c.encoding)),
+    }));
+  };
+
   return (
     <div className="doc" ref={rootRef}>
       <div className="doc-bar">
@@ -55,6 +99,17 @@ export function DocView({ session, focusTick, onEdit, onSave, onMdMode, onReload
           {active.relPath}
         </span>
         <span className="doc-lang">{lang}</span>
+        {(active.kind === "text" || active.kind === "unsupportedEncoding") && active.status === "ready" && (
+          <button
+            type="button"
+            className="enc-btn"
+            aria-haspopup="menu"
+            title="文字コード(クリックで、再度開く・保存の選択)"
+            onClick={(e) => openMenu(e, "root")}
+          >
+            {active.kind === "text" ? encodingLabel(active.encoding) : "文字コード不明"}
+          </button>
+        )}
         {active.kind === "text" && isMd && (
           <div className="mode" role="group" aria-label="マークダウンの表示">
             {MODES.map((m) => (
@@ -75,15 +130,32 @@ export function DocView({ session, focusTick, onEdit, onSave, onMdMode, onReload
       <div className="doc-body">
         {session.tabs.map((t) => (
           <div key={t.relPath} className="doc-panel" role="tabpanel" aria-label={baseName(t.relPath)} hidden={t.relPath !== session.active}>
-            <Panel tab={t} onEdit={onEdit} onSave={onSave} onReload={onReload} />
+            <Panel tab={t} onEdit={onEdit} onSave={onSave} onReload={onReload} onOpenEncodingMenu={(e) => openMenu(e, "reopen")} />
           </div>
         ))}
       </div>
+
+      {menu && menuTab && (
+        <ContextMenu
+          key={menu.step}
+          x={menu.x}
+          y={menu.y}
+          label={menu.step === "save" ? "エンコード付きで保存" : menu.step === "reopen" ? "エンコード付きで再度開く" : "文字コード"}
+          items={menuItems(menu, menuTab)}
+          onClose={() => setMenu(null)}
+        />
+      )}
     </div>
   );
 }
 
-function Panel({ tab, onEdit, onSave, onReload }: { tab: Tab } & Pick<Props, "onEdit" | "onSave" | "onReload">) {
+function Panel({
+  tab,
+  onEdit,
+  onSave,
+  onReload,
+  onOpenEncodingMenu,
+}: { tab: Tab; onOpenEncodingMenu: (e: MouseEvent<HTMLElement>) => void } & Pick<Props, "onEdit" | "onSave" | "onReload">) {
   if (tab.status === "loading") {
     return (
       <p className="doc-state" role="status">
@@ -112,8 +184,13 @@ function Panel({ tab, onEdit, onSave, onReload }: { tab: Tab } & Pick<Props, "on
             <path d="M8 11V8a4 4 0 0 1 8 0v3" />
           </svg>
         </div>
-        <b>このファイルは開けません</b>
+        <b>{tab.kind === "unsupportedEncoding" ? "文字コードを判別できません" : "このファイルは開けません"}</b>
         <p>{tab.kind ? unopenableReason({ kind: tab.kind, size: tab.size }) : ""}</p>
+        {tab.kind === "unsupportedEncoding" && (
+          <button type="button" className="btn btn-primary" aria-haspopup="menu" onClick={onOpenEncodingMenu}>
+            エンコード付きで再度開く
+          </button>
+        )}
       </div>
     );
   }

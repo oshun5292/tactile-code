@@ -36,9 +36,9 @@ export const tauriApi: Api = {
     await invoke("save_viewport", { x, y, zoom });
   },
   listDir: (projectId, relPath) => invoke<FsEntry[]>("list_dir", { projectId, relPath }),
-  readFile: (projectId, relPath) => invoke<FileContent>("read_file", { projectId, relPath }),
-  writeFile: (projectId, relPath, content, expectedModified, eol, hasBom, force) =>
-    invoke<SavedFile>("write_file", { projectId, relPath, content, expectedModified, eol, hasBom, force }),
+  readFile: (projectId, relPath, encoding) => invoke<FileContent>("read_file", { projectId, relPath, encoding: encoding ?? null }),
+  writeFile: (projectId, relPath, content, expectedModified, eol, hasBom, encoding, force) =>
+    invoke<SavedFile>("write_file", { projectId, relPath, content, expectedModified, eol, hasBom, encoding, force }),
   createFile: (projectId, relPath) => invoke<FsEntry>("create_file", { projectId, relPath }),
   createDir: (projectId, relPath) => invoke<FsEntry>("create_dir", { projectId, relPath }),
   renameEntry: (projectId, fromRelPath, toRelPath) => invoke<FsEntry>("rename_entry", { projectId, fromRelPath, toRelPath }),

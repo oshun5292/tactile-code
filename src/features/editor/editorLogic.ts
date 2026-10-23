@@ -1,5 +1,5 @@
 // エディタ画面の純粋な処理(副作用なし)。ストアや画面から切り離して、Vitest で確認する。
-import type { EditorSessionData, Eol, FileContent, FileStat, FsEntry, SessionTab } from "../../api/types";
+import { ENCODINGS, type EditorSessionData, type EncodingName, type Eol, type FileContent, type FileStat, type FsEntry, type SessionTab } from "../../api/types";
 import { languageForFilename } from "./cm/languages";
 
 // ---------- パス ----------
@@ -68,7 +68,7 @@ export function unopenableReason(file: Pick<FileContent, "kind" | "size">): stri
     case "tooLarge":
       return `ファイルが大きすぎます(${formatBytes(file.size)}。開けるのは 2 MB までです)。`;
     case "unsupportedEncoding":
-      return "UTF-8 以外の文字コードです。今のバージョンでは対応していません。";
+      return "文字コードを判別できません。「エンコード付きで再度開く」で、文字コードを指定して開き直せます。";
     default:
       return "";
   }
@@ -93,6 +93,8 @@ export type Tab = {
   modified: string | null;
   eol: Eol;
   hasBom: boolean;
+  /** 判定した(または指定した)文字コード。保存時にそのまま渡す */
+  encoding: EncodingName;
   save: SaveState;
   saveError: string | null;
   mdMode: MdMode;
@@ -114,6 +116,7 @@ export function newTab(relPath: string, mdMode: MdMode = "split"): Tab {
     modified: null,
     eol: "lf",
     hasBom: false,
+    encoding: "utf-8",
     save: "idle",
     saveError: null,
     mdMode,
@@ -134,6 +137,8 @@ export function applyLoaded(tab: Tab, f: FileContent): Tab {
     modified: f.modified,
     eol: f.eol,
     hasBom: f.hasBom,
+    // text 以外のとき encoding は意味を持たないので、前の値を引きずらず既定に戻す
+    encoding: f.kind === "text" ? f.encoding : "utf-8",
     save: "idle",
     saveError: null,
     external: null,
@@ -276,6 +281,40 @@ export function planRestore(data: EditorSessionData | null, stats: FileStat[]): 
   const active = data.active && seen.has(data.active) ? data.active : (tabs[tabs.length - 1]?.relPath ?? null);
   return { tabs, active, expanded: [...new Set(data.expanded)] };
 }
+
+// ---------- 文字コード(3b-3) ----------
+
+/** 画面に出す名前(大文字)。 */
+export const encodingLabel = (e: EncodingName): string => e.toUpperCase();
+
+export type EncodingChoice = { encoding: EncodingName; label: string; current: boolean };
+
+/** メニューに並べる文字コード一覧。現在のものに印を付ける(current が null なら印なし)。 */
+export function encodingChoices(current: EncodingName | null): EncodingChoice[] {
+  return ENCODINGS.map((encoding) => ({ encoding, label: encodingLabel(encoding), current: encoding === current }));
+}
+
+const isUtf16 = (e: EncodingName) => e === "utf-16le" || e === "utf-16be";
+
+/** 「エンコード付きで再度開く」が使えるか。本文が開けているタブと、文字コード不明のタブ。 */
+export const canReopenWithEncoding = (t: Tab): boolean =>
+  t.status === "ready" && (t.kind === "text" || t.kind === "unsupportedEncoding");
+
+/** 「エンコード付きで保存」が使えるか。本文を持つタブだけ。 */
+export const canSaveWithEncoding = (t: Tab): boolean => t.status === "ready" && t.kind === "text" && t.draft !== null && t.save !== "saving";
+
+/**
+ * 文字コードを変えて保存するときの BOM。UTF-16 は BOM 無しを許さないので true、
+ * UTF-16 から別の文字コードへ移るときは BOM を持ち越さず false、それ以外は今のまま。
+ */
+export function bomForEncoding(from: EncodingName, to: EncodingName, hasBom: boolean): boolean {
+  if (isUtf16(to)) return true;
+  if (isUtf16(from)) return false;
+  return hasBom;
+}
+
+/** 保存して文字コードを変える必要があるか(内容が同じでも、文字コードが違えば書き直す)。 */
+export const needsWriteForEncoding = (t: Tab, encoding: EncodingName): boolean => t.encoding !== encoding;
 
 // ---------- ファイル操作(3b-2) ----------
 

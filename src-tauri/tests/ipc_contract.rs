@@ -362,18 +362,19 @@ fn stage3_editor_contract() {
     assert_eq!(
         keys,
         [
-            "content", "eol", "hasBom", "kind", "modified", "relPath", "size"
+            "content", "encoding", "eol", "hasBom", "kind", "modified", "relPath", "size"
         ]
     );
     assert_eq!(r["kind"], json!("text"));
     assert_eq!(r["content"], json!("# t\nb\n"));
     assert_eq!(r["eol"], json!("crlf"));
     assert_eq!(r["hasBom"], json!(false));
+    assert_eq!(r["encoding"], json!("utf-8"));
     assert_eq!(r["relPath"], json!("sub/x.md"));
 
     // 種類の名前(camelCase)
     std::fs::write(d.path().join("b.bin"), [0u8, 1]).unwrap();
-    std::fs::write(d.path().join("s.txt"), [0x82u8, 0xA0]).unwrap();
+    std::fs::write(d.path().join("s.txt"), [0x81u8, 0x20]).unwrap();
     std::fs::write(d.path().join("big.txt"), vec![b'a'; 2 * 1024 * 1024 + 1]).unwrap();
     let kind = |rel: &str| {
         call(&h, "read_file", json!({ "projectId": id, "relPath": rel })).unwrap()["kind"].clone()
@@ -387,7 +388,7 @@ fn stage3_editor_contract() {
         &h,
         "write_file",
         json!({ "projectId": id, "relPath": "sub/x.md", "content": "new\n",
-                "expectedModified": r["modified"], "eol": "crlf", "hasBom": true, "force": false }),
+                "expectedModified": r["modified"], "eol": "crlf", "hasBom": true, "encoding": "utf-8", "force": false }),
     )
     .unwrap();
     assert_eq!(saved["size"], json!(8)); // BOM 3 + "new\r\n" 5
@@ -402,7 +403,7 @@ fn stage3_editor_contract() {
         &h,
         "write_file",
         json!({ "projectId": id, "relPath": "sub/x.md", "content": "z",
-                "expectedModified": "2000-01-01T00:00:00Z", "eol": "lf", "hasBom": false, "force": false }),
+                "expectedModified": "2000-01-01T00:00:00Z", "eol": "lf", "hasBom": false, "encoding": "utf-8", "force": false }),
     )
     .unwrap_err();
     assert!(err.as_str().unwrap().starts_with("競合:"));
@@ -410,9 +411,76 @@ fn stage3_editor_contract() {
         &h,
         "write_file",
         json!({ "projectId": id, "relPath": "sub/x.md", "content": "z",
-                "expectedModified": null, "eol": "lf", "hasBom": false, "force": true }),
+                "expectedModified": null, "eol": "lf", "hasBom": false, "encoding": "utf-8", "force": true }),
     )
     .unwrap();
+
+    // 文字コード(段階3b-3): 自動判定・指定読み・変更保存・変換エラー。名前は ENCODINGS と一致する
+    let (sj, _, _) = encoding_rs::SHIFT_JIS.encode("日本語");
+    std::fs::write(d.path().join("sj.txt"), &sj).unwrap();
+    let r = call(
+        &h,
+        "read_file",
+        json!({ "projectId": id, "relPath": "sj.txt" }),
+    )
+    .unwrap();
+    assert_eq!(r["encoding"], json!("shift_jis"));
+    assert_eq!(r["content"], json!("日本語"));
+    // encoding: null(省略相当)は自動判定、指定すればその文字コードで読む
+    let r = call(
+        &h,
+        "read_file",
+        json!({ "projectId": id, "relPath": "sj.txt", "encoding": null }),
+    )
+    .unwrap();
+    assert_eq!(r["encoding"], json!("shift_jis"));
+    let r = call(
+        &h,
+        "read_file",
+        json!({ "projectId": id, "relPath": "sj.txt", "encoding": "utf-8" }),
+    )
+    .unwrap();
+    assert_eq!(r["kind"], json!("unsupportedEncoding"));
+    assert_eq!(r["encoding"], json!("utf-8"));
+    // 変換できない文字は「変換:」で失敗し、ファイルは変わらない
+    let err = call(
+        &h,
+        "write_file",
+        json!({ "projectId": id, "relPath": "sj.txt", "content": "😀",
+                "expectedModified": null, "eol": "lf", "hasBom": false, "encoding": "shift_jis", "force": true }),
+    )
+    .unwrap_err();
+    assert!(err.as_str().unwrap().starts_with("変換:"));
+    assert_eq!(std::fs::read(d.path().join("sj.txt")).unwrap(), sj.as_ref());
+    // 文字コードを変えて保存(UTF-16LE は BOM 付き)
+    call(
+        &h,
+        "write_file",
+        json!({ "projectId": id, "relPath": "sj.txt", "content": "a",
+                "expectedModified": null, "eol": "lf", "hasBom": false, "encoding": "utf-16le", "force": true }),
+    )
+    .unwrap();
+    assert_eq!(
+        std::fs::read(d.path().join("sj.txt")).unwrap(),
+        [0xFF, 0xFE, 0x61, 0x00]
+    );
+    let r = call(
+        &h,
+        "read_file",
+        json!({ "projectId": id, "relPath": "sj.txt" }),
+    )
+    .unwrap();
+    assert_eq!(r["encoding"], json!("utf-16le"));
+    assert_eq!(r["hasBom"], json!(true));
+    // 未知の文字コード名は拒否
+    assert!(
+        call(
+            &h,
+            "read_file",
+            json!({ "projectId": id, "relPath": "sj.txt", "encoding": "latin2" })
+        )
+        .is_err()
+    );
 
     // 拒否・未登録のプロジェクトは日本語の文字列エラー
     let err = call(

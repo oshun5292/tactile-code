@@ -1,7 +1,7 @@
 //! Tauri コマンドの入口(薄く保つ。処理は services / storage)。
 use crate::domain::{
     BoardState, EditorSession, Eol, FileContent, FileStat, FsEntry, Position, ProjectSummary,
-    SavedFile, StoredProject, Stroke, Viewport,
+    SavedFile, StoredProject, Stroke, TextEncoding, Viewport,
 };
 use crate::services::{board, fs, paths, summary::build_summary};
 use crate::storage::Store;
@@ -273,10 +273,11 @@ pub async fn list_dir(
 pub async fn read_file(
     project_id: String,
     rel_path: String,
+    encoding: Option<TextEncoding>,
     store: State<'_, Store>,
 ) -> Result<FileContent, String> {
     run_store(&store, move |s| {
-        fs::read_file(&project_root(s, &project_id)?, &rel_path)
+        fs::read_file(&project_root(s, &project_id)?, &rel_path, encoding)
     })
     .await
 }
@@ -290,6 +291,7 @@ pub async fn write_file(
     expected_modified: Option<String>,
     eol: Eol,
     has_bom: bool,
+    encoding: TextEncoding,
     force: bool,
     store: State<'_, Store>,
 ) -> Result<SavedFile, String> {
@@ -299,6 +301,7 @@ pub async fn write_file(
             expected_modified: expected_modified.as_deref(),
             eol,
             has_bom,
+            encoding,
             force,
         };
         fs::write_file(&project_root(s, &project_id)?, &rel_path, &req)

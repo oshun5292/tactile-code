@@ -1,17 +1,22 @@
 import { create } from "zustand";
 import { api } from "../../api";
+import type { EncodingName } from "../../api/types";
 import { toMessage } from "../../shared/format";
 import type { ToastData } from "../../shared/ui/Toast";
 import {
   ancestorsOf,
   applyLoaded,
+  bomForEncoding,
   buildSessionData,
+  canReopenWithEncoding,
   closeTabIn,
   dirtyTabs,
   discardDirtyTabs,
   dropFromDirsCache,
   emptySession,
+  isDirty,
   judgeExternal,
+  needsWriteForEncoding,
   newTab,
   openTabIn,
   planRestore,
@@ -32,7 +37,9 @@ import {
 export type Prompt =
   | { kind: "closeTab"; relPath: string }
   | { kind: "back" }
-  | { kind: "openProject"; projectId: string };
+  | { kind: "openProject"; projectId: string }
+  // 未保存の変更を捨てて、指定の文字コードで読み直す確認
+  | { kind: "reopen"; relPath: string; encoding: EncodingName };
 export type PromptChoice = "save" | "discard" | "cancel";
 
 /** ウィンドウを閉じようとして止まっている確認。選択結果で resolve(true=閉じる) する。 */
@@ -56,7 +63,8 @@ type EditorState = {
   /** プロジェクトごとのフォルダの一覧(relPath → 中身) */
   dirs: Record<string, Record<string, TreeDir>>;
   prompt: Prompt | null;
-  conflict: { projectId: string; relPath: string } | null;
+  // encoding は「文字コードを変えて保存」で競合したとき、上書きでも同じ文字コードを使うため
+  conflict: { projectId: string; relPath: string; encoding?: EncodingName } | null;
   quit: QuitRequest | null;
   /** 増えるたびに、本文のエディタへフォーカスを移す(タブを開いた・切り替えたとき) */
   focusTick: number;
@@ -91,7 +99,10 @@ type EditorState = {
   activateTab: (projectId: string, relPath: string) => void;
   setMdMode: (projectId: string, relPath: string, mode: MdMode) => void;
   edit: (projectId: string, relPath: string, next: string) => void;
-  save: (projectId: string, relPath: string, force?: boolean) => Promise<boolean>;
+  /** encoding を渡すと、その文字コードで保存する(内容が同じでも書く)。成功したらタブの文字コードを更新。 */
+  save: (projectId: string, relPath: string, force?: boolean, encoding?: EncodingName) => Promise<boolean>;
+  /** 指定の文字コードで読み直す。未保存の変更があれば、破棄の確認を挟む。 */
+  requestReopenWithEncoding: (projectId: string, relPath: string, encoding: EncodingName) => void;
   reloadTab: (projectId: string, relPath: string) => Promise<void>;
   resolveConflict: (choice: "overwrite" | "reload" | "cancel") => Promise<void>;
 };
@@ -117,9 +128,9 @@ export const useEditor = create<EditorState>((set, get) => {
     }
   }
 
-  async function loadTab(pid: string, relPath: string) {
+  async function loadTab(pid: string, relPath: string, encoding?: EncodingName) {
     try {
-      const f = await api.readFile(pid, relPath);
+      const f = await api.readFile(pid, relPath, encoding);
       patchTab(pid, relPath, (t) => applyLoaded(t, f));
     } catch (e) {
       patchTab(pid, relPath, { status: "error", error: toMessage(e) });
@@ -315,6 +326,13 @@ export const useEditor = create<EditorState>((set, get) => {
         bumpFocus();
         return;
       }
+      if (p.kind === "reopen") {
+        // 確認で「破棄」を選んだ。編集内容は捨てて、指定の文字コードで読み直す
+        set({ prompt: null });
+        patchTab(pid, p.relPath, { status: "loading", error: null });
+        await loadTab(pid, p.relPath, p.encoding);
+        return;
+      }
       // ボードへ戻る / 別のプロジェクトを開く
       if (choice === "save") {
         if (!(await saveAllDirty(pid))) {
@@ -419,19 +437,34 @@ export const useEditor = create<EditorState>((set, get) => {
         saveError: null,
       })),
 
-    save: async (projectId, relPath, force = false) => {
+    requestReopenWithEncoding: (projectId, relPath, encoding) => {
+      const tab = sessionOf(projectId).tabs.find((t) => t.relPath === relPath);
+      if (!tab || !canReopenWithEncoding(tab)) return;
+      if (isDirty(tab)) {
+        set({ prompt: { kind: "reopen", relPath, encoding } });
+        return;
+      }
+      patchTab(projectId, relPath, { status: "loading", error: null });
+      void loadTab(projectId, relPath, encoding);
+    },
+
+    save: async (projectId, relPath, force = false, encoding) => {
       const tab = sessionOf(projectId).tabs.find((t) => t.relPath === relPath);
       if (!tab || tab.kind !== "text" || tab.draft === null || tab.save === "saving") return false;
-      if (tab.draft === tab.baseline && !force) return true; // 変更なし
+      const target = encoding ?? tab.encoding;
+      if (tab.draft === tab.baseline && !force && !needsWriteForEncoding(tab, target)) return true; // 変更なし
+      const hasBom = bomForEncoding(tab.encoding, target, tab.hasBom);
       const content = tab.draft;
       patchTab(projectId, relPath, { save: "saving", saveError: null });
       try {
-        const res = await api.writeFile(projectId, relPath, content, tab.modified, tab.eol, tab.hasBom, force);
+        const res = await api.writeFile(projectId, relPath, content, tab.modified, tab.eol, hasBom, target, force);
         patchTab(projectId, relPath, (t) => ({
           ...t,
           baseline: content,
           modified: res.modified,
           size: res.size,
+          encoding: target,
+          hasBom,
           // 保存中にさらに打ち込んでいたら、まだ未保存のまま
           save: t.draft === content ? "saved" : "idle",
           saveError: null,
@@ -442,7 +475,7 @@ export const useEditor = create<EditorState>((set, get) => {
         const msg = toMessage(e);
         if (msg.startsWith("競合:")) {
           patchTab(projectId, relPath, { save: "idle", saveError: null });
-          set({ conflict: { projectId, relPath } });
+          set({ conflict: { projectId, relPath, encoding } });
         } else {
           patchTab(projectId, relPath, { save: "failed", saveError: msg });
         }
@@ -459,7 +492,7 @@ export const useEditor = create<EditorState>((set, get) => {
       const c = get().conflict;
       if (!c) return;
       set({ conflict: null });
-      if (choice === "overwrite") await get().save(c.projectId, c.relPath, true);
+      if (choice === "overwrite") await get().save(c.projectId, c.relPath, true, c.encoding);
       else if (choice === "reload") await get().reloadTab(c.projectId, c.relPath);
     },
   };

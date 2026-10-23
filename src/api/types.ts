@@ -33,6 +33,9 @@ export type BoardState = { strokes: Stroke[]; viewport: Viewport | null };
 
 // 段階3(docs/stage3-contract.md §2)。パスはプロジェクトのルートからの相対パス("/" 区切り、ルートは空文字)。
 export type FsEntry = { name: string; relPath: string; kind: "dir" | "file"; size: number; modified: string | null };
+/** 扱える文字コード(段階3b-3)。ラベルは encoding_rs の名前。 */
+export const ENCODINGS = ["utf-8", "shift_jis", "euc-jp", "utf-16le", "utf-16be", "windows-1252", "gbk", "big5", "euc-kr"] as const;
+export type EncodingName = (typeof ENCODINGS)[number];
 export type FileKind = "text" | "binary" | "tooLarge" | "unsupportedEncoding";
 export type Eol = "lf" | "crlf";
 export type FileContent = {
@@ -43,6 +46,8 @@ export type FileContent = {
   modified: string; // 保存時の競合検出に使う
   eol: Eol;
   hasBom: boolean;
+  /** 判定した(または指定された)文字コード。kind が "text" のときだけ意味を持つ。 */
+  encoding: EncodingName;
 };
 export type SavedFile = { modified: string; size: number };
 
@@ -72,7 +77,8 @@ export interface Api {
 
   /** 1階層だけ返す。フォルダが先、あとにファイル。 */
   listDir(projectId: string, relPath: string): Promise<FsEntry[]>;
-  readFile(projectId: string, relPath: string): Promise<FileContent>;
+  /** encoding を渡すと、自動判定せずにその文字コードで読む(VSCode の「エンコード付きで再度開く」)。 */
+  readFile(projectId: string, relPath: string, encoding?: EncodingName): Promise<FileContent>;
   /** 既存ファイルの上書き。競合のときは "競合:" で始まる文字列で失敗する(force: true で無視して保存)。 */
   writeFile(
     projectId: string,
@@ -81,6 +87,7 @@ export interface Api {
     expectedModified: string | null,
     eol: Eol,
     hasBom: boolean,
+    encoding: EncodingName,
     force: boolean,
   ): Promise<SavedFile>;
   /** 外部変更の検知用。ファイルが無い/読めないときは exists:false(失敗にしない)。 */

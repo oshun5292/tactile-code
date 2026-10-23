@@ -179,3 +179,11 @@
 .confirm-actions-wrap .btn { padding: 0 14px; }
 .btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; box-shadow: none; }
 .confirm-warn { color: var(--danger); }
+
+/* 文字コードのボタン(本文の上のバー)。言語ラベルに揃え、押せることだけ分かる程度に */
+.enc-btn {
+  font: inherit; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: var(--ink2);
+  background: var(--white); border: 1px solid var(--line); border-radius: 8px; padding: 2px 8px; cursor: pointer;
+}
+.enc-btn:hover { border-color: var(--proj-d, var(--ink2)); color: var(--ink); }
+.enc-btn:focus-visible { outline: 2px solid var(--proj-d, var(--ink2)); outline-offset: 1px; }

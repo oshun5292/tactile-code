@@ -8,7 +8,7 @@ import { AiPanel } from "./AiPanel";
 import { DocView } from "./DocView";
 import { EditorHeader } from "./EditorHeader";
 import { FileTree } from "./FileTree";
-import { absolutePathOf, baseName, emptySession, type Session } from "./editorLogic";
+import { absolutePathOf, baseName, emptySession, encodingLabel, type Session } from "./editorLogic";
 import { useEditor } from "./editorStore";
 import { TabBar } from "./TabBar";
 import "./editor.css";
@@ -102,12 +102,24 @@ export function EditorScreen({ projectId }: { projectId: string }) {
 
   // --- 確認ダイアログの文面 ---
   const dirtyCount = session.tabs.filter((t) => t.draft !== null && t.draft !== t.baseline).length;
-  const promptTitle = prompt?.kind === "closeTab" ? `${baseName(prompt.relPath)} を保存しますか?` : "未保存の変更があります";
-  const promptChoices: Choice[] = [
-    { label: "やめる", variant: "ghost", autoFocus: true, onClick: () => void ed.resolvePrompt("cancel") },
-    { label: "保存せず閉じる", variant: "danger", onClick: () => void ed.resolvePrompt("discard") },
-    { label: "保存して閉じる", variant: "primary", onClick: () => void ed.resolvePrompt("save") },
-  ];
+  const promptTitle =
+    prompt?.kind === "reopen"
+      ? `${baseName(prompt.relPath)} を ${encodingLabel(prompt.encoding)} で開き直しますか?`
+      : prompt?.kind === "closeTab"
+        ? `${baseName(prompt.relPath)} を保存しますか?`
+        : "未保存の変更があります";
+  // 開き直しは「保存して」の選択肢を持たない(保存は今の文字コードのまま、という意味になって紛らわしいため)
+  const promptChoices: Choice[] =
+    prompt?.kind === "reopen"
+      ? [
+          { label: "やめる", variant: "ghost", autoFocus: true, onClick: () => void ed.resolvePrompt("cancel") },
+          { label: "変更を捨てて開き直す", variant: "danger", onClick: () => void ed.resolvePrompt("discard") },
+        ]
+      : [
+          { label: "やめる", variant: "ghost", autoFocus: true, onClick: () => void ed.resolvePrompt("cancel") },
+          { label: "保存せず閉じる", variant: "danger", onClick: () => void ed.resolvePrompt("discard") },
+          { label: "保存して閉じる", variant: "primary", onClick: () => void ed.resolvePrompt("save") },
+        ];
   const quitDirty = Object.values(dirtyAll).reduce((n, s) => n + s.tabs.filter((t) => t.draft !== null && t.draft !== t.baseline).length, 0);
   const quitChoices: Choice[] = [
     { label: "やめる", variant: "ghost", autoFocus: true, onClick: () => void ed.resolveQuit("cancel") },
@@ -174,6 +186,8 @@ export function EditorScreen({ projectId }: { projectId: string }) {
           onSave={(p) => void ed.save(projectId, p)}
           onMdMode={(p, m) => ed.setMdMode(projectId, p, m)}
           onReload={(p) => void ed.reloadTab(projectId, p)}
+          onReopen={(p, enc) => ed.requestReopenWithEncoding(projectId, p, enc)}
+          onSaveAs={(p, enc) => void ed.save(projectId, p, false, enc)}
         />
       </main>
 
@@ -185,7 +199,9 @@ export function EditorScreen({ projectId }: { projectId: string }) {
         choices={promptChoices}
         onCancel={() => void ed.resolvePrompt("cancel")}
       >
-        {prompt?.kind === "closeTab" ? (
+        {prompt?.kind === "reopen" ? (
+          <p>開き直すと、保存していない変更は失われます。</p>
+        ) : prompt?.kind === "closeTab" ? (
           <p>このファイルには、保存していない変更があります。</p>
         ) : (
           <p>保存していない変更が {dirtyCount} 件のファイルにあります。</p>
