@@ -60,7 +60,7 @@ code{font:12.5px Consolas,"Cascadia Mono",monospace;background:var(--bg2);paddin
 <div class="wrap">
 
 <header>
-  <div class="eyebrow">REQUIREMENTS / v0.1 / 2026-10-20</div>
+  <div class="eyebrow">REQUIREMENTS / v0.2 / 2026-10-21</div>
   <h1>要件定義書<small>tactile code</small></h1>
   <p class="lead">ビジュアルシンカーのための、ボード型のプロジェクトエディタ。見た目は「36 gentle-bento」で確定。</p>
 </header>
@@ -85,6 +85,7 @@ code{font:12.5px Consolas,"Cascadia Mono",monospace;background:var(--bg2);paddin
     <li><a href="#users">2　利用者と利用シーン</a></li>
     <li><a href="#decided">3　決定事項の一覧</a></li>
     <li><a href="#fr">4　機能要件(MVP)</a></li>
+    <li><a href="#editor-features">4b　エディタの機能(2026-10-21 時点)</a></li>
     <li><a href="#phases">5　段階計画(MVPのあと)</a></li>
     <li><a href="#data">6　データ要件</a></li>
     <li><a href="#arch">7　技術方針</a></li>
@@ -143,7 +144,12 @@ code{font:12.5px Consolas,"Cascadia Mono",monospace;background:var(--bg2);paddin
   <tr><td>AIの方針</td><td>会話は Vercel AI SDK + OpenAI互換API(Gemini無料キー→Ollama)。開発エージェントは OpenCode。いずれも次段階</td><td><span class="tag t-dec">決定</span><span class="tag t-unk">未確認</span>調査報告ベース</td></tr>
   <tr><td>画面の切り替え</td><td>ボード⇄エディタは、アニメーションなしで瞬時に切り替える</td><td><span class="tag t-dec">決定</span></td></tr>
   <tr><td>カードの要素</td><td>番号(01など)、レビュー件数の大きな数字、進捗バーは<b>置かない</b></td><td><span class="tag t-dec">決定</span></td></tr>
-  <tr><td>カードの絵</td><td>利用者が選ぶ簡易アイコン方式(優先順位は低い)</td><td><span class="tag t-dec">決定</span></td></tr>
+  <tr><td>カードの絵</td><td>利用者が選ぶ簡易アイコン方式(優先順位は低い)。実施時期は「Phase 4 と Phase 5 の間(ビジュアル機能)」(2026-10-21 更新)</td><td><span class="tag t-dec">決定</span></td></tr>
+  <tr><td>エディタの目標(2026-10-21 更新)</td><td>エディタは「VSCode でできることと同じ」を目指す</td><td><span class="tag t-dec">決定</span>ユーザー決定</td></tr>
+  <tr><td>キーボード操作(2026-10-21 更新)</td><td>キーボードのみでの画面移動(アクセシビリティ)は後回し。カードをキーボードだけで開く機能は不要</td><td><span class="tag t-dec">決定</span>ユーザー決定</td></tr>
+  <tr><td>選択色・構文色(2026-10-21 更新)</td><td>選択色は現状でよい。マークダウン編集側の構文色は実装に任せる(実装済み: PR #13)</td><td><span class="tag t-dec">決定</span>ユーザー決定 / <span class="tag t-fact">事実</span>PR #13</td></tr>
+  <tr><td>カーソル(2026-10-21 更新)</td><td>手のマークは使わず、矢印に統一する(PR #5。マージ済み)</td><td><span class="tag t-dec">決定</span><span class="tag t-fact">事実</span>PR #5</td></tr>
+  <tr><td>削除の方式(2026-10-21 更新)</td><td>ファイル・フォルダの削除は、ごみ箱へ移す(<code>trash</code> クレート。承認済み)。確認ダイアログに緑の囲みは使わない</td><td><span class="tag t-dec">決定</span>ユーザー決定</td></tr>
   <tr><td>権限の扱い(AI段階)</td><td>AIが実行する操作は、アプリ内の確認ボタンで扱い、読み書きは指定フォルダ内に限定する</td><td><span class="tag t-dec">決定</span></td></tr>
   <tr><td>名前・git管理</td><td>プロダクト名は「<b>tactile code</b>」。GitHubリポジトリ: <code>oshun5292/tactile-code</code>(2026-10-20 時点で<b>公開(PUBLIC)</b>、main ブランチに既存の内容あり)</td><td><span class="tag t-dec">決定</span><span class="tag t-fact">事実</span>(gh CLI で確認)</td></tr>
 </table>
@@ -153,7 +159,7 @@ code{font:12.5px Consolas,"Cascadia Mono",monospace;background:var(--bg2);paddin
 <table>
   <tr><th>ID</th><th>機能</th><th>内容</th><th>優先度</th></tr>
   <tr><td class="id">FR-01</td><td>プロジェクト登録</td><td>フォルダ選択ダイアログで、ディレクトリをプロジェクトとして追加。パスを記憶し、次回起動時に自動で復元する。削除(記憶から外すだけで、フォルダは消さない)ができる。</td><td><span class="tag t-p1">必須</span></td></tr>
-  <tr><td class="id">FR-02</td><td>言語の自動検知</td><td>フォルダ内のファイル拡張子から、使われている言語と割合を検知。上位の言語を内訳バーで見せ、<b>メイン言語</b>(最大の割合)を決める。除外: <code>.git</code> <code>node_modules</code> <code>dist</code> <code>target</code> <code>.venv</code> など。.gitignore に従う。</td><td><span class="tag t-p1">必須</span></td></tr>
+  <tr><td class="id">FR-02</td><td>言語の自動検知</td><td>フォルダ内のファイルから、使われている言語と割合を検知。上位の言語を内訳バーで見せ、<b>メイン言語</b>(最大の割合)を決める。除外: <code>.git</code> <code>node_modules</code> <code>dist</code> <code>target</code> <code>.venv</code> など。.gitignore に従う。<br>(2026-10-21 更新)判定は拡張子ではなく<b>ファイルの中身(バイト)</b>で行う(詳細は <a href="#open">Q6</a>)。</td><td><span class="tag t-p1">必須</span></td></tr>
   <tr><td class="id">FR-03</td><td>プロジェクトカード</td><td>ボード上に、名前(ディレクトリ名)、パス、ブランチ、説明、ひと言メモ、最終更新、GitHub連携の状態、メイン言語の色と内訳バー、を表示する。<br>説明はREADMEの先頭行から取る(手入力で上書き可)。ひと言メモは手入力。最終更新はフォルダ内の最新のファイル更新(gitがあれば最終コミット)。</td><td><span class="tag t-p1">必須</span></td></tr>
   <tr><td class="id">FR-04</td><td>GitHub連携の表示(ローカル情報)</td><td>ローカルの git 設定から、リモート(origin)のリポジトリ名、公開/非公開(判定できる場合)、ブランチ、未push/未pullの件数(取得済みの追跡情報を基準)を表示する。連携していないフォルダは「未連携・ローカルのみ」と表示。<b>PR件数・CIの状態は、GitHub APIが必要なため次段階。</b></td><td><span class="tag t-p1">必須</span>(ローカル情報のみ)</td></tr>
   <tr><td class="id">FR-05</td><td>ボード操作</td><td>カードの自由配置(ドラッグ移動)、位置の保存、ズーム・パン、表示位置の保存。<br><span class="tag t-dec">決定</span>カード同士を線でつなぐ「コネクタ」は作らない(2026-10-21、実機で試したうえでの判断)。</td><td><span class="tag t-p1">必須</span></td></tr>
@@ -163,20 +169,46 @@ code{font:12.5px Consolas,"Cascadia Mono",monospace;background:var(--bg2);paddin
   <tr><td class="id">FR-09</td><td>マークダウン編集</td><td>書く / 半分(左で書き、右でプレビュー)/ 読む の3モード。保存(Ctrl+S)。見出し・箇条書き・チェックリスト・コードブロックなどを表示。</td><td><span class="tag t-p1">必須</span></td></tr>
   <tr><td class="id">FR-10</td><td>コードの閲覧・編集</td><td>行番号、シンタックスハイライト(TypeScript、Python、SQL、YAML、Rust、Markdown など)、保存。</td><td><span class="tag t-p1">必須</span></td></tr>
   <tr><td class="id">FR-11</td><td>色の共有</td><td>プロジェクトのメイン言語の色を、エディタのヘッダー・タブ・ファイルツリー・見出しに引き継ぐ。ファイルのアイコン色は、拡張子ごとの言語色にする。</td><td><span class="tag t-p1">必須</span></td></tr>
-  <tr><td class="id">FR-12</td><td>ファイル操作</td><td>新規ファイル・フォルダの作成、名前の変更、削除(ゴミ箱へ)。</td><td><span class="tag t-p2">できれば</span></td></tr>
+  <tr><td class="id">FR-12</td><td>ファイル操作</td><td>新規ファイル・フォルダの作成、名前の変更、削除(ごみ箱へ移す。<code>trash</code> クレート、承認済み)。(2026-10-21 更新)実装は PR #8(<a href="#editor-features">4b</a>)。実機確認: 未確認。</td><td><span class="tag t-p2">できれば</span></td></tr>
   <tr><td class="id">FR-13</td><td>VSCodeで開く</td><td>プロジェクトを、外部のVSCodeで開くボタン。現状の習慣(VSCodeから始める)から、移行しやすくする。</td><td><span class="tag t-p2">できれば</span><span class="tag t-opn">判断</span></td></tr>
   <tr><td class="id">FR-14</td><td>カードの簡易アイコン</td><td>プロジェクトごとに、用意した簡易アイコンから選ぶ。</td><td><span class="tag t-p3">次段階</span><span class="tag t-dec">決定</span>優先度は低い</td></tr>
   <tr><td class="id">FR-15</td><td>ひと言メモ・説明の編集</td><td>カード上で、ひと言メモと説明を直接編集できる。</td><td><span class="tag t-p1">必須</span></td></tr>
 </table>
 
+<h2 id="editor-features"><span class="n">4b</span>エディタの機能(2026-10-21 時点)</h2>
+<div class="box">
+  <p class="note">(2026-10-21 更新)新しい節。出典は各 PR。<span class="tag t-fact">事実</span>=PR として実装された内容、<span class="tag t-unk">未確認</span>=ユーザーの実機確認はこれから。PR のマージ状況は変わるため書かない(マージ済みと確認できているのは #4 と #5 のみ)。目標は「VSCode でできることと同じ」(<a href="#decided">3</a>、<span class="tag t-dec">決定</span>)。</p>
+</div>
+<table>
+  <tr><th>区分</th><th>機能</th><th>出典</th><th>実機確認</th></tr>
+  <tr><td>基本</td><td>ファイルツリー、タブ、マークダウン(書く/半分/読む)、コード編集、保存、保存時の競合検出</td><td>PR #4</td><td><span class="tag t-unk">未確認</span></td></tr>
+  <tr><td>保護</td><td>未保存で閉じるときの確認、外部での変更の検知、タブの復元</td><td>PR #6</td><td><span class="tag t-unk">未確認</span></td></tr>
+  <tr><td>ファイル操作</td><td>新規作成・名前変更・削除(ごみ箱へ)、VSCode で開く</td><td>PR #8</td><td><span class="tag t-unk">未確認</span></td></tr>
+  <tr><td>文字コード</td><td>UTF-8 以外(Shift_JIS・EUC-JP・UTF-16 など)の判定、別の文字コードで再度開く、変換して保存</td><td>PR #9</td><td><span class="tag t-unk">未確認</span></td></tr>
+  <tr><td>クイックオープン</td><td>Ctrl+P でファイル名から開く</td><td>PR #10</td><td><span class="tag t-unk">未確認</span></td></tr>
+  <tr><td>検索</td><td>Ctrl+Shift+F でプロジェクト内を検索</td><td>PR #11</td><td><span class="tag t-unk">未確認</span></td></tr>
+  <tr><td>ツリー操作</td><td>ドラッグでの移動・複製</td><td>PR #12</td><td><span class="tag t-unk">未確認</span></td></tr>
+  <tr><td>マークダウンの構文色</td><td>書く側(編集)の構文色(実装に任せる決定)</td><td>PR #13</td><td><span class="tag t-unk">未確認</span></td></tr>
+  <tr><td>タブ操作</td><td>タブの操作の追加</td><td>PR #15</td><td><span class="tag t-unk">未確認</span></td></tr>
+  <tr><td>状態バー</td><td>下部の状態バー</td><td>PR #16</td><td><span class="tag t-unk">未確認</span></td></tr>
+  <tr><td>表示・設定</td><td>文字サイズ、折り返し、行へ移動、設定</td><td>PR #17</td><td><span class="tag t-unk">未確認</span></td></tr>
+  <tr><td>保存</td><td>すべて保存、自動保存</td><td>PR #18</td><td><span class="tag t-unk">未確認</span></td></tr>
+  <tr><td>git 状態</td><td>ファイルツリーに git の状態を表示</td><td>PR #19</td><td><span class="tag t-unk">未確認</span></td></tr>
+</table>
+<p class="note">各行の「実機確認: 未確認」は、ユーザーが実機で試すまで変わらない。タブ操作・状態バーの細部は、PR の説明とコードが正(この表は概要)。<span class="tag t-unk">未確認</span></p>
+
 <h2 id="phases"><span class="n">5</span>段階計画(MVPのあと)</h2>
 <div class="box">
-  <p class="note"><span class="tag t-opn">判断</span>順序は私の提案です。MVPのあと、使いながら見直します。</p>
+  <p class="note">(2026-10-21 更新)順序を、実装済み・計画済みの内容に合わせて書き直した。Phase 2 の中身は提案書の段階で、<span class="tag t-opn">判断</span>(ユーザーの決定待ち)。</p>
   <div class="phase">
-    <div class="k">Phase 1</div><div><b>MVP: ボード+エディタ</b>(上の FR-01〜FR-11, FR-15)</div>
-    <div class="k">Phase 2</div><div><b>コードレビューとGitHub状態</b>(レビューのPhase 2入りは<span class="tag t-dec">決定</span>): ローカルgitの差分表示、行コメント、GitHub APIでPR件数・CIの状態を取得</div>
+    <div class="k">段階1</div><div><b>ボード</b>(FR-01〜FR-07, FR-15 など)</div>
+    <div class="k">段階2</div><div><b>手書き</b>: ペン、消しゴム、円の整形、戻す(FR-06)</div>
+    <div class="k">段階3a</div><div><b>エディタ(基本)</b>: ツリー・タブ・マークダウン・コード・保存(FR-08〜FR-11)</div>
+    <div class="k">段階3b</div><div><b>エディタ(仕上げ)</b>: <a href="#editor-features">4b</a> の各機能。目標は「VSCode でできることと同じ」</div>
+    <div class="k">Phase 2</div><div><b>コードレビューとGitHub状態</b>(レビューのPhase 2入りは<span class="tag t-dec">決定</span>): ローカルgitの差分表示、行コメント、GitHub APIでPR件数・CIの状態を取得。内容は提案書 <a href="phase2-proposal.html">docs/phase2-proposal.html</a>(PR #14)を参照。<span class="tag t-unk">未確認</span>提案書はユーザーの決定待ちで、決定済みではない</div>
     <div class="k">Phase 3</div><div><b>AI会話</b>: プロジェクトごとの会話。AIの窓口(インターフェース)を設け、モデルを差し替え可能に。Vercel AI SDK + OpenAI互換API(Gemini無料キー、Ollama)</div>
     <div class="k">Phase 4</div><div><b>開発エージェント</b>: OpenCode(必要ならACP)。アプリ内の確認ボタンで権限を扱い、読み書きは指定フォルダ内に限定</div>
+    <div class="k">ビジュアル機能</div><div><b>Phase 4 と Phase 5 の間</b>(<span class="tag t-dec">決定</span>): カードの簡易アイコン選択(FR-14)、丸がカードを避ける整形(FR-06 の後の課題)</div>
     <div class="k">Phase 5</div><div><b>スマホ連携</b>: PC側にサーバーを設けて、スマホから指示。(今は作らず、画面とAI実行部分の分離だけ守る)</div>
   </div>
 </div>
@@ -262,10 +294,10 @@ code{font:12.5px Consolas,"Cascadia Mono",monospace;background:var(--bg2);paddin
   <tr><td class="id">Q3</td><td><b>コードエディタ部品の選定</b>(Monaco / CodeMirror 6)</td><td><span class="tag t-dec">決定</span>調査を実施済み。<span class="tag t-opn">判断</span><b>CodeMirror 6 を採用</b>(<span class="tag t-dec">決定</span>。理由: 軽い/テーマをCSS変数で調整しやすい/Jinja対応/差分部品あり)。次点Monaco。要試作確認: Tauri上の日本語入力、Jinja入りSQL、100KB級ファイル、アクセント色の切替、差分+行コメント内の日本語入力。<span class="tag t-unk">未確認</span>調査報告ベース。<br><span class="tag t-fact">事実</span>2026-10-21 時点: 実装済み。Jinja入りSQLの色分け(<code>jinja({ base: sql() })</code>)とプロジェクト色の切替は、ブラウザ上で確認。<span class="tag t-unk">未確認</span>日本語入力(IME)・100KB級ファイル・Tauri実機は、ユーザーの確認待ち</td></tr>
   <tr><td class="id">Q4</td><td><b>右側のAI会話の領域</b>を、MVPでどう扱うか</td><td><span class="tag t-dec">決定</span>畳んだ状態を既定にし、細い縦のタブ「AI会話(準備中)」から開く形にする(段階3で実装)</td></tr>
   <tr><td class="id">Q5</td><td><b>アプリの名前</b></td><td><span class="tag t-dec">決定</span>「tactile code」</td></tr>
-  <tr><td class="id">Q6</td><td><b>言語の検知ルール</b>(除外フォルダ、複数言語の扱い、.ipynbやYAMLなどの分類)</td><td>GitHubの言語判定(linguist)に近い、拡張子ベースの簡易方式から始める</td></tr>
-  <tr><td class="id">Q7</td><td><b>簡易アイコンの種類と選び方</b>(優先度は低い)</td><td>Phase 2以降に、10〜20種から選ぶ形で検討</td></tr>
+  <tr><td class="id">Q6</td><td><b>言語の検知ルール</b>(除外フォルダ、複数言語の扱い、.ipynbやYAMLなどの分類)</td><td>(2026-10-21 更新)<span class="tag t-dec">決定</span>決定済み。当初案(拡張子ベース)から変更し、<b>ファイルの中身(バイト)で判定</b>する。<code>ignore</code> クレートで再帰し、.gitignore を尊重。重いフォルダ・ロックファイルを除外。上限は5万ファイル、1ファイル2MBまで。<span class="tag t-unk">未確認</span>実機の実フォルダでの精度は、ユーザーの確認待ち</td></tr>
+  <tr><td class="id">Q7</td><td><b>簡易アイコンの種類と選び方</b>(優先度は低い)</td><td>(2026-10-21 更新)<span class="tag t-dec">決定</span>実施時期は「Phase 4 と Phase 5 の間(ビジュアル機能)」。丸がカードを避ける整形も同じ時期。種類と選び方(10〜20種から選ぶ案)は<span class="tag t-opn">判断</span>のまま</td></tr>
   <tr><td class="id">R1</td><td><span class="tag t-unk">未確認</span>React Flowの無料版の表示義務(ロゴ表示など)のライセンス</td><td>実装の開始時に、公式のライセンスを確認する</td></tr>
-  <tr><td class="id">R2</td><td><span class="tag t-unk">未確認</span>Windowsでの、プロセス終了・文字コード・パスに日本語やスペースを含む場合の挙動</td><td>実機で検証する(特にPhase 3以降)</td></tr>
+  <tr><td class="id">R2</td><td><span class="tag t-unk">未確認</span>Windowsでの、プロセス終了・パスに日本語やスペースを含む場合の挙動。<br>(2026-10-21 更新)文字コードは、UTF-8 以外(Shift_JIS・EUC-JP・UTF-16 など)に対応した(PR #9)。<span class="tag t-unk">未確認</span>実機の実ファイルでの動作はこれから</td><td>実機で検証する(特にPhase 3以降)</td></tr>
   <tr><td class="id">R3</td><td><span class="tag t-unk">未確認</span>AIの方針(Gemini無料枠の上限・規約、OpenCodeのWindows動作、ACPのリモート対応)</td><td>Phase 3の着手前に、再調査する</td></tr>
   <tr><td class="id">R4</td><td><span class="tag t-unk">未確認</span>試作のボードは、ペン描画・ホバー・ドラッグ時の動きを、全て実機確認していない</td><td>実装後に、実機で確認する</td></tr>
   <tr><td class="id">R5</td><td>試作(HTML)は静的な見本で、データはダミー。実際のカード情報(言語・git・最終更新)の取得には、実装が必要</td><td>FR-02〜FR-04 の取得処理を、早い段階で試作して確かめる</td></tr>
