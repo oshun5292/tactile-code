@@ -22,7 +22,8 @@ const LANGS: &[(&str, &[&str])] = &[
     ("TOML", &["toml"]),
 ];
 
-const EXCLUDED_DIRS: &[&str] = &[
+/// クイックオープン(fs::list_files)と共有する除外フォルダ
+pub(crate) const EXCLUDED_DIRS: &[&str] = &[
     ".git",
     "node_modules",
     "target",

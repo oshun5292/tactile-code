@@ -395,6 +395,14 @@ export const mockApi: Api = {
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   },
+  async listFiles(projectId) {
+    await sleep(150);
+    find(projectId);
+    // ?mock=listfail で失敗表示、?mock=truncated で打ち切り注記を確認できる
+    if (mode === "listfail") throw "一覧を読めません(モックの失敗)";
+    const relPaths = [...filesOf(projectId).keys()].sort((a, b) => collator.compare(a, b));
+    return { relPaths, truncated: mode === "truncated" };
+  },
   async listDir(projectId, relPath) {
     await sleep(120);
     find(projectId);

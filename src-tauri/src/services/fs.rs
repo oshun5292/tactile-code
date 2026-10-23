@@ -1,8 +1,8 @@
 //! エディタのためのファイル操作(一覧・読み込み・保存)。契約書 docs/stage3-contract.md §4。
 //! パスの検証は `resolve` に集めてある。list_dir / read_file / write_file は必ずここを通る(漏れ防止)。
 use crate::domain::{
-    ContentKind, EditorSession, EntryKind, Eol, FileContent, FileStat, FsEntry, SavedFile,
-    SessionTab, TextEncoding,
+    ContentKind, EditorSession, EntryKind, Eol, FileContent, FileList, FileStat, FsEntry,
+    SavedFile, SessionTab, TextEncoding,
 };
 use std::cmp::Ordering;
 use std::io::{Read, Write};
@@ -11,6 +11,8 @@ use std::time::SystemTime;
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 
+/// クイックオープンの一覧の上限(超えたら打ち切り)
+const MAX_LIST_FILES: usize = 50_000;
 const MAX_BYTES: u64 = 2 * 1024 * 1024;
 const BINARY_SNIFF: usize = 8000;
 const BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
@@ -253,6 +255,71 @@ pub fn list_dir(root: &Path, rel: &str) -> Result<Vec<FsEntry>, String> {
             .then_with(|| natural_cmp(&a.name, &b.name))
     });
     Ok(out)
+}
+
+// ---------------------------------------------------------------- 全ファイル一覧(クイックオープン)
+
+/// プロジェクト内のファイルの相対パス一覧。除外は言語判定(language.rs)と同じ。
+pub fn list_files(root: &Path) -> Result<FileList, String> {
+    list_files_limited(root, MAX_LIST_FILES)
+}
+
+fn list_files_limited(root: &Path, limit: usize) -> Result<FileList, String> {
+    // ルートの検証は resolve に任せる(存在しない場合などを弾く)
+    let canon_root = resolve(root, "")?.path;
+    let walker = ignore::WalkBuilder::new(&canon_root)
+        .hidden(false) // .gitignore や .env も開けるように(VSCode と同じ)。.git だけは下で外す
+        .require_git(false) // git 管理外でも .gitignore を効かせる
+        .git_global(false) // 利用者ごとの設定で結果が変わらないように
+        .follow_links(false) // リンク・ジャンクションの先(外側)へ入らない
+        .filter_entry(|e| {
+            if e.depth() == 0 {
+                return true;
+            }
+            let is_dir = e.file_type().is_some_and(|t| t.is_dir());
+            let name = e.file_name().to_string_lossy();
+            // .git は中身が膨大なので、入る前に外す(後段の検査より前に)
+            !(is_dir
+                && (is_dot_git(&name)
+                    || crate::services::language::EXCLUDED_DIRS.contains(&name.as_ref())))
+        })
+        .build();
+
+    let mut rel_paths = Vec::new();
+    let mut truncated = false;
+    for entry in walker.flatten() {
+        if !entry.file_type().is_some_and(|t| t.is_file()) {
+            continue;
+        }
+        // リンクがファイル扱いで混ざらないよう、メタ情報でも確認する
+        if entry.metadata().map(|m| is_reparse(&m)).unwrap_or(true) {
+            continue;
+        }
+        // UTF-8 で表せない名前は、relPath で往復できないので出さない
+        if entry.file_name().to_str().is_none() {
+            continue;
+        }
+        let Some(inner) = relative_inside(&canon_root, entry.path()) else {
+            continue; // 内側と確認できないものは出さない
+        };
+        if inner.is_empty()
+            || inner
+                .iter()
+                .any(|c| is_dot_git(c) || c.starts_with(TMP_PREFIX))
+        {
+            continue;
+        }
+        if rel_paths.len() >= limit {
+            truncated = true;
+            break;
+        }
+        rel_paths.push(inner.join("/"));
+    }
+    rel_paths.sort_by(|a, b| natural_cmp(a, b));
+    Ok(FileList {
+        rel_paths,
+        truncated,
+    })
 }
 
 // ---------------------------------------------------------------- 読み込み
@@ -919,6 +986,90 @@ mod tests {
             encoding: TextEncoding::Utf8,
             force,
         }
+    }
+
+    #[test]
+    fn list_files_basic_exclusions_and_order() {
+        let d = proj();
+        let r = d.path();
+        for rel in [
+            "src/main.rs",
+            "file10.txt",
+            "file2.txt",
+            "日本語/メモ.md",
+            "node_modules/a/index.js",
+            "target/debug/x.rs",
+            ".git/config",
+            ".hidden/a.py",
+            "gen/out.txt",
+            "keep.txt",
+        ] {
+            let p = r.join(rel);
+            std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+            std::fs::write(p, "x").unwrap();
+        }
+        std::fs::write(r.join(".gitignore"), "gen/\n").unwrap();
+        let l = list_files(r).unwrap();
+        assert!(!l.truncated);
+        // フォルダは含まない・`/` 区切り・自然順(file2 < file10)。
+        // 隠しファイル(.gitignore・.hidden/a.py)は含め、.git・node_modules・target・.gitignore 済みは除く
+        assert_eq!(
+            l.rel_paths,
+            [
+                ".gitignore",
+                ".hidden/a.py",
+                "file2.txt",
+                "file10.txt",
+                "keep.txt",
+                "src/main.rs",
+                "日本語/メモ.md"
+            ]
+        );
+    }
+
+    #[test]
+    fn list_files_truncates_at_limit() {
+        let d = proj();
+        for i in 0..5 {
+            std::fs::write(d.path().join(format!("f{i}.txt")), "x").unwrap();
+        }
+        let l = list_files_limited(d.path(), 3).unwrap();
+        assert_eq!(l.rel_paths.len(), 3);
+        assert!(l.truncated);
+        // ちょうど上限なら打ち切りではない
+        let l = list_files_limited(d.path(), 5).unwrap();
+        assert_eq!(l.rel_paths.len(), 5);
+        assert!(!l.truncated);
+    }
+
+    #[test]
+    fn list_files_missing_root_is_error() {
+        let d = proj();
+        assert!(list_files(&d.path().join("nope")).is_err());
+    }
+
+    #[test]
+    fn list_files_does_not_follow_links() {
+        let outside = proj();
+        std::fs::write(outside.path().join("secret.txt"), "x").unwrap();
+        let d = proj();
+        std::fs::write(d.path().join("ok.txt"), "x").unwrap();
+        let link = d.path().join("lnk");
+        #[cfg(windows)]
+        let made = std::os::windows::fs::symlink_dir(outside.path(), &link).is_ok()
+            || std::process::Command::new("cmd")
+                .args(["/C", "mklink", "/J"])
+                .arg(&link)
+                .arg(outside.path())
+                .output()
+                .is_ok_and(|o| o.status.success());
+        #[cfg(unix)]
+        let made = std::os::unix::fs::symlink(outside.path(), &link).is_ok();
+        if !made {
+            return; // 権限がなく作れない環境ではスキップ
+        }
+        let l = list_files(d.path()).unwrap();
+        assert_eq!(l.rel_paths, ["ok.txt"]);
     }
 
     #[test]

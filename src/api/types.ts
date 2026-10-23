@@ -49,6 +49,8 @@ export type FileContent = {
   /** 判定した(または指定された)文字コード。kind が "text" のときだけ意味を持つ。 */
   encoding: EncodingName;
 };
+/** クイックオープン用。ファイルだけの相対パス一覧(".gitignore と重いフォルダを除く")。 */
+export type FileList = { relPaths: string[]; truncated: boolean };
 export type SavedFile = { modified: string; size: number };
 
 // 段階3b-1(docs/stage3b1-contract.md §2)。
@@ -90,6 +92,8 @@ export interface Api {
     encoding: EncodingName,
     force: boolean,
   ): Promise<SavedFile>;
+  /** プロジェクト内のファイルを再帰で列挙(上限 5 万件。超えたら truncated:true)。Ctrl+P で使う。 */
+  listFiles(projectId: string): Promise<FileList>;
   /** 外部変更の検知用。ファイルが無い/読めないときは exists:false(失敗にしない)。 */
   statFiles(projectId: string, relPaths: string[]): Promise<FileStat[]>;
   /** 空のファイルを作る。すでにあれば "既存:" で始まる文字列で失敗。親フォルダは存在していること。 */

@@ -1,4 +1,4 @@
-import { useEffect, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { api } from "../../api";
 import { languageColor } from "../../shared/languageColors";
 import { ChoiceDialog, type Choice } from "../../shared/ui/ChoiceDialog";
@@ -10,6 +10,7 @@ import { EditorHeader } from "./EditorHeader";
 import { FileTree } from "./FileTree";
 import { absolutePathOf, baseName, emptySession, encodingLabel, type Session } from "./editorLogic";
 import { useEditor } from "./editorStore";
+import { QuickOpen } from "./QuickOpen";
 import { TabBar } from "./TabBar";
 import "./editor.css";
 
@@ -30,6 +31,10 @@ export function EditorScreen({ projectId }: { projectId: string }) {
   const notice = useEditor((s) => s.notice);
   const dirtyAll = useEditor((s) => s.sessions);
   const ed = useEditor.getState();
+  const [quickOpen, setQuickOpen] = useState(false);
+  // 空の入力で先頭に出す「最近開いたファイル」。タブの並び順を使う(タブが変わらない限り同じ配列にする)
+  const tabKey = session.tabs.map((t) => t.relPath).join("\n");
+  const recent = useMemo(() => (tabKey ? tabKey.split("\n") : []), [tabKey]);
 
   const activeTab = session.tabs.find((t) => t.relPath === session.active) ?? null;
 
@@ -76,11 +81,15 @@ export function EditorScreen({ projectId }: { projectId: string }) {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         if (e.defaultPrevented || e.isComposing) return;
-        if (document.querySelector("dialog[open]") || document.querySelector(".cm-search")) return;
+        if (document.querySelector("dialog[open]") || document.querySelector(".cm-search") || document.querySelector(".quickopen")) return;
         const tag = (e.target as HTMLElement | null)?.tagName;
         if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
         e.preventDefault();
         useEditor.getState().requestBack();
+      } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "p") {
+        e.preventDefault(); // ブラウザの印刷を出さない(ダイアログ中でも抑える)
+        if (e.isComposing || document.querySelector("dialog[open]")) return;
+        setQuickOpen(true);
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
         if (e.defaultPrevented || document.querySelector("dialog[open]")) return; // 編集欄(CodeMirror)が処理済み / ダイアログ中
         e.preventDefault(); // ブラウザの「ページを保存」を出さない
@@ -144,6 +153,7 @@ export function EditorScreen({ projectId }: { projectId: string }) {
         onBack={() => ed.requestBack()}
         onSave={() => activeTab && void ed.save(projectId, activeTab.relPath)}
         onOpenInVscode={() => void ed.openInVscode(projectId, "")}
+        onQuickOpen={() => setQuickOpen(true)}
         onNoteChange={(note) => void useBoard.getState().setNote(project.id, note)}
       />
 
@@ -192,6 +202,15 @@ export function EditorScreen({ projectId }: { projectId: string }) {
       </main>
 
       <AiPanel />
+
+      {quickOpen && (
+        <QuickOpen
+          projectId={projectId}
+          recent={recent}
+          onClose={() => setQuickOpen(false)}
+          onOpen={(p) => void ed.openFile(projectId, p)}
+        />
+      )}
 
       <ChoiceDialog
         open={prompt !== null}
